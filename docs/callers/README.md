@@ -54,11 +54,11 @@ the same job.
 
 ### Repository or organization Actions secrets (source of the caller map)
 
-| Name                          | Purpose                                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------------------------- |
+| Name                               | Purpose                                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `DO_SPACES_DATA_ACCESS_KEY_ID`     | Limited Spaces key, exact `Read/Write/Delete` on both buckets. Required for a Spaces publication. |
 | `DO_SPACES_DATA_SECRET_ACCESS_KEY` | Its secret. Required for a Spaces publication.                                                    |
-| `DO_SPACES_SESSION_TOKEN`     | Optional STS session token; leave unset when you do not use one.                                  |
+| `DO_SPACES_SESSION_TOKEN`          | Optional STS session token; leave unset when you do not use one.                                  |
 
 The caller maps them to the three `CALLER_*` names the reusable workflow
 declares, all `required: false`:

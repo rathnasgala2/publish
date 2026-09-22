@@ -66,13 +66,13 @@ control-plane key.
 
 ## Contract sources and generation commands
 
-`@rathnasgala2/schemas@2.10.0` is consumed as a pinned local tarball dependency
-per LOCAL-1/LOCAL-43
-(`file:../../local-packages/rathnasgala2-schemas-2.10.0.tgz`, sha256
-`822644a309ab00cdbf6bc913b6024a7240681cec6a46688288c0f2da01940e1e`, recorded in
-`pins/ledger.json`); no schema is re-authored here. Protocol payloads are
-validated with the package's exported `validateGalaDocument(schemaId, value)`
-against `urn:gala:schema:adapter-capability:2.0.0`,
+`@rathnasgala2/schemas@2.11.0` is consumed from the public npm registry (exact
+pin, no range); the LOCAL-1/LOCAL-43 local-tarball convention
+(`file:../../local-packages/rathnasgala2-schemas-*.tgz`, pinned in
+`pins/ledger.json`) is retired for this package now that it publishes. No schema
+is re-authored here. Protocol payloads are validated with the package's exported
+`validateGalaDocument(schemaId, value)` against
+`urn:gala:schema:adapter-capability:2.0.0`,
 `urn:gala:schema:deployment-intent:2.0.0`,
 `urn:gala:schema:deployment-observation:2.0.0` and
 `urn:gala:schema:public-generation-marker:2.0.0`. There is no regeneration

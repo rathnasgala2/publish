@@ -74,15 +74,7 @@
       ]
     }
   ],
-  "packages": [
-    {
-      "name": "@rathnasgala2/schemas",
-      "version": "2.10.0",
-      "source": "file:../../local-packages/rathnasgala2-schemas-2.10.0.tgz",
-      "sha256": "822644a309ab00cdbf6bc913b6024a7240681cec6a46688288c0f2da01940e1e",
-      "purpose": "The authoritative wire validator for every adapter-capability and public-generation-marker document (LOCAL-1); 2.10.0 adds the DEC-097 Spaces closed-record vectors and x-gala-decision-phase annotations this packet consumes."
-    }
-  ],
+  "packages": [],
   "unresolved": [],
   "selfReferences": [
     {

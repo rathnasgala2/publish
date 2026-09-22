@@ -30,7 +30,7 @@
     "declarations:check": "node ../../scripts/check-declarations.mjs adapter-protocol"
   },
   "dependencies": {
-    "@rathnasgala2/schemas": "file:../../../../local-packages/rathnasgala2-schemas-2.10.0.tgz"
+    "@rathnasgala2/schemas": "2.11.0"
   },
   "publishConfig": {
     "access": "public"
