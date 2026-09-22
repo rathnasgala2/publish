@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - packages/**
+      - package.json
+      - package-lock.json
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify and publish bumped packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      # One level above $GITHUB_WORKSPACE, so the sibling checkouts below
+      # land next to this checkout rather than inside it — mirrors ci.yml:
+      # publish-action's template-bridge.js/theme-bridge.js resolve these
+      # siblings by path, and npm run verify exercises their tests.
+      WORKSPACE_ROOT: ${{ github.workspace }}/..
+    steps:
+      - name: Check out the complete history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # PLACEHOLDER (W0-01): ref is provisional until the template
+      # repository exists on GitHub with a frozen contract revision to
+      # pin to. packages/publish-action's template-bridge.js (TEMPLATE_ROOT)
+      # needs this checkout by path, and its own dependencies installed,
+      # for the tests npm run verify's `npm test` runs. Mirrors ci.yml
+      # exactly so release verifies against the same inputs CI does.
+      - name: Check out the template sibling repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/template
+          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          path: ../template
+          persist-credentials: false
+
+      # PLACEHOLDER (W0-01): ref is provisional until the theme-default
+      # repository exists on GitHub with a frozen release to pin to.
+      # packages/publish-action's theme-bridge.js (LOCAL-only sibling
+      # fallback step) needs this checkout by path for the same tests.
+      - name: Check out the theme-default sibling repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/theme-default
+          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          path: ../theme-default
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify toolchain pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node --version)" = "v24.18.0"
+          test "$(npm --version)" = "11.16.0"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install the template sibling's own dependencies
+        working-directory: ../template
+        run: npm ci
+
+      - name: Run the complete release gate
+        run: npm run verify
+
+      # Publish order follows the six packages' dependency graph:
+      # adapter-protocol has no in-repo dependents below it, publish-kernel
+      # depends on it, and the three concrete adapters plus the conformance
+      # kit sit above both. packages/publish-action is a scaffold
+      # placeholder (DEC-097-adjacent) and is deliberately excluded.
+      - name: Publish bumped packages in dependency order
+        shell: bash
+        env:
+          PACKAGE_DIRS: >-
+            adapter-protocol
+            publish-kernel
+            adapter-conformance-kit
+            adapter-local-directory
+            adapter-github-pages
+            adapter-do-spaces
+        run: |
+          set -euo pipefail
+
+          for package_dir in ${PACKAGE_DIRS}; do
+            manifest="packages/${package_dir}/package.json"
+            package_name="$(node --input-type=module -e "
+              import definition from './${manifest}' with { type: 'json' };
+              process.stdout.write(definition.name);
+            ")"
+            package_version="$(node --input-type=module -e "
+              import definition from './${manifest}' with { type: 'json' };
+              process.stdout.write(definition.version);
+            ")"
+
+            echo "== ${package_name}@${package_version} (${package_dir}) =="
+
+            npm pack --dry-run -w "${package_name}"
+
+            if npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+              echo "${package_name}@${package_version} is already published, skipping."
+              continue
+            fi
+
+            npm publish -w "${package_name}" --access public --provenance
+          done
