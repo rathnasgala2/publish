@@ -1,6 +1,9 @@
 node_modules/
 coverage/
 *.tgz
+
+# CI-only sibling checkouts (template, theme-default) inside the workspace
+.siblings/
 # Packet worktrees and the LOCAL-38 sibling symlinks kept beside them
 .worktrees/
 

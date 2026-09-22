@@ -10,6 +10,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/types/**',
       '**/*.d.ts',
+      '.siblings/**',
     ],
   },
   eslint.configs.recommended,

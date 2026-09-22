@@ -19,12 +19,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      # One level above $GITHUB_WORKSPACE (the runner's job work folder),
-      # so the sibling checkouts below land next to this checkout, not
-      # inside it — publish's own format:check/lint/architecture/duplication
-      # gates scan this repository recursively from its root, and a
-      # sibling checked out *inside* it would be swept into that scan.
-      WORKSPACE_ROOT: ${{ github.workspace }}/..
+      # Inside $GITHUB_WORKSPACE (actions/checkout refuses a `path:`
+      # outside it — see rathnasgala2/publish#run 35724753393), under
+      # `.siblings/` so publish's own format:check/lint gates (the only
+      # gates that scan this repository recursively from its root; see
+      # .prettierignore and eslint.config.js) can ignore that one
+      # directory instead. architecture/duplication/test are already
+      # scoped to packages/ and test/, so they never see it.
+      WORKSPACE_ROOT: ${{ github.workspace }}/.siblings
     steps:
       - name: Check out the complete history
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -37,15 +39,16 @@ jobs:
       # pin to. packages/publish-action's template-bridge.js (TEMPLATE_ROOT)
       # needs this checkout by path, and its own dependencies installed,
       # for the S2-T20/S2-T20b build/publish tests `npm test` runs.
-      # `path: ../template` (outside $GITHUB_WORKSPACE) matches
-      # WORKSPACE_ROOT above and keeps this checkout out of publish's own
-      # recursive lint/format/architecture scans.
+      # `path: .siblings/template` (inside $GITHUB_WORKSPACE, matching
+      # WORKSPACE_ROOT above) is required by actions/checkout; it is kept
+      # out of publish's own recursive lint/format scans via
+      # .prettierignore/eslint.config.js instead.
       - name: Check out the template sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/template
           ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
-          path: ../template
+          path: .siblings/template
           persist-credentials: false
 
       # PLACEHOLDER (W0-01): ref is provisional until the theme-default
@@ -57,7 +60,7 @@ jobs:
         with:
           repository: rathnasgala2/theme-default
           ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
-          path: ../theme-default
+          path: .siblings/theme-default
           persist-credentials: false
 
       - name: Install the pinned Node.js distribution
@@ -75,7 +78,7 @@ jobs:
         run: npm ci
 
       - name: Install the template sibling's own dependencies
-        working-directory: ../template
+        working-directory: .siblings/template
         run: npm ci
 
       - name: Run repository gates
