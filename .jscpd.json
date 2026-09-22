@@ -1,0 +1,14 @@
+{
+  "threshold": 3,
+  "minTokens": 50,
+  "reporters": ["consoleFull"],
+  "format": ["javascript"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/types/**",
+    "**/coverage/**",
+    "**/test/fixtures/**"
+  ],
+  "absolute": false,
+  "gitignore": true
+}

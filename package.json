@@ -1,0 +1,68 @@
+{
+  "name": "@rathnasgala2/publish-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Galascribe v2 publish workspace: provider-neutral publish safety kernel, in-process deployment adapter protocol and the three S2 adapters.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.18.0",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "version": "11.16.0",
+      "onFail": "error"
+    }
+  },
+  "packageManager": "npm@11.16.0",
+  "workspaces": [
+    "packages/publish-kernel",
+    "packages/adapter-protocol",
+    "packages/adapter-conformance-kit",
+    "packages/adapter-local-directory",
+    "packages/adapter-github-pages",
+    "packages/adapter-do-spaces",
+    "packages/publish-action"
+  ],
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces --if-present",
+    "architecture": "depcruise --validate .dependency-cruiser.cjs packages eslint.config.js",
+    "duplication": "jscpd packages",
+    "test": "npm run test --workspaces --if-present && npm run test:repo",
+    "declarations:generate": "npm run declarations:generate --workspaces --if-present",
+    "declarations:check": "npm run declarations:check --workspaces --if-present",
+    "sbom": "cyclonedx-npm --output-file sbom.cdx.json --output-format json --spec-version 1.6 && node scripts/normalize-sbom.mjs sbom.cdx.json",
+    "sbom:check": "node scripts/check-sbom-fresh.mjs",
+    "audit": "npm audit --audit-level=critical",
+    "workflows:check": "node scripts/check-workflow-pins.mjs",
+    "workflows:drift": "node scripts/check-workflow-drift.mjs",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run architecture && npm run duplication && npm test && npm run sbom:check && npm run audit && npm run workflows:check && npm run workflows:drift && npm run pins:check",
+    "test:repo": "node --test 'test/*.test.mjs'",
+    "pins:check": "node scripts/check-pins.mjs"
+  },
+  "devDependencies": {
+    "@cyclonedx/cyclonedx-npm": "6.0.1",
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.4",
+    "ajv": "8.20.0",
+    "dependency-cruiser": "18.2.0",
+    "eslint": "10.10.0",
+    "eslint-plugin-jsdoc": "64.3.9",
+    "globals": "17.12.0",
+    "jscpd": "5.2.0",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0",
+    "yaml": "2.9.0"
+  }
+}

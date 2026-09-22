@@ -1,0 +1,56 @@
+# The fixed author-owned caller. Install this file, verbatim, at
+# `.github/workflows/gala-publish-v2.yml` in your publication repository.
+#
+# Gala never writes it for you: S3 reads the declared graph at the exact
+# candidate/trigger commit and admits the caller only when its path, digest,
+# full-SHA reusable-workflow pin, trigger, permissions, input set, secret map
+# and guard equal this contract. A missing or stale caller is a recoverable
+# publication state you fix by updating this file — never permission for Gala
+# to generate or patch one.
+#
+# Replace only the two marked values: the full commit SHA of the
+# `rathnasgala2/publish` revision you are pinning, and the signed
+# service-origin catalog URL Gala gives you. Change nothing else.
+name: Gala publish
+
+on:
+  create:
+  workflow_dispatch:
+
+# Exactly this five-permission union and no other permission.
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+  pages: write
+  attestations: write
+
+concurrency:
+  group: gala-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # The exact coarse guard fixed by DEC-097. It is compared byte for byte.
+    if: >-
+      (github.event_name == 'create' && github.event.ref_type == 'branch' &&
+       github.ref == format('refs/heads/{0}', github.event.ref) &&
+       (startsWith(github.event.ref, 'gala/candidate/') ||
+        startsWith(github.event.ref, 'gala/publish/'))) ||
+      (github.event_name == 'workflow_dispatch' &&
+       startsWith(github.ref, 'refs/heads/gala/publish/'))
+    # REPLACE the 40-character lowercase hexadecimal commit SHA below with
+    # the `rathnasgala2/publish` revision Gala tells you to pin.
+    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@0000000000000000000000000000000000000000
+    with:
+      # REPLACE with the signed Gala service-origin catalog location.
+      service_origin_catalog_url: https://api.galascribe.com/v2/service-origins
+      artifact_retention_days: 7
+      require_github_attestation: false
+    # The sole caller secret map. `secrets: inherit` is never used, and no
+    # control-plane secret ever appears here.
+    secrets:
+      CALLER_DO_SPACES_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_DATA_ACCESS_KEY_ID }}
+      CALLER_DO_SPACES_SECRET_ACCESS_KEY:
+        ${{ secrets.DO_SPACES_DATA_SECRET_ACCESS_KEY }}
+      CALLER_DO_SPACES_SESSION_TOKEN: ${{ secrets.DO_SPACES_SESSION_TOKEN }}

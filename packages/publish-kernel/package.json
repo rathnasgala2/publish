@@ -1,0 +1,40 @@
+{
+  "name": "@rathnasgala2/publish-kernel",
+  "version": "0.1.0",
+  "description": "Provider-neutral, non-disableable publish safety kernel: the ten kernel duties over explicit inputs (DEC-016).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./types/index.d.ts",
+  "files": [
+    "src/",
+    "types/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage",
+    "declarations:generate": "tsc -p tsconfig.declarations.json",
+    "declarations:check": "node ../../scripts/check-declarations.mjs publish-kernel"
+  },
+  "dependencies": {
+    "@rathnasgala2/adapter-protocol": "^0.2.0",
+    "@rathnasgala2/schemas": "file:../../../../local-packages/rathnasgala2-schemas-2.10.0.tgz"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

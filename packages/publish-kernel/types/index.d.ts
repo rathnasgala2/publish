@@ -1,0 +1,14 @@
+export { checkPathContainment } from "./path-containment.js";
+export { checkBoundedResources } from "./bounded-resources.js";
+export { decideStagedActivation } from "./staged-activation.js";
+export { KernelError, FINDING_SEVERITIES, assertNoBlockingFinding, hasBlockingFinding, kernelFinding } from "./errors.js";
+export { assertArtifactIdentityAgreement, checkArtifactIdentityAgreement } from "./artifact-identity.js";
+export { checkDestinationAuthority, checkDestinationOwnership } from "./destination-authority.js";
+export { findSecretExposure, redactSecrets } from "./secret-redaction.js";
+export { checkConcurrencyFence, checkIdentitySyntax, decideIdempotency } from "./operation-fencing.js";
+export { ADAPTER_PROTOCOL_VERSION, EXPECT_NOTHING_SERVED, fenceDisagrees, fenceFor, requireGenerationFence } from "@rathnasgala2/adapter-protocol";
+export { checkNoBlindRetry, classifyMutationOutcome } from "./ambiguous-outcome.js";
+export { DEFAULT_MAXIMUM_PRIOR_GENERATIONS, retainCertifiedDigest, selectRetainedGeneration } from "./retention.js";
+export { CAPABILITY_DECISION_DOMAIN, buildCapabilityDecision, verifyCapabilityDecisionDigest } from "./capability-decision.js";
+export { PUBLIC_GENERATION_MARKER_SCHEMA_ID, buildGenerationMarker, checkGenerationMarker } from "./generation-marker.js";
+export { evaluateActivate, evaluateCleanupStaged, evaluateObserve, evaluatePreflight, evaluateRollback, evaluateStage } from "./kernel.js";

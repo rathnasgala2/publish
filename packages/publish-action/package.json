@@ -1,0 +1,43 @@
+{
+  "name": "@rathnasgala2/publish-action",
+  "version": "0.1.0",
+  "description": "Author-facing publish orchestration entry: GitHub Action plus local npx validate/build/preview.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./src/index.d.ts",
+  "bin": {
+    "publish-action": "./src/bin/cli.js"
+  },
+  "files": [
+    "src/",
+    "action.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@rathnasgala2/adapter-local-directory": "0.1.0",
+    "@rathnasgala2/adapter-protocol": "0.2.0",
+    "@rathnasgala2/publish-kernel": "0.1.0",
+    "@rathnasgala2/schemas": "file:../../../../local-packages/rathnasgala2-schemas-2.10.0.tgz",
+    "yaml": "2.9.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

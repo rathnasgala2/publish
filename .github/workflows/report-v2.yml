@@ -1,0 +1,121 @@
+# The same-commit receipt-report helper (S4-T06; slice brief section 3).
+# It has only `workflow_call`, job-scoped `actions: read` plus
+# `id-token: write`, and no destination secret.
+#
+# It verifies the report-challenge and the selected kernel-journal carriers,
+# obtains the distinct `urn:gala:workload:deployment-receipt:v2` assertion
+# and one-use reporting capability, and submits preliminary metadata plus
+# the kernel journal. It never constructs, signs or submits a deployment
+# receipt: Gala's reconciliation worker is the sole receipt issuer.
+name: Gala report v2
+
+on:
+  workflow_call:
+    inputs:
+      service_origin_catalog_url:
+        required: true
+        type: string
+      gala_api_origin:
+        required: true
+        type: string
+      report_challenge_id:
+        required: true
+        type: string
+      report_challenge_digest:
+        required: true
+        type: string
+      kernel_journal_id:
+        required: true
+        type: string
+      kernel_journal_digest:
+        required: true
+        type: string
+    outputs:
+      operation_status_url:
+        description: The stable operation handle the 202 response carried.
+        value: ${{ jobs.submit.outputs.operation_status_url }}
+
+permissions: {}
+
+jobs:
+  submit:
+    name: Submit the preliminary deployment report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      id-token: write
+    outputs:
+      operation_status_url: ${{ steps.submit.outputs.operation_status_url }}
+    steps:
+      - name: Download only the exact challenge and journal carriers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids:
+            ${{ inputs.report_challenge_id }},${{ inputs.kernel_journal_id }}
+          path: ${{ runner.temp }}/inbox
+
+      - name: Check out the pinned publish toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/publish
+          ref: ${{ github.workflow_sha }}
+          path: publish-toolchain
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: publish-toolchain/.node-version
+
+      - name: Install the integrity-locked publish toolchain
+        working-directory: publish-toolchain
+        run: npm ci --ignore-scripts
+
+      # The one `id-token: write` use in this job, and the only step that
+      # ever holds the reporting capability. It leaves here as a masked step
+      # output and is read back by exactly one step, below.
+      - name: Exchange the report challenge for a reporting capability
+        id: capability
+        shell: bash
+        env:
+          API_ORIGIN: ${{ inputs.gala_api_origin }}
+          EXPECTED_DIGEST: ${{ inputs.report_challenge_digest }}
+        run: |
+          set -euo pipefail
+          install -d "${RUNNER_TEMP}/carrier"
+          node publish-toolchain/scripts/workflow/exchange.mjs \
+            --purpose deployment-receipt \
+            --audience 'urn:gala:workload:deployment-receipt:v2' \
+            --api-origin "${API_ORIGIN}" \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --expected-digest "${EXPECTED_DIGEST}" \
+            --out-dir "${RUNNER_TEMP}/carrier"
+
+      - name: Submit the bounded report and kernel journal
+        id: submit
+        if: ${{ steps.capability.outputs.report_state == 'capability-issued' }}
+        shell: bash
+        # `inputs.service_origin_catalog_url` is not passed to the toolchain
+        # here: no helper in this repository fetches or verifies a signed
+        # service-origin catalog (DEC-097 treats it as an independently
+        # trusted external anchor, not a document this workflow resolves),
+        # so threading it through as a CLI argument nobody reads would be a
+        # false appearance of a check that does not exist.
+        env:
+          API_ORIGIN: ${{ inputs.gala_api_origin }}
+          CHALLENGE_DIGEST: ${{ inputs.report_challenge_digest }}
+          JOURNAL_DIGEST: ${{ inputs.kernel_journal_digest }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+          REPORTING_CAPABILITY:
+            ${{ steps.capability.outputs.reporting_capability }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/report.mjs \
+            --api-origin "${API_ORIGIN}" \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --challenge-digest "${CHALLENGE_DIGEST}" \
+            --journal-digest "${JOURNAL_DIGEST}" \
+            --repository-id "${REPOSITORY_ID}" \
+            --publisher-version "$(node -p "require('./publish-toolchain/packages/publish-action/package.json').version")" \
+            --evidence-out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-report-evidence-v2.jcs"

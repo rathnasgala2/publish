@@ -1,0 +1,8 @@
+node_modules/
+coverage/
+*.tgz
+# Packet worktrees and the LOCAL-38 sibling symlinks kept beside them
+.worktrees/
+
+# macOS Finder metadata
+.DS_Store

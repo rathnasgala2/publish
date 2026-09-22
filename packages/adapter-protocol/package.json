@@ -1,0 +1,38 @@
+{
+  "name": "@rathnasgala2/adapter-protocol",
+  "version": "0.2.0",
+  "description": "In-process deployment adapter lifecycle interface, closed capability vocabulary, provider limit profiles, negotiation and frame/message contract for Galascribe v2.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./types/index.d.ts",
+  "files": [
+    "src/",
+    "types/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test",
+    "declarations:generate": "tsc -p tsconfig.declarations.json",
+    "declarations:check": "node ../../scripts/check-declarations.mjs adapter-protocol"
+  },
+  "dependencies": {
+    "@rathnasgala2/schemas": "file:../../../../local-packages/rathnasgala2-schemas-2.10.0.tgz"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

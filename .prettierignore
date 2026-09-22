@@ -1,0 +1,8 @@
+node_modules/
+**/node_modules/
+**/types/
+**/coverage/
+package-lock.json
+sbom.cdx.json
+**/sbom.cdx.json
+scripts/workflow/spdx/spdx-schema-2.3.json

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    ".dependency-cruiser.cjs",
+    "eslint.config.js",
+    "scripts/**/*.mjs",
+    "test/**/*.mjs"
+  ]
+}

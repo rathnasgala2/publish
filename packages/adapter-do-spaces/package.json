@@ -1,0 +1,39 @@
+{
+  "name": "@rathnasgala2/adapter-do-spaces",
+  "version": "0.1.0",
+  "description": "Managed DigitalOcean Spaces deployment adapter: two-bucket website binding, exact SigV4 request catalog, private generation-prefixed staging, replace-in-place activation with a marker-last pointer write, and credential-free public verification.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./src/index.d.ts",
+  "files": [
+    "src/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@rathnasgala2/adapter-protocol": "0.2.0",
+    "@rathnasgala2/schemas": "file:../../../../local-packages/rathnasgala2-schemas-2.10.0.tgz"
+  },
+  "devDependencies": {
+    "@rathnasgala2/adapter-conformance-kit": "0.1.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "schemaId": "urn:gala:schema:author:2.0.0",
+  "schemaVersion": "2.0.0",
+  "id": "01912345-6789-7abc-89ab-0123456789ac",
+  "displayName": "Jane Doe",
+  "biography": "A fixture author with no real biography.",
+  "links": [{ "type": "website", "uri": "https://example.invalid/" }],
+  "localized": [],
+  "extensions": {}
+}

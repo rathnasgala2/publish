@@ -1,0 +1,857 @@
+# The public reusable publish workflow (S4-T06; DEC-097 section 6; slice
+# brief S4-workflow-build-deploy-certification.md section 2).
+#
+# It has only `workflow_call`. Trigger authority stays solely in the
+# author-owned fixed caller at `.github/workflows/gala-publish-v2.yml`
+# (see `docs/callers/gala-publish-v2.yml`); nobody adds a push, create,
+# dispatch or scheduled trigger here.
+#
+# The nine jobs, their `needs`, their conditions, their environments, their
+# timeouts and their permissions are normative set equality. The job
+# conditions below are DEC-097 section 6's literal expressions and are
+# compared byte for byte by `test/workflow-graph.test.mjs`.
+name: Gala publish v2
+
+on:
+  workflow_call:
+    inputs:
+      service_origin_catalog_url:
+        description: >-
+          Location of the signed Gala service-origin catalog. This is the only
+          Gala-side value the caller supplies; every other fact is derived from
+          the exact repository/ref/SHA/run identity, the verified source, the
+          lock and the Gala authorization.
+        required: true
+        type: string
+      gala_api_origin:
+        description: >-
+          The exact Gala API origin (scheme, host and port, nothing else) the
+          two workload routes are reached at. It is an input rather than a
+          constant because a Gala deployment is not a fixed address: a
+          hard-coded origin would make the workflow untestable against a staging
+          control plane and unusable by a self-hosted one.
+        required: true
+        type: string
+      artifact_retention_days:
+        description: Frozen-envelope retention in days (1..7).
+        required: false
+        default: 7
+        type: number
+      require_github_attestation:
+        description:
+          Whether the optional provenance/SBOM attestations are required.
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      # Exactly these three names, all optional. They are referenced only in
+      # `deploy-do-spaces`. `secrets: inherit` is never used.
+      CALLER_DO_SPACES_ACCESS_KEY_ID:
+        required: false
+      CALLER_DO_SPACES_SECRET_ACCESS_KEY:
+        required: false
+      CALLER_DO_SPACES_SESSION_TOKEN:
+        required: false
+    outputs:
+      ref_kind:
+        description:
+          The exact closed `candidate | publish` value from the prep parser.
+        value: ${{ jobs.prep.outputs.ref_kind }}
+      adapter_id:
+        description:
+          The selected adapter identity, or the empty string for a candidate
+          run.
+        value: ${{ jobs.authorize.outputs.adapter_id }}
+
+# The called workflow cannot elevate beyond the caller's five-permission
+# union; it grants nothing at file level and each job requests only its
+# exact fixed subset.
+permissions: {}
+
+env:
+  GALA_PUBLISH_REF: ${{ github.sha }}
+
+jobs:
+  prep:
+    name:
+      Parse the ref, verify the bound revision and publish the verified-input
+      carrier
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      ref_kind: ${{ steps.parse.outputs.ref_kind }}
+      stable_id: ${{ steps.parse.outputs.stable_id }}
+      carrier_id: ${{ steps.carrier.outputs.artifact_id }}
+      carrier_name: ${{ steps.carrier.outputs.artifact_name }}
+      carrier_digest: ${{ steps.carrier.outputs.artifact_digest }}
+      carrier_byte_count: ${{ steps.carrier.outputs.artifact_byte_count }}
+      carrier_expires_at: ${{ steps.carrier.outputs.artifact_expires_at }}
+    steps:
+      - name: Parse the exact publish or candidate ref
+        id: parse
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          case "${REF_NAME}" in
+            gala/candidate/*) kind=candidate; suffix="${REF_NAME#gala/candidate/}" ;;
+            gala/publish/*)   kind=publish;   suffix="${REF_NAME#gala/publish/}" ;;
+            *) echo "GALA_REF_GRAMMAR_INVALID: ${REF_NAME}" >&2; exit 1 ;;
+          esac
+          # The complete suffix must be exactly one canonical stableId
+          # (lowercase UUIDv7). A prefix match is not enough.
+          if ! printf '%s' "${suffix}" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'; then
+            echo "GALA_REF_STABLE_ID_INVALID: ${suffix}" >&2
+            exit 1
+          fi
+          if [ "${kind}" = "publish" ] && [ "${EVENT_NAME}" != "create" ] && [ "${EVENT_NAME}" != "workflow_dispatch" ]; then
+            echo "GALA_REF_EVENT_INVALID: ${EVENT_NAME}" >&2
+            exit 1
+          fi
+          echo "ref_kind=${kind}" >> "${GITHUB_OUTPUT}"
+          echo "stable_id=${suffix}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check out the bound source revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: source
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out the pinned publish toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/publish
+          ref: ${{ github.workflow_sha }}
+          path: publish-toolchain
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: publish-toolchain/.node-version
+
+      - name: Install the integrity-locked publish toolchain
+        working-directory: publish-toolchain
+        run: npm ci --ignore-scripts
+
+      - name: Build the verified-input carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d "${RUNNER_TEMP}/carrier"
+          node publish-toolchain/scripts/workflow/build-verified-inputs.mjs \
+            --source source \
+            --out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-verified-inputs-v2.bin"
+
+      - name: Upload the verified-input carrier
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path:
+            ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-verified-inputs-v2.bin
+          archive: false
+          overwrite: false
+          retention-days: 1
+
+      - name: Re-observe the uploaded carrier by exact ID
+        id: carrier
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/observe-carrier.mjs \
+            --artifact-id "${ARTIFACT_ID}" \
+            --expected-digest "${ARTIFACT_DIGEST}" \
+            --local "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-verified-inputs-v2.bin"
+
+  build:
+    name: Render the author build in the network-disabled sandbox
+    needs: [prep]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      actions: read
+    outputs:
+      carrier_id: ${{ steps.carrier.outputs.artifact_id }}
+      carrier_digest: ${{ steps.carrier.outputs.artifact_digest }}
+      carrier_name: ${{ steps.carrier.outputs.artifact_name }}
+      carrier_byte_count: ${{ steps.carrier.outputs.artifact_byte_count }}
+      carrier_expires_at: ${{ steps.carrier.outputs.artifact_expires_at }}
+    steps:
+      # This job starts in an empty workspace. It performs no checkout and
+      # makes no network request: it downloads only the exact verified-input
+      # carrier by ID and runs the author's build inside the sandbox.
+      - name: Download only the exact verified-input carrier
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.prep.outputs.carrier_id }}
+          path: ${{ runner.temp }}/inbox
+
+      - name: Check out the pinned publish toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/publish
+          ref: ${{ github.workflow_sha }}
+          path: publish-toolchain
+          persist-credentials: false
+
+      - name: Rehash and decode the carrier before use
+        shell: bash
+        env:
+          EXPECTED_DIGEST: ${{ needs.prep.outputs.carrier_digest }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/decode-carrier.mjs \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --expected-digest "${EXPECTED_DIGEST}" \
+            --out "${RUNNER_TEMP}/build-input"
+
+      - name: Run the author build in the isolated sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          publish-toolchain/scripts/sandbox-build.sh \
+            --source "${RUNNER_TEMP}/build-input/source" \
+            --output "${RUNNER_TEMP}/build-output" \
+            --timeout-seconds 900 \
+            --memory 2g \
+            --cpus 2
+
+      # The author build's writable tree is `$GALA_OUTPUT_DIR`: the artifact
+      # inventory under `artifact/` and publish-action's work directory under
+      # `work/`, whose `artifact-manifest.json` is the build's complete
+      # `artifact-manifest:2.0.0`. The manifest travels in the carrier as the
+      # reserved `metadata/artifact-manifest.json` member; freeze validates it
+      # against the pinned schema root and matches it one-for-one against the
+      # artifact files before it becomes the envelope's manifest record. The
+      # build's normalized `build-input.json` and verified `theme-contract.json`
+      # travel the same way (`metadata/build-input.json`,
+      # `metadata/theme-contract.json`): the authorization input quotes the
+      # rebuild-record members the manifest does not carry from them (DEC-097
+      # section 5), and freeze validates both against their schema roots.
+      - name: Build the unfrozen-output carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d "${RUNNER_TEMP}/carrier"
+          node publish-toolchain/scripts/workflow/pack-carrier.mjs \
+            --directory "${RUNNER_TEMP}/build-output/artifact" \
+            --manifest "${RUNNER_TEMP}/build-output/work/artifact-manifest.json" \
+            --build-input "${RUNNER_TEMP}/build-output/work/build-input.json" \
+            --theme-contract "${RUNNER_TEMP}/build-output/work/theme-contract.json" \
+            --out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-unfrozen-output-v2.bin"
+
+      - name: Upload the unfrozen-output carrier
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path:
+            ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-unfrozen-output-v2.bin
+          archive: false
+          overwrite: false
+          retention-days: 1
+
+      - name: Re-observe the uploaded carrier by exact ID
+        id: carrier
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/observe-carrier.mjs \
+            --artifact-id "${ARTIFACT_ID}" \
+            --expected-digest "${ARTIFACT_DIGEST}" \
+            --local "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-unfrozen-output-v2.bin"
+
+  freeze:
+    name: Independently recalculate the frozen envelope
+    needs: [prep, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+    outputs:
+      envelope_id: ${{ steps.envelope.outputs.artifact_id }}
+      envelope_digest: ${{ steps.envelope.outputs.artifact_digest }}
+      authorization_input_id: ${{ steps.authorization.outputs.artifact_id }}
+      authorization_input_digest:
+        ${{ steps.authorization.outputs.artifact_digest }}
+    steps:
+      # A third empty workspace: freeze trusts neither predecessor's
+      # filesystem, only their exact artifact IDs and digests.
+      - name: Download both exact predecessor carriers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids:
+            ${{ needs.prep.outputs.carrier_id }},${{
+            needs.build.outputs.carrier_id }}
+          path: ${{ runner.temp }}/inbox
+
+      - name: Check out the pinned publish toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/publish
+          ref: ${{ github.workflow_sha }}
+          path: publish-toolchain
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: publish-toolchain/.node-version
+
+      - name: Install the integrity-locked publish toolchain
+        working-directory: publish-toolchain
+        run: npm ci --ignore-scripts
+
+      # The two predecessor handoffs (exact ID, name, byte count, digest,
+      # expiry, each re-observed by its producing job) are retained in the
+      # envelope's provenance record as `verifiedInputHandoff` and
+      # `unfrozenOutputHandoff` (DEC-097 section 6).
+      - name: Recalculate the frozen envelope under the selected adapter
+        shell: bash
+        env:
+          VERIFIED_INPUTS_DIGEST: ${{ needs.prep.outputs.carrier_digest }}
+          VERIFIED_INPUTS_ID: ${{ needs.prep.outputs.carrier_id }}
+          VERIFIED_INPUTS_NAME: ${{ needs.prep.outputs.carrier_name }}
+          VERIFIED_INPUTS_BYTE_COUNT:
+            ${{ needs.prep.outputs.carrier_byte_count }}
+          VERIFIED_INPUTS_EXPIRES_AT:
+            ${{ needs.prep.outputs.carrier_expires_at }}
+          UNFROZEN_OUTPUT_DIGEST: ${{ needs.build.outputs.carrier_digest }}
+          UNFROZEN_OUTPUT_ID: ${{ needs.build.outputs.carrier_id }}
+          UNFROZEN_OUTPUT_NAME: ${{ needs.build.outputs.carrier_name }}
+          UNFROZEN_OUTPUT_BYTE_COUNT:
+            ${{ needs.build.outputs.carrier_byte_count }}
+          UNFROZEN_OUTPUT_EXPIRES_AT:
+            ${{ needs.build.outputs.carrier_expires_at }}
+          REF_KIND: ${{ needs.prep.outputs.ref_kind }}
+        run: |
+          set -euo pipefail
+          install -d "${RUNNER_TEMP}/carrier"
+          node publish-toolchain/scripts/workflow/freeze.mjs \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --verified-inputs-digest "${VERIFIED_INPUTS_DIGEST}" \
+            --verified-inputs-artifact-id "${VERIFIED_INPUTS_ID}" \
+            --verified-inputs-name "${VERIFIED_INPUTS_NAME}" \
+            --verified-inputs-byte-count "${VERIFIED_INPUTS_BYTE_COUNT}" \
+            --verified-inputs-expires-at "${VERIFIED_INPUTS_EXPIRES_AT}" \
+            --unfrozen-output-digest "${UNFROZEN_OUTPUT_DIGEST}" \
+            --unfrozen-output-artifact-id "${UNFROZEN_OUTPUT_ID}" \
+            --unfrozen-output-name "${UNFROZEN_OUTPUT_NAME}" \
+            --unfrozen-output-byte-count "${UNFROZEN_OUTPUT_BYTE_COUNT}" \
+            --unfrozen-output-expires-at "${UNFROZEN_OUTPUT_EXPIRES_AT}" \
+            --ref-kind "${REF_KIND}" \
+            --out-dir "${RUNNER_TEMP}/carrier"
+
+      - name: Upload the frozen envelope
+        id: upload-envelope
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path:
+            ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-frozen-envelope-v2.bin
+          archive: false
+          overwrite: false
+          retention-days: ${{ inputs.artifact_retention_days }}
+
+      - name: Re-observe the frozen envelope by exact ID
+        id: envelope
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload-envelope.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload-envelope.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/observe-carrier.mjs \
+            --artifact-id "${ARTIFACT_ID}" \
+            --expected-digest "${ARTIFACT_DIGEST}" \
+            --local "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-frozen-envelope-v2.bin"
+
+      # The authorization input is the exact request body `authorize` sends,
+      # so it is written only once the frozen handoff it names (artifact id,
+      # name, expiry) has been uploaded and re-observed. Every member comes
+      # from the verified source, the frozen bytes, the build's validated
+      # fact records, the runner's own bound identity or that upload; what
+      # Gala derives (schema 2.9.0, LOCAL-60: environment, targetDigest, the
+      # Spaces coordinates, the policy members, the capability decision) is
+      # not sent, and a workflow-held member with no source fails this step
+      # closed by name rather than being invented.
+      - name: Build the authorization input (publish refs only)
+        if: needs.prep.outputs.ref_kind == 'publish'
+        shell: bash
+        env:
+          VERIFIED_INPUTS_DIGEST: ${{ needs.prep.outputs.carrier_digest }}
+          UNFROZEN_OUTPUT_DIGEST: ${{ needs.build.outputs.carrier_digest }}
+          ENVELOPE_DIGEST: ${{ steps.envelope.outputs.artifact_digest }}
+          ENVELOPE_ARTIFACT_ID: ${{ steps.envelope.outputs.artifact_id }}
+          ENVELOPE_ARTIFACT_NAME: ${{ steps.envelope.outputs.artifact_name }}
+          ENVELOPE_EXPIRES_AT: ${{ steps.envelope.outputs.artifact_expires_at }}
+          RETENTION_DAYS: ${{ inputs.artifact_retention_days }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/build-authorization-input.mjs \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --verified-inputs-digest "${VERIFIED_INPUTS_DIGEST}" \
+            --unfrozen-output-digest "${UNFROZEN_OUTPUT_DIGEST}" \
+            --envelope "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-frozen-envelope-v2.bin" \
+            --envelope-digest "${ENVELOPE_DIGEST}" \
+            --frozen-handoff-artifact-id "${ENVELOPE_ARTIFACT_ID}" \
+            --frozen-handoff-name "${ENVELOPE_ARTIFACT_NAME}" \
+            --retention-days "${RETENTION_DAYS}" \
+            --artifact-expires-at "${ENVELOPE_EXPIRES_AT}" \
+            --out-dir "${RUNNER_TEMP}/carrier"
+
+      - name: Upload the authorization input (publish refs only)
+        id: upload-authorization
+        if: needs.prep.outputs.ref_kind == 'publish'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path:
+            ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-authorization-input-v2.jcs
+          archive: false
+          overwrite: false
+          retention-days: 1
+
+      - name: Re-observe the authorization input by exact ID
+        id: authorization
+        if: needs.prep.outputs.ref_kind == 'publish'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload-authorization.outputs.artifact-id }}
+          ARTIFACT_DIGEST:
+            ${{ steps.upload-authorization.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/observe-carrier.mjs \
+            --artifact-id "${ARTIFACT_ID}" \
+            --expected-digest "${ARTIFACT_DIGEST}" \
+            --local "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-authorization-input-v2.jcs"
+
+  attest:
+    name: Issue the optional provenance and SBOM attestations
+    needs: [freeze]
+    if: ${{ inputs.require_github_attestation }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
+    steps:
+      - name: Download only the exact frozen envelope
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.freeze.outputs.envelope_id }}
+          path: ${{ runner.temp }}/inbox
+
+      - name: Check out the pinned publish toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/publish
+          ref: ${{ github.workflow_sha }}
+          path: publish-toolchain
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: publish-toolchain/.node-version
+
+      - name: Install the integrity-locked publish toolchain
+        working-directory: publish-toolchain
+        run: npm ci --ignore-scripts
+
+      # DEC-097 section 6: attest revalidates the envelope's internal
+      # build-provenance record and extracts the exact SBOM record bytes; no
+      # reserialization and no generated alternative SBOM is ever supplied.
+      - name: Revalidate the envelope and extract the exact SBOM record
+        shell: bash
+        env:
+          ENVELOPE_DIGEST: ${{ needs.freeze.outputs.envelope_digest }}
+        run: |
+          set -euo pipefail
+          install -d "${RUNNER_TEMP}/attest"
+          node publish-toolchain/scripts/workflow/extract-frozen-record.mjs \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --expected-digest "${ENVELOPE_DIGEST}" \
+            --record sbom \
+            --out "${RUNNER_TEMP}/attest/sbom.spdx.json"
+
+      - name: Attest the frozen envelope's exact subject
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path:
+            ${{ runner.temp }}/inbox/**/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-frozen-envelope-v2.bin
+
+      # The SBOM predicate (`https://spdx.dev/Document/v2.3`) over the same
+      # exact subject, from the extracted record bytes.
+      - name: Attest the frozen envelope's SBOM record
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path:
+            ${{ runner.temp }}/inbox/**/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-frozen-envelope-v2.bin
+          sbom-path: ${{ runner.temp }}/attest/sbom.spdx.json
+
+  authorize:
+    name: Obtain the deployment-intent authorization
+    needs: [prep, freeze, attest]
+    # DEC-097 section 6's literal realizable guard: `always()` first, so the
+    # legitimate skipped-optional-attestation case is evaluated instead of
+    # being swallowed by GitHub's implicit success gating.
+    if:
+      ${{ always() && needs.prep.result == 'success' &&
+      needs.prep.outputs.ref_kind == 'publish' && needs.freeze.result ==
+      'success' && (needs.attest.result == 'success' || (needs.attest.result ==
+      'skipped' && inputs.require_github_attestation == false)) }}
+    permissions:
+      actions: read
+      id-token: write
+    uses: ./.github/workflows/authorize-v2.yml
+    with:
+      service_origin_catalog_url: ${{ inputs.service_origin_catalog_url }}
+      gala_api_origin: ${{ inputs.gala_api_origin }}
+      authorization_input_id: ${{ needs.freeze.outputs.authorization_input_id }}
+      authorization_input_digest:
+        ${{ needs.freeze.outputs.authorization_input_digest }}
+
+  verify-do-spaces-configuration:
+    name: Verify the Spaces website configuration with the protected control key
+    needs: [authorize, freeze]
+    if:
+      ${{ always() && needs.authorize.result == 'success' && needs.freeze.result
+      == 'success' && needs.authorize.outputs.adapter_id == 'do-spaces' }}
+    runs-on: ubuntu-24.04
+    environment: gala-production
+    timeout-minutes: 30
+    permissions:
+      actions: read
+    outputs:
+      evidence_id: ${{ steps.evidence.outputs.artifact_id }}
+      evidence_digest: ${{ steps.evidence.outputs.artifact_digest }}
+    steps:
+      - name: Download only the exact deployment-authorization handoff
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids:
+            ${{ needs.authorize.outputs.deployment_authorization_id }}
+          path: ${{ runner.temp }}/inbox
+
+      - name: Check out the pinned publish toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/publish
+          ref: ${{ github.workflow_sha }}
+          path: publish-toolchain
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: publish-toolchain/.node-version
+
+      - name: Install the integrity-locked publish toolchain
+        working-directory: publish-toolchain
+        run: npm ci --ignore-scripts
+
+      - name: Perform the two bounded read-only configuration checks
+        shell: bash
+        # This is the only job that may reference the protected full-access
+        # control key. None of its bytes or derived authorization values
+        # enters a caller secret, job output, artifact, digest, log, Gala
+        # request or the deploy job.
+        env:
+          DO_SPACES_CONTROL_ACCESS_KEY_ID:
+            ${{ secrets.DO_SPACES_CONTROL_ACCESS_KEY_ID }}
+          DO_SPACES_CONTROL_SECRET_ACCESS_KEY:
+            ${{ secrets.DO_SPACES_CONTROL_SECRET_ACCESS_KEY }}
+          DO_SPACES_CONTROL_SESSION_TOKEN:
+            ${{ secrets.DO_SPACES_CONTROL_SESSION_TOKEN }}
+        run: |
+          set -euo pipefail
+          install -d "${RUNNER_TEMP}/carrier"
+          node publish-toolchain/scripts/workflow/verify-spaces-configuration.mjs \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-spaces-control-plane-evidence-v2.jcs"
+
+      - name: Upload the credential-free control-plane evidence
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path:
+            ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-spaces-control-plane-evidence-v2.jcs
+          archive: false
+          overwrite: false
+          retention-days: 1
+
+      - name: Re-observe the evidence by exact ID
+        id: evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/observe-carrier.mjs \
+            --artifact-id "${ARTIFACT_ID}" \
+            --expected-digest "${ARTIFACT_DIGEST}" \
+            --local "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-spaces-control-plane-evidence-v2.jcs"
+
+  deploy-do-spaces:
+    name: Deploy to DigitalOcean Spaces
+    needs: [authorize, freeze, verify-do-spaces-configuration]
+    if:
+      ${{ always() && needs.authorize.result == 'success' && needs.freeze.result
+      == 'success' && needs['verify-do-spaces-configuration'].result ==
+      'success' && needs.authorize.outputs.adapter_id == 'do-spaces' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # No `environment` key: GitHub's called-job environment-secret
+    # precedence must not be able to replace an explicitly passed value.
+    permissions:
+      actions: read
+    outputs:
+      journal_id: ${{ steps.journal.outputs.artifact_id }}
+      journal_digest: ${{ steps.journal.outputs.artifact_digest }}
+    steps:
+      - name: Download the exact envelope, authorization and evidence carriers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids:
+            ${{ needs.freeze.outputs.envelope_id }},${{
+            needs.authorize.outputs.deployment_authorization_id }},${{
+            needs.verify-do-spaces-configuration.outputs.evidence_id }}
+          path: ${{ runner.temp }}/inbox
+
+      - name: Check out the pinned publish toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/publish
+          ref: ${{ github.workflow_sha }}
+          path: publish-toolchain
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: publish-toolchain/.node-version
+
+      - name: Install the integrity-locked publish toolchain
+        working-directory: publish-toolchain
+        run: npm ci --ignore-scripts
+
+      - name: Run the kernel and the Spaces adapter
+        shell: bash
+        # The only job permitted to reference the three caller-mapped
+        # limited-key secrets. It never receives the control-plane key.
+        env:
+          CALLER_DO_SPACES_ACCESS_KEY_ID:
+            ${{ secrets.CALLER_DO_SPACES_ACCESS_KEY_ID }}
+          CALLER_DO_SPACES_SECRET_ACCESS_KEY:
+            ${{ secrets.CALLER_DO_SPACES_SECRET_ACCESS_KEY }}
+          CALLER_DO_SPACES_SESSION_TOKEN:
+            ${{ secrets.CALLER_DO_SPACES_SESSION_TOKEN }}
+          ENVELOPE_DIGEST: ${{ needs.freeze.outputs.envelope_digest }}
+          EVIDENCE_DIGEST:
+            ${{ needs.verify-do-spaces-configuration.outputs.evidence_digest }}
+        run: |
+          set -euo pipefail
+          install -d "${RUNNER_TEMP}/carrier"
+          node publish-toolchain/scripts/workflow/deploy.mjs \
+            --adapter do-spaces \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --envelope-digest "${ENVELOPE_DIGEST}" \
+            --evidence-digest "${EVIDENCE_DIGEST}" \
+            --out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs"
+
+      - name: Upload the kernel journal
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path:
+            ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-kernel-journal-v2.jcs
+          archive: false
+          overwrite: false
+          retention-days: 1
+
+      - name: Re-observe the kernel journal by exact ID
+        id: journal
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/observe-carrier.mjs \
+            --artifact-id "${ARTIFACT_ID}" \
+            --expected-digest "${ARTIFACT_DIGEST}" \
+            --local "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs"
+
+  deploy-github-pages:
+    name: Deploy to GitHub Pages
+    needs: [authorize, freeze]
+    if:
+      ${{ always() && needs.authorize.result == 'success' && needs.freeze.result
+      == 'success' && needs.authorize.outputs.adapter_id == 'github-pages' }}
+    runs-on: ubuntu-24.04
+    environment: github-pages
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      id-token: write
+      pages: write
+    outputs:
+      journal_id: ${{ steps.journal.outputs.artifact_id }}
+      journal_digest: ${{ steps.journal.outputs.artifact_digest }}
+    steps:
+      - name: Download the exact envelope and authorization carriers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids:
+            ${{ needs.freeze.outputs.envelope_id }},${{
+            needs.authorize.outputs.deployment_authorization_id }}
+          path: ${{ runner.temp }}/inbox
+
+      - name: Check out the pinned publish toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/publish
+          ref: ${{ github.workflow_sha }}
+          path: publish-toolchain
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: publish-toolchain/.node-version
+
+      - name: Install the integrity-locked publish toolchain
+        working-directory: publish-toolchain
+        run: npm ci --ignore-scripts
+
+      - name: Build the deterministic Pages carrier
+        shell: bash
+        env:
+          ENVELOPE_DIGEST: ${{ needs.freeze.outputs.envelope_digest }}
+        run: |
+          set -euo pipefail
+          install -d "${RUNNER_TEMP}/carrier"
+          node publish-toolchain/scripts/workflow/build-pages-carrier.mjs \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --envelope-digest "${ENVELOPE_DIGEST}" \
+            --out "${RUNNER_TEMP}/carrier/gala-pages-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}"
+
+      - name: Upload the deterministic Pages carrier
+        id: upload-carrier
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gala-pages-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path:
+            ${{ runner.temp }}/carrier/gala-pages-r${{ github.run_id }}-a${{
+            github.run_attempt }}
+          archive: false
+          overwrite: false
+          retention-days: 1
+
+      - name: Run the kernel and the raw Pages REST adapter
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_ID: ${{ steps.upload-carrier.outputs.artifact-id }}
+          PAGES_ARTIFACT_DIGEST:
+            ${{ steps.upload-carrier.outputs.artifact-digest }}
+          ENVELOPE_DIGEST: ${{ needs.freeze.outputs.envelope_digest }}
+          # The exact reusable-workflow identity the acquired Pages OIDC
+          # token's `job_workflow_ref`/`job_workflow_sha` claims must bind
+          # to. It is not a default runner variable, so it is mapped here.
+          GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/deploy.mjs \
+            --adapter github-pages \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --envelope-digest "${ENVELOPE_DIGEST}" \
+            --pages-artifact-id "${PAGES_ARTIFACT_ID}" \
+            --pages-artifact-digest "${PAGES_ARTIFACT_DIGEST}" \
+            --out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs"
+
+      - name: Upload the kernel journal
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path:
+            ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-kernel-journal-v2.jcs
+          archive: false
+          overwrite: false
+          retention-days: 1
+
+      - name: Re-observe the kernel journal by exact ID
+        id: journal
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/observe-carrier.mjs \
+            --artifact-id "${ARTIFACT_ID}" \
+            --expected-digest "${ARTIFACT_DIGEST}" \
+            --local "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs"
+
+  report:
+    name: Submit the preliminary report and kernel journal
+    needs: [authorize, deploy-do-spaces, deploy-github-pages]
+    # DEC-097 section 6's literal guard: exactly one successful deploy job
+    # and exactly one skipped deploy job.
+    if:
+      ${{ always() && needs.authorize.result == 'success' &&
+      ((needs.authorize.outputs.adapter_id == 'do-spaces' &&
+      needs['deploy-do-spaces'].result == 'success' &&
+      needs['deploy-github-pages'].result == 'skipped') ||
+      (needs.authorize.outputs.adapter_id == 'github-pages' &&
+      needs['deploy-github-pages'].result == 'success' &&
+      needs['deploy-do-spaces'].result == 'skipped')) }}
+    permissions:
+      actions: read
+      id-token: write
+    uses: ./.github/workflows/report-v2.yml
+    with:
+      service_origin_catalog_url: ${{ inputs.service_origin_catalog_url }}
+      gala_api_origin: ${{ inputs.gala_api_origin }}
+      report_challenge_id: ${{ needs.authorize.outputs.report_challenge_id }}
+      report_challenge_digest:
+        ${{ needs.authorize.outputs.report_challenge_digest }}
+      kernel_journal_id:
+        ${{ needs.authorize.outputs.adapter_id == 'do-spaces' &&
+        needs.deploy-do-spaces.outputs.journal_id ||
+        needs.deploy-github-pages.outputs.journal_id }}
+      kernel_journal_digest:
+        ${{ needs.authorize.outputs.adapter_id == 'do-spaces' &&
+        needs.deploy-do-spaces.outputs.journal_digest ||
+        needs.deploy-github-pages.outputs.journal_digest }}

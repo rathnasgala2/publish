@@ -1,0 +1,567 @@
+{
+  "family": "lowercase-capabilities",
+  "cases": [
+    {
+      "caseId": "capability-local-directory-valid-lowercase",
+      "schemaId": "urn:gala:schema:adapter-capability:2.0.0",
+      "instance": {
+        "schemaId": "urn:gala:schema:adapter-capability:2.0.0",
+        "schemaVersion": "2.0.0",
+        "contractVersion": "2.0.0",
+        "protocolRange": "^2.0.0",
+        "capabilityDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        "adapter": {
+          "adapterId": "local-directory",
+          "adapterVersion": "2.0.0",
+          "adapterDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000001"
+        },
+        "destinationKinds": ["local-directory"],
+        "operations": [
+          "activate",
+          "cleanup-staged",
+          "inspect",
+          "observe",
+          "rollback",
+          "stage"
+        ],
+        "staging": "unreachable-generation",
+        "activation": "pointer-swap",
+        "concurrency": "expected-generation",
+        "idempotencyClass": "observable-identity",
+        "rollback": "reupload",
+        "verification": [
+          "artifact-digest",
+          "generation-marker",
+          "provider-state"
+        ],
+        "providerInventoryAssurance": "complete-artifact-digest",
+        "configuration": {
+          "redirects": false,
+          "headers": false,
+          "customDomains": false,
+          "notFoundBehavior": false,
+          "immutableCaching": false
+        },
+        "cacheInvalidation": "none",
+        "limits": {
+          "transport": "filesystem",
+          "filesystemProfile": "gala-local-directory-filesystem-v2",
+          "filesystemAllowlistDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+          "maximumFiles": "1",
+          "maximumFileBytes": "1",
+          "maximumArtifactBytes": "1",
+          "maximumProviderCallSeconds": 1,
+          "maximumPathBytes": 1,
+          "pathRuleProfile": "gala-portable-v2"
+        },
+        "filesystemEvidenceDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      "expectedDiagnostics": []
+    },
+    {
+      "caseId": "capability-github-pages-valid-lowercase",
+      "schemaId": "urn:gala:schema:adapter-capability:2.0.0",
+      "instance": {
+        "schemaId": "urn:gala:schema:adapter-capability:2.0.0",
+        "schemaVersion": "2.0.0",
+        "contractVersion": "2.0.0",
+        "protocolRange": "^2.0.0",
+        "capabilityDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+        "adapter": {
+          "adapterId": "github-pages",
+          "adapterVersion": "2.0.0",
+          "adapterDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000002"
+        },
+        "destinationKinds": ["github-pages"],
+        "operations": [
+          "activate",
+          "cleanup-staged",
+          "inspect",
+          "observe",
+          "rollback",
+          "stage"
+        ],
+        "staging": "private",
+        "activation": "provider-promotion",
+        "concurrency": "none",
+        "idempotencyClass": "observable-identity",
+        "rollback": "reupload",
+        "verification": ["generation-marker", "provider-state", "public-http"],
+        "providerInventoryAssurance": "none",
+        "configuration": {
+          "redirects": false,
+          "headers": false,
+          "customDomains": false,
+          "notFoundBehavior": false,
+          "immutableCaching": false
+        },
+        "cacheInvalidation": "none",
+        "limits": {
+          "transport": "http",
+          "maximumFiles": "1",
+          "maximumFileBytes": "1",
+          "maximumArtifactBytes": "1",
+          "maximumProviderCallSeconds": 2,
+          "maximumPathBytes": 2,
+          "pathRuleProfile": "gala-portable-v2",
+          "requestTemplateProfile": "gala-github-pages-http-v2",
+          "requestTemplateCatalogDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+          "requestTemplates": [
+            {
+              "stage": "inspect",
+              "callClass": "fixture-1",
+              "method": "GET",
+              "origin": "https://fixture-1.example.com/",
+              "requestTargetTemplate": "fixture-1",
+              "canonicalQueryProfile": "none",
+              "maximumRequestTargetBytes": 1,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "empty",
+              "responseProfile": "pages-cancel-empty-v2"
+            },
+            {
+              "responseProfile": "pages-create-deployment-json-v2",
+              "stage": "stage",
+              "callClass": "fixture-2",
+              "method": "HEAD",
+              "origin": "https://fixture-2.example.com/",
+              "requestTargetTemplate": "fixture-2",
+              "canonicalQueryProfile": "spaces-list-v2",
+              "maximumRequestTargetBytes": 2,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "gala-pages-create-deployment-jcs-v2"
+            },
+            {
+              "responseProfile": "pages-deployment-status-json-v2",
+              "stage": "stage",
+              "callClass": "fixture-2",
+              "method": "HEAD",
+              "origin": "https://fixture-2.example.com/",
+              "requestTargetTemplate": "fixture-2",
+              "canonicalQueryProfile": "spaces-list-v2",
+              "maximumRequestTargetBytes": 2,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "gala-pages-create-deployment-jcs-v2"
+            },
+            {
+              "responseProfile": "pages-site-json-v2",
+              "stage": "stage",
+              "callClass": "fixture-2",
+              "method": "HEAD",
+              "origin": "https://fixture-2.example.com/",
+              "requestTargetTemplate": "fixture-2",
+              "canonicalQueryProfile": "spaces-list-v2",
+              "maximumRequestTargetBytes": 2,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "gala-pages-create-deployment-jcs-v2"
+            }
+          ],
+          "responseProfileCatalogDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+          "providerCompatibilityEvidenceDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+          "tlsProfileDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+          "credentialEgressProfileDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+          "managedExecutionBudget": {
+            "verifiedHandoffSeconds": 2,
+            "providerExecutionSeconds": 2,
+            "journalHandoffSeconds": 2,
+            "totalSeconds": 2,
+            "pagesCarrierConstructionSeconds": 1,
+            "pagesArtifactUploadSeconds": 1,
+            "pagesArtifactVerificationSeconds": 1
+          },
+          "maximumProviderRequestsPerStage": 2,
+          "maximumProviderStageRequestBytes": "1",
+          "maximumProviderStageResponseBytes": "1",
+          "maximumProviderStageResponseWireBytes": "1",
+          "maximumProviderRequestHeadBytes": 2,
+          "maximumProviderRequestBodyBytes": "1",
+          "maximumProviderResponseHeadBytes": 2,
+          "maximumProviderResponseBodyBytes": "1",
+          "maximumProviderResponseWireBodyBytes": "1",
+          "pagesArtifactProfile": "gala-pages-artifact-v2",
+          "maximumPagesArtifactBytes": "1"
+        }
+      },
+      "expectedDiagnostics": []
+    },
+    {
+      "caseId": "capability-do-spaces-valid-lowercase",
+      "schemaId": "urn:gala:schema:adapter-capability:2.0.0",
+      "instance": {
+        "schemaId": "urn:gala:schema:adapter-capability:2.0.0",
+        "schemaVersion": "2.0.0",
+        "contractVersion": "2.0.0",
+        "protocolRange": "^2.0.0",
+        "capabilityDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+        "adapter": {
+          "adapterId": "do-spaces",
+          "adapterVersion": "2.0.0",
+          "adapterDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003"
+        },
+        "destinationKinds": ["do-spaces"],
+        "operations": [
+          "activate",
+          "cleanup-staged",
+          "inspect",
+          "observe",
+          "rollback",
+          "stage"
+        ],
+        "staging": "private",
+        "activation": "replace-in-place",
+        "concurrency": "best-effort",
+        "idempotencyClass": "observable-identity",
+        "rollback": "reupload",
+        "verification": ["generation-marker", "provider-state", "public-http"],
+        "providerInventoryAssurance": "none",
+        "configuration": {
+          "redirects": false,
+          "headers": false,
+          "customDomains": false,
+          "notFoundBehavior": true,
+          "immutableCaching": false
+        },
+        "cacheInvalidation": "none",
+        "limits": {
+          "transport": "http",
+          "maximumFiles": "1",
+          "maximumFileBytes": "1",
+          "maximumArtifactBytes": "1",
+          "maximumProviderCallSeconds": 3,
+          "maximumPathBytes": 3,
+          "pathRuleProfile": "gala-portable-v2",
+          "requestTemplateProfile": "gala-do-spaces-sigv4-v2",
+          "requestTemplateCatalogDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+          "requestTemplates": [
+            {
+              "stage": "inspect",
+              "callClass": "fixture-1",
+              "method": "GET",
+              "origin": "https://fixture-1.example.com/",
+              "requestTargetTemplate": "fixture-1",
+              "canonicalQueryProfile": "none",
+              "maximumRequestTargetBytes": 1,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "empty",
+              "responseProfile": "spaces-abort-multipart-v2"
+            },
+            {
+              "responseProfile": "spaces-complete-multipart-v2",
+              "stage": "activate",
+              "callClass": "fixture-3",
+              "method": "PUT",
+              "origin": "https://fixture-3.example.com/",
+              "requestTargetTemplate": "fixture-3",
+              "canonicalQueryProfile": "spaces-multipart-create-v2",
+              "maximumRequestTargetBytes": 3,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "spaces-object-slice-v2"
+            },
+            {
+              "responseProfile": "spaces-create-multipart-v2",
+              "stage": "activate",
+              "callClass": "fixture-3",
+              "method": "PUT",
+              "origin": "https://fixture-3.example.com/",
+              "requestTargetTemplate": "fixture-3",
+              "canonicalQueryProfile": "spaces-multipart-create-v2",
+              "maximumRequestTargetBytes": 3,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "spaces-object-slice-v2"
+            },
+            {
+              "responseProfile": "spaces-delete-object-v2",
+              "stage": "activate",
+              "callClass": "fixture-3",
+              "method": "PUT",
+              "origin": "https://fixture-3.example.com/",
+              "requestTargetTemplate": "fixture-3",
+              "canonicalQueryProfile": "spaces-multipart-create-v2",
+              "maximumRequestTargetBytes": 3,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "spaces-object-slice-v2"
+            },
+            {
+              "responseProfile": "spaces-head-object-v2",
+              "stage": "activate",
+              "callClass": "fixture-3",
+              "method": "PUT",
+              "origin": "https://fixture-3.example.com/",
+              "requestTargetTemplate": "fixture-3",
+              "canonicalQueryProfile": "spaces-multipart-create-v2",
+              "maximumRequestTargetBytes": 3,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "spaces-object-slice-v2"
+            },
+            {
+              "responseProfile": "spaces-list-objects-v2",
+              "stage": "activate",
+              "callClass": "fixture-3",
+              "method": "PUT",
+              "origin": "https://fixture-3.example.com/",
+              "requestTargetTemplate": "fixture-3",
+              "canonicalQueryProfile": "spaces-multipart-create-v2",
+              "maximumRequestTargetBytes": 3,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "spaces-object-slice-v2"
+            },
+            {
+              "responseProfile": "spaces-put-object-v2",
+              "stage": "activate",
+              "callClass": "fixture-3",
+              "method": "PUT",
+              "origin": "https://fixture-3.example.com/",
+              "requestTargetTemplate": "fixture-3",
+              "canonicalQueryProfile": "spaces-multipart-create-v2",
+              "maximumRequestTargetBytes": 3,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "spaces-object-slice-v2"
+            },
+            {
+              "responseProfile": "spaces-upload-part-v2",
+              "stage": "activate",
+              "callClass": "fixture-3",
+              "method": "PUT",
+              "origin": "https://fixture-3.example.com/",
+              "requestTargetTemplate": "fixture-3",
+              "canonicalQueryProfile": "spaces-multipart-create-v2",
+              "maximumRequestTargetBytes": 3,
+              "fixedHeaders": [{ "name": "fixture-1", "value": "fixture-1" }],
+              "derivedHeaders": [
+                { "name": "host", "source": "origin-authority" }
+              ],
+              "credentialHeaders": [
+                {
+                  "name": "authorization",
+                  "source": "github-token",
+                  "prefix": "Bearer ",
+                  "maximumSourceBytes": 4096,
+                  "maximumRenderedValueBytes": 4103
+                }
+              ],
+              "requestBodyProfile": "spaces-object-slice-v2"
+            }
+          ],
+          "responseProfileCatalogDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+          "providerCompatibilityEvidenceDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+          "tlsProfileDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+          "credentialEgressProfileDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+          "managedExecutionBudget": {
+            "verifiedHandoffSeconds": 3,
+            "providerExecutionSeconds": 3,
+            "journalHandoffSeconds": 3,
+            "totalSeconds": 3,
+            "spacesControlPlaneVerificationSeconds": 1
+          },
+          "maximumProviderRequestsPerStage": 3,
+          "maximumProviderStageRequestBytes": "1",
+          "maximumProviderStageResponseBytes": "1",
+          "maximumProviderStageResponseWireBytes": "1",
+          "maximumProviderRequestHeadBytes": 3,
+          "maximumProviderRequestBodyBytes": "5242880",
+          "maximumProviderResponseHeadBytes": 3,
+          "maximumProviderResponseBodyBytes": "1",
+          "maximumProviderResponseWireBodyBytes": "1",
+          "spacesWebsiteConfigurationDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+          "spacesControlPlaneBindingDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+          "spacesControlPlaneRequestCatalogDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+          "spacesControlPlaneResponseCatalogDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+          "spacesControlPlaneTlsProfileDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000003"
+        }
+      },
+      "expectedDiagnostics": []
+    },
+    {
+      "caseId": "capability-uppercase-invalid",
+      "schemaId": "urn:gala:schema:adapter-capability:2.0.0",
+      "instance": {
+        "schemaId": "urn:gala:schema:adapter-capability:2.0.0",
+        "schemaVersion": "2.0.0",
+        "adapter": {
+          "adapterId": "local-directory",
+          "adapterVersion": "2.0.0",
+          "adapterDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000001"
+        },
+        "contractVersion": "2.0.0",
+        "protocolRange": "^2.0.0",
+        "destinationKinds": ["local-directory"],
+        "operations": [
+          "Activate",
+          "cleanup-staged",
+          "inspect",
+          "observe",
+          "rollback",
+          "stage"
+        ],
+        "staging": "unreachable-generation",
+        "activation": "pointer-swap",
+        "concurrency": "expected-generation",
+        "idempotencyClass": "observable-identity",
+        "rollback": "reupload",
+        "verification": [
+          "artifact-digest",
+          "generation-marker",
+          "provider-state"
+        ],
+        "providerInventoryAssurance": "complete-artifact-digest",
+        "configuration": {
+          "redirects": false,
+          "headers": false,
+          "customDomains": false,
+          "notFoundBehavior": false,
+          "immutableCaching": false
+        },
+        "cacheInvalidation": "none",
+        "limits": {
+          "transport": "filesystem",
+          "filesystemProfile": "gala-local-directory-filesystem-v2",
+          "filesystemAllowlistDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+          "maximumFiles": "1",
+          "maximumFileBytes": "1",
+          "maximumArtifactBytes": "1",
+          "maximumProviderCallSeconds": 1,
+          "maximumPathBytes": 1,
+          "pathRuleProfile": "gala-portable-v2"
+        },
+        "capabilityDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        "filesystemEvidenceDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      "expectedDiagnostics": [
+        { "code": "SCHEMA_UNION_INVALID", "instancePointer": "" },
+        { "code": "SCHEMA_ENUM_INVALID", "instancePointer": "/operations/0" }
+      ]
+    }
+  ]
+}

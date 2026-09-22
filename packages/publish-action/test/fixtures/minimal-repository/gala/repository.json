@@ -1,0 +1,23 @@
+{
+  "schemaId": "urn:gala:schema:repository:2.0.0",
+  "schemaVersion": "2.0.0",
+  "publicationId": "01912345-6789-7abc-89ab-0123456789ab",
+  "publication": "gala/publication.json",
+  "appearance": "gala/appearance.json",
+  "navigation": "gala/navigation.json",
+  "modules": "gala/modules",
+  "contentRoots": [
+    {
+      "kind": "article",
+      "path": "content",
+      "include": ["**"],
+      "exclude": []
+    }
+  ],
+  "assetRoots": [],
+  "generatedSourceRoots": [],
+  "defaultLanguage": "en-US",
+  "routeNormalizationProfile": "directory-index",
+  "minimumToolVersion": "^2.0.0",
+  "extensions": {}
+}

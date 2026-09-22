@@ -1,0 +1,71 @@
+name: 'Gala publish'
+description: >-
+  Build an author repository into a deterministic static publication and deploy
+  it through the non-disableable publish-kernel and the selected destination
+  adapter. Only local-directory is implemented as of S2-T20; github-pages and
+  do-spaces selection fails closed until S2-T18/S2-T19 land.
+author: 'Galascribe'
+
+inputs:
+  repository-directory:
+    description: >-
+      The author repository directory to build, relative to the workflow's
+      workspace. Defaults to the workspace root.
+    required: false
+    default: '.'
+  output-directory:
+    description: >-
+      Explicit clean output directory the rendered candidate is written into.
+      Defaults to "<repository-directory>/.gala/output".
+    required: false
+  work-directory:
+    description: >-
+      Explicit clean work/scratch directory (also where the artifact manifest is
+      written). Defaults to "<repository-directory>/.gala/work".
+    required: false
+  profile:
+    description: >-
+      Optional route-normalization profile: "directory-index" or
+      "explicit-file". Defaults to the renderer's own default
+      ("directory-index").
+    required: false
+  adapter:
+    description: >-
+      The destination adapter to deploy through. Only "local-directory" is
+      implemented in this repository; "github-pages" and "do-spaces" are valid
+      closed-vocabulary identities but fail closed with
+      TARGET_CAPABILITY_UNAVAILABLE until S2-T18/S2-T19 land.
+    required: false
+    default: 'local-directory'
+  adapter-config-path:
+    description: >-
+      Path (relative to the workflow's workspace) to a JSON file with the
+      selected adapter's configuration. For "local-directory", the file must be
+      a JSON object with a "root" field naming the absolute or
+      workspace-relative destination directory. Required when adapter is
+      "local-directory".
+    required: false
+
+outputs:
+  result-code:
+    description:
+      'The typed result code (SUCCESS, FINDINGS, INCOMPATIBLE_CONTRACT,
+      CONFLICT, MISSING_DEPENDENCY, UNSAFE_INPUT, BUILD_OR_PUBLISH_FAILURE, or
+      REDACTED_INTERNAL_FAILURE).'
+  manifest-path:
+    description:
+      'Absolute path to the written artifact-manifest:2.0.0 JSON file.'
+  manifest-digest:
+    description: 'The artifact manifest document digest.'
+  artifact-directory:
+    description: 'Absolute path to the rendered candidate output directory.'
+  artifact-digest:
+    description: 'The GALA-ARTIFACT-V2 digest over the deployed file set.'
+  route-count:
+    description: 'The number of HTML routes in the deployed artifact.'
+  byte-count:
+    description: 'The total byte count of the deployed artifact.'
+
+runs:
+  using: 'node24'
+  main: 'src/action/run.js'

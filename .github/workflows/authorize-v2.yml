@@ -1,0 +1,163 @@
+# The same-commit deployment-intent authorization helper (S4-T06; DEC-097
+# section 6 item 4). It has only `workflow_call`, job-scoped `actions: read`
+# plus `id-token: write`, and no destination secret of any kind.
+#
+# It downloads and verifies the exact authorization-input carrier, submits
+# those bounded frozen-handoff metadata bytes plus a fresh GitHub OIDC
+# assertion with audience `urn:gala:workload:deployment-intent:v2` to
+# `POST /v2/workloads/github/receipt-exchanges`, creates the public marker
+# from the returned intent, and publishes two separate credential-free
+# carriers. It never passes a bearer credential or OIDC token downstream.
+name: Gala authorize v2
+
+on:
+  workflow_call:
+    inputs:
+      service_origin_catalog_url:
+        required: true
+        type: string
+      gala_api_origin:
+        required: true
+        type: string
+      authorization_input_id:
+        required: true
+        type: string
+      authorization_input_digest:
+        required: true
+        type: string
+    outputs:
+      adapter_id:
+        description: >-
+          The selected adapter identity, byte-equal to
+          `deploymentIntent.adapter.adapterId` and exactly `do-spaces |
+          github-pages`. Exposed only after the returned intent has been
+          validated.
+        value: ${{ jobs.exchange.outputs.adapter_id }}
+      deployment_authorization_id:
+        value: ${{ jobs.exchange.outputs.deployment_authorization_id }}
+      deployment_authorization_digest:
+        value: ${{ jobs.exchange.outputs.deployment_authorization_digest }}
+      report_challenge_id:
+        value: ${{ jobs.exchange.outputs.report_challenge_id }}
+      report_challenge_digest:
+        value: ${{ jobs.exchange.outputs.report_challenge_digest }}
+
+permissions: {}
+
+jobs:
+  exchange:
+    name: Exchange the verified authorization input for a deployment intent
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      id-token: write
+    outputs:
+      adapter_id: ${{ steps.exchange.outputs.adapter_id }}
+      deployment_authorization_id:
+        ${{ steps.authorization.outputs.artifact_id }}
+      deployment_authorization_digest:
+        ${{ steps.authorization.outputs.artifact_digest }}
+      report_challenge_id: ${{ steps.challenge.outputs.artifact_id }}
+      report_challenge_digest: ${{ steps.challenge.outputs.artifact_digest }}
+    steps:
+      - name: Download only the exact authorization-input carrier
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ inputs.authorization_input_id }}
+          path: ${{ runner.temp }}/inbox
+
+      - name: Check out the pinned publish toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/publish
+          ref: ${{ github.workflow_sha }}
+          path: publish-toolchain
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: publish-toolchain/.node-version
+
+      - name: Install the integrity-locked publish toolchain
+        working-directory: publish-toolchain
+        run: npm ci --ignore-scripts
+
+      - name: Submit the deployment-intent exchange
+        id: exchange
+        shell: bash
+        env:
+          # ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN
+          # are already present in this step's environment because the job
+          # holds `id-token: write`; restating them here would be a
+          # self-referential expression, not a grant.
+          #
+          # `inputs.service_origin_catalog_url` is not passed to the
+          # toolchain here: no helper in this repository fetches or verifies
+          # a signed service-origin catalog (DEC-097 treats it as an
+          # independently trusted external anchor, not a document this
+          # workflow resolves), so threading it through as a CLI argument
+          # nobody reads would be a false appearance of a check that does not
+          # exist.
+          API_ORIGIN: ${{ inputs.gala_api_origin }}
+          EXPECTED_DIGEST: ${{ inputs.authorization_input_digest }}
+        run: |
+          set -euo pipefail
+          install -d "${RUNNER_TEMP}/carrier"
+          node publish-toolchain/scripts/workflow/exchange.mjs \
+            --purpose deployment-intent \
+            --audience 'urn:gala:workload:deployment-intent:v2' \
+            --api-origin "${API_ORIGIN}" \
+            --inbox "${RUNNER_TEMP}/inbox" \
+            --expected-digest "${EXPECTED_DIGEST}" \
+            --out-dir "${RUNNER_TEMP}/carrier"
+
+      - name: Upload the deployment-authorization carrier
+        id: upload-authorization
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path:
+            ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-deployment-authorization-v2.jcs
+          overwrite: false
+          retention-days: 1
+
+      - name: Re-observe the deployment-authorization carrier by exact ID
+        id: authorization
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload-authorization.outputs.artifact-id }}
+          ARTIFACT_DIGEST:
+            ${{ steps.upload-authorization.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/observe-carrier.mjs \
+            --artifact-id "${ARTIFACT_ID}" \
+            --expected-digest "${ARTIFACT_DIGEST}" \
+            --local "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-deployment-authorization-v2.jcs"
+
+      - name: Upload the report-challenge carrier
+        id: upload-challenge
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path:
+            ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
+            github.run_attempt }}-report-challenge-v2.jcs
+          overwrite: false
+          retention-days: 1
+
+      - name: Re-observe the report-challenge carrier by exact ID
+        id: challenge
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload-challenge.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload-challenge.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          node publish-toolchain/scripts/workflow/observe-carrier.mjs \
+            --artifact-id "${ARTIFACT_ID}" \
+            --expected-digest "${ARTIFACT_DIGEST}" \
+            --local "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-report-challenge-v2.jcs"

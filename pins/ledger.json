@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "1.0.0",
+  "owningTask": "S4-T08 (backlog W4-11)",
+  "description": "Every immutable identity the publish workflows, the build sandbox and this workspace's tests depend on. `npm run pins:check` proves the ledger and the files agree in both directions: a workflow reference absent from the ledger fails, and a ledger entry no file uses fails.",
+  "actions": [
+    {
+      "reference": "actions/checkout",
+      "sha": "d23441a48e516b6c34aea4fa41551a30e30af803",
+      "version": "v6",
+      "purpose": "Check out the bound source revision and the pinned publish toolchain."
+    },
+    {
+      "reference": "actions/setup-node",
+      "sha": "249970729cb0ef3589644e2896645e5dc5ba9c38",
+      "version": "v6",
+      "purpose": "Install the Node.js distribution pinned by .node-version."
+    },
+    {
+      "reference": "actions/upload-artifact",
+      "sha": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+      "version": "v7.0.1",
+      "purpose": "Direct-upload every exact-ID carrier with overwrite: false."
+    },
+    {
+      "reference": "actions/download-artifact",
+      "sha": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+      "version": "v8.0.1",
+      "purpose": "Download only the exact carrier IDs a job consumes."
+    },
+    {
+      "reference": "actions/attest-build-provenance",
+      "sha": "4d101475d8b20a2381f78447822ac1eab6504dd8",
+      "version": "v4.2.2",
+      "purpose": "Issue the optional provenance attestation over the frozen envelope's exact subject."
+    },
+    {
+      "reference": "actions/attest-sbom",
+      "sha": "c604332985a26aa8cf1bdc465b92731239ec6b9e",
+      "version": "v4.1.0",
+      "purpose": "Issue the optional SBOM attestation over the frozen envelope's exact subject with sbom-path pointing at the extracted metadata/sbom.spdx.json record (DEC-097 section 6)."
+    }
+  ],
+  "containerImages": [
+    {
+      "name": "node",
+      "reference": "node:24.18.0-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd",
+      "purpose": "The build sandbox image (scripts/sandbox-build.sh).",
+      "usedBy": ["scripts/sandbox-build.sh"]
+    },
+    {
+      "name": "minio",
+      "reference": "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e",
+      "purpose": "Throwaway S3-compatible server for the opt-in do-spaces conformance run.",
+      "usedBy": ["scripts/minio-spaces.sh"],
+      "mirrorOf": "infra/release/container-images.json#images.minio"
+    }
+  ],
+  "binaries": [
+    {
+      "name": "gitleaks",
+      "version": "8.30.1",
+      "sha256": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
+      "purpose": "Secret scan in .github/workflows/ci.yml.",
+      "usedBy": [".github/workflows/ci.yml"]
+    },
+    {
+      "name": "spdx-schema-2.3",
+      "version": "spdx/spdx-spec@aadf3b0b8dbbabdb4d880b0fc714255fea436ff7 schemas/spdx-schema.json",
+      "sha256": "239208b7ac287b3cf5d9a9af23f9d69863971102a5e1587a27a398b43490b89b",
+      "purpose": "The unmodified official SPDX 2.3 JSON Schema freeze validates every SBOM against (DEC-097 section 6); vendored at scripts/workflow/spdx/spdx-schema-2.3.json and hash-checked at load.",
+      "usedBy": [
+        "scripts/workflow/sbom.mjs",
+        "scripts/workflow/build-provenance.mjs"
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "name": "@rathnasgala2/schemas",
+      "version": "2.10.0",
+      "source": "file:../../local-packages/rathnasgala2-schemas-2.10.0.tgz",
+      "sha256": "822644a309ab00cdbf6bc913b6024a7240681cec6a46688288c0f2da01940e1e",
+      "purpose": "The authoritative wire validator for every adapter-capability and public-generation-marker document (LOCAL-1); 2.10.0 adds the DEC-097 Spaces closed-record vectors and x-gala-decision-phase annotations this packet consumes."
+    }
+  ],
+  "unresolved": [],
+  "selfReferences": [
+    {
+      "reference": "rathnasgala2/publish/.github/workflows/publish-v2.yml",
+      "sha": "0000000000000000000000000000000000000000",
+      "status": "author-replaced-placeholder",
+      "reason": "The fixed caller in docs/callers/ pins the exact rathnasgala2/publish commit the author is told to use. That commit does not exist until W0-01 publishes this repository, so the documented example carries an all-zero 40-hex placeholder the author replaces. S3 admits a caller only when this pin is a real full commit SHA."
+    }
+  ]
+}

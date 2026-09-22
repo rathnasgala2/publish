@@ -1,0 +1,13 @@
+{
+  "schemaId": "urn:gala:schema:publication:2.0.0",
+  "schemaVersion": "2.0.0",
+  "id": "01912345-6789-7abc-89ab-0123456789ab",
+  "slug": "minimal-fixture",
+  "title": "Minimal Fixture Publication",
+  "description": "A minimal deterministic author repository used by publish-action's own tests.",
+  "canonicalBase": "https://example.invalid/",
+  "defaultLanguage": "en-US",
+  "authors": ["gala/authors/jane-doe.json"],
+  "socialLinks": [{ "type": "website", "uri": "https://example.invalid/" }],
+  "extensions": {}
+}
