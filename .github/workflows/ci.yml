@@ -1,10 +1,15 @@
 name: CI
 
 # Fast, per-push gate: does THIS commit look broken? format:check, lint,
-# typecheck, workflow-pin discipline, the gitleaks-fragment drift check and
-# the unit test suites (everything under test/ except sandbox.test.mjs, the
-# Docker-based build-sandbox proof) run here as independent parallel jobs,
-# so wall clock is the slowest single job rather than their sum.
+# typecheck, workflow-pin discipline, the gitleaks-fragment drift check, the
+# npm dependency audit, the gitleaks secret-history scan and the unit test
+# suites (everything under test/ except sandbox.test.mjs, the Docker-based
+# build-sandbox proof) run here as independent parallel jobs, so wall clock
+# is the slowest single job rather than their sum. The audit and gitleaks
+# jobs are security gates and stay on every push even though the rest of
+# the quality/supply-chain job moved to nightly (LOCAL-67 adversarial
+# review): a vulnerable dependency or a leaked secret must not sit on main
+# for up to 24h.
 #
 # The build sandbox (test/sandbox.test.mjs, scripts/sandbox-build.sh) stays
 # out of this fast gate on purpose: each of its cases pulls/builds a
@@ -17,8 +22,8 @@ name: CI
 #
 # Everything else that was in the single "Quality and supply chain" job --
 # architecture (dependency-cruiser), duplication (jscpd), the full test
-# suite including the sandbox, sbom:check and audit -- also moved to
-# nightly.yml, unchanged in substance.
+# suite including the sandbox and sbom:check -- also moved to nightly.yml,
+# unchanged in substance.
 on:
   push:
     branches:
@@ -161,3 +166,47 @@ jobs:
           Run unit tests (workspaces + repo-level, excluding the Docker sandbox
           proof)
         run: npm run test:unit
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run audit
+
+  gitleaks:
+    name: Gitleaks secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the complete history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install the checksum-pinned Gitleaks binary
+        shell: bash
+        run: |
+          install -d "${RUNNER_TEMP}/gitleaks"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz' \
+            --output "${RUNNER_TEMP}/gitleaks/gitleaks.tar.gz"
+          cd "${RUNNER_TEMP}/gitleaks"
+          printf '%s  %s\n' \
+            '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb' \
+            'gitleaks.tar.gz' | sha256sum --check --strict
+          tar --extract --gzip --file gitleaks.tar.gz gitleaks
+
+      - name: Scan repository history for secrets
+        run: >-
+          "${RUNNER_TEMP}/gitleaks/gitleaks" git --redact --no-banner
+          --log-opts="--all" .
