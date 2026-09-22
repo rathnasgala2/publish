@@ -46,7 +46,8 @@
     "audit": "npm audit --audit-level=critical",
     "workflows:check": "node scripts/check-workflow-pins.mjs",
     "workflows:drift": "node scripts/check-workflow-drift.mjs",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run architecture && npm run duplication && npm test && npm run sbom:check && npm run audit && npm run workflows:check && npm run workflows:drift && npm run pins:check",
+    "schema-pin:check": "node scripts/check-no-local-schema-pin.mjs",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run architecture && npm run duplication && npm test && npm run sbom:check && npm run audit && npm run workflows:check && npm run workflows:drift && npm run pins:check && npm run schema-pin:check",
     "test:repo": "node --test 'test/*.test.mjs'",
     "pins:check": "node scripts/check-pins.mjs"
   },

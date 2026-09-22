@@ -55,11 +55,10 @@ resolve relative to the checkout and need a hand from a worktree:
   (`.worktrees/template -> ../../template` and so on, LOCAL-38) so the default
   resolution works; setting `WORKSPACE_ROOT=/path/to/v2` overrides it instead
   when the symlinks are absent (CI has no siblings at all).
-- **The LOCAL-1 tarball.** Every manifest pins `@rathnasgala2/schemas` as
-  `file:../../local-packages/<tarball>`, which from `.worktrees/<name>/` is
-  `<repo>/local-packages`. `npm ci` in a worktree needs a temporary
-  `ln -s ../../local-packages local-packages` at the repository root; remove it
-  afterwards, it is not part of the repository.
+- **Schema pin.** Every manifest pins `@rathnasgala2/schemas` to an exact
+  registry version (`2.11.0`), resolved from `registry.npmjs.org`. The LOCAL-1
+  local-tarball convention (`file:../../local-packages/<tarball>`) is retired
+  for this package now that it publishes; no worktree symlink is needed for it.
 
 ## SBOM reproducibility (`sbom:check`)
 

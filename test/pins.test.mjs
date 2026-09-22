@@ -172,21 +172,19 @@ test('every ledger action pin is a full 40-character lowercase commit SHA', () =
   }
 });
 
-test('the recorded schemas pin is the exact tarball on disk (LOCAL-1/LOCAL-43)', async () => {
+test('the LOCAL-1/LOCAL-43 local-tarball schemas pin is retired from the ledger', () => {
+  // @rathnasgala2/schemas publishes to the registry as of the 2026-09-22
+  // contract re-pin; the ledger no longer records a local-tarball pin for
+  // it, and no manifest in this workspace should declare a `file:` schemas
+  // dependency (schema-pin:check enforces the latter independently).
   const schemas = LEDGER.packages.find(
     (/** @type {any} */ entry) => entry.name === '@rathnasgala2/schemas',
   );
-  assert.equal(schemas.version, '2.10.0');
-  assert.equal(
-    schemas.sha256,
-    '822644a309ab00cdbf6bc913b6024a7240681cec6a46688288c0f2da01940e1e',
-  );
-  assert.deepEqual(await verifyPackageTarballs([schemas], LOCAL_PACKAGES), []);
+  assert.equal(schemas, undefined);
 });
 
-test('every workspace package declares exactly the ledger-recorded schemas tarball', () => {
-  const expected =
-    'file:../../../../local-packages/rathnasgala2-schemas-2.10.0.tgz';
+test('every workspace package declares exactly the registry-pinned schemas version', () => {
+  const expected = '2.11.0';
   const declaring = readdirSync('packages')
     .map((name) => ({
       name,
@@ -200,7 +198,7 @@ test('every workspace package declares exactly the ledger-recorded schemas tarba
     assert.equal(
       manifest.dependencies['@rathnasgala2/schemas'],
       expected,
-      `${name} must consume exactly the ledger-recorded tarball`,
+      `${name} must consume exactly the registry-pinned schemas version`,
     );
   }
 });

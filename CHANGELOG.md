@@ -10,16 +10,36 @@ and this project adheres to
 
 ### Changed
 
-- **PUBLISH-SECRET-RENAME-1**: pure identifier rename, no behaviour change, recommended by an
-  audit and approved. Author-repo secret names in the caller contract docs
-  (`docs/callers/README.md`, `docs/callers/gala-publish-v2.yml`) rename `DO_SPACES_ACCESS_KEY_ID`
-  -> `DO_SPACES_DATA_ACCESS_KEY_ID` and `DO_SPACES_SECRET_ACCESS_KEY` ->
-  `DO_SPACES_DATA_SECRET_ACCESS_KEY`, so the data-plane vs `DO_SPACES_CONTROL_*` control-plane
-  split is explicit in the name authors are told to create. The reusable workflow's own fixed
-  input names (`CALLER_DO_SPACES_ACCESS_KEY_ID`, `CALLER_DO_SPACES_SECRET_ACCESS_KEY`,
-  `capability.js`'s `dataPlaneCredential`, and every test/fixture that asserts on them) are
-  unchanged — that is a separate, digest/contract-relevant identifier this rename does not touch.
-  Clean break, no transition fallback.
+- **Contract re-pin: `@rathnasgala2/schemas` moved from the LOCAL-1/LOCAL-43
+  local tarball to the published registry version, exact pin `2.11.0`**
+  (2026-09-22 contract re-pin packet). CI was failing with `ENOENT` on
+  `local-packages/rathnasgala2-schemas-2.10.0.tgz`, a path that only ever
+  existed on the owner's laptop; the package is now public on
+  `registry.npmjs.org`, so all six workspace packages (`adapter-protocol`,
+  `publish-action`, `adapter-do-spaces`, `adapter-github-pages`,
+  `publish-kernel`, `adapter-local-directory`) declare
+  `"@rathnasgala2/schemas": "2.11.0"` and the workspace root `package-lock.json`
+  resolves it from the registry with a verified sha512 integrity hash.
+  `pins/ledger.json`'s `packages` array (the LOCAL-1 tarball-hash pin) is now
+  empty and `test/pins.test.mjs` was updated to assert the retirement and the
+  new registry pin instead of the old tarball literal. Added
+  `npm run schema-pin:check` (`scripts/check-no-local-schema-pin.mjs`), wired
+  into `verify` alongside `pins:check`, so a `file:.../local-packages/...`
+  specifier can never reappear silently. Only the `description` string of
+  `adapter-capability.schema.json` changed 2.10.0->2.11.0; no adapter source
+  changed.
+
+- **PUBLISH-SECRET-RENAME-1**: pure identifier rename, no behaviour change,
+  recommended by an audit and approved. Author-repo secret names in the caller
+  contract docs (`docs/callers/README.md`, `docs/callers/gala-publish-v2.yml`)
+  rename `DO_SPACES_ACCESS_KEY_ID` -> `DO_SPACES_DATA_ACCESS_KEY_ID` and
+  `DO_SPACES_SECRET_ACCESS_KEY` -> `DO_SPACES_DATA_SECRET_ACCESS_KEY`, so the
+  data-plane vs `DO_SPACES_CONTROL_*` control-plane split is explicit in the
+  name authors are told to create. The reusable workflow's own fixed input names
+  (`CALLER_DO_SPACES_ACCESS_KEY_ID`, `CALLER_DO_SPACES_SECRET_ACCESS_KEY`,
+  `capability.js`'s `dataPlaneCredential`, and every test/fixture that asserts
+  on them) are unchanged — that is a separate, digest/contract-relevant
+  identifier this rename does not touch. Clean break, no transition fallback.
 
 - **PUBLISH-S4-7 — DEC-097 Spaces closed records (C2, schema 2.10.0, LOCAL-63):
   destination-record-derived Spaces issuance through the fake, the two
