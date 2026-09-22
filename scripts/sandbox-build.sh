@@ -70,6 +70,19 @@ done
 
 SOURCE_ABS="$(cd "${SOURCE}" && pwd)"
 mkdir -p "${OUTPUT}"
+# The container always runs as the fixed unprivileged uid:gid 65534:65534
+# (see --user below), never as whatever uid invoked this script. On a
+# rootful Linux Docker daemon (e.g. GitHub's ubuntu-24.04 runners) a bind
+# mount keeps the host file's real ownership and mode, so a directory
+# freshly created by `mkdir -p` above (owned by the invoking user, mode
+# 0755) is not writable by uid 65534 inside the container. Docker Desktop /
+# OrbStack's VM-backed bind mounts paper over this, which is why the same
+# script passes there without it. `chmod 0777` widens only this one
+# directory, which the sandbox already treats as the sole intentionally
+# writable path (`--volume ...:/gala/output:rw`); it grants no new
+# capability, does not touch the read-only source mount, and does not
+# change which user the build runs as.
+chmod 0777 "${OUTPUT}"
 OUTPUT_ABS="$(cd "${OUTPUT}" && pwd)"
 
 case "${OUTPUT_ABS}/" in
