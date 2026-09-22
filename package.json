@@ -42,7 +42,7 @@
     "test:unit": "npm run test --workspaces --if-present && npm run test:repo:unit",
     "declarations:generate": "npm run declarations:generate --workspaces --if-present",
     "declarations:check": "npm run declarations:check --workspaces --if-present",
-    "sbom": "cyclonedx-npm --output-file sbom.cdx.json --output-format json --spec-version 1.6 && node scripts/normalize-sbom.mjs sbom.cdx.json",
+    "sbom": "cyclonedx-npm --package-lock-only --output-file sbom.cdx.json --output-format json --spec-version 1.6 && node scripts/normalize-sbom.mjs sbom.cdx.json",
     "sbom:check": "node scripts/check-sbom-fresh.mjs",
     "audit": "npm audit --audit-level=critical",
     "workflows:check": "node scripts/check-workflow-pins.mjs",

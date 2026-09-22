@@ -69,6 +69,10 @@ function check() {
       process.execPath,
       [
         path.join(workspaceRoot, 'node_modules', '.bin', 'cyclonedx-npm'),
+        // Read the lockfile, never the installed tree: node_modules differs
+        // between a developer's machine and a CI runner, which made the
+        // committed SBOM unreproducible.
+        '--package-lock-only',
         '--output-file',
         scratchPath,
         '--output-format',
