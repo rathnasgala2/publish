@@ -50,7 +50,8 @@ jobs:
     # The sole caller secret map. `secrets: inherit` is never used, and no
     # control-plane secret ever appears here.
     secrets:
-      CALLER_DO_SPACES_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_DATA_ACCESS_KEY_ID }}
+      CALLER_DO_SPACES_ACCESS_KEY_ID:
+        ${{ secrets.DO_SPACES_DATA_ACCESS_KEY_ID }}
       CALLER_DO_SPACES_SECRET_ACCESS_KEY:
         ${{ secrets.DO_SPACES_DATA_SECRET_ACCESS_KEY }}
       CALLER_DO_SPACES_SESSION_TOKEN: ${{ secrets.DO_SPACES_SESSION_TOKEN }}
