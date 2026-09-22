@@ -1,6 +1,10 @@
 node_modules/
 coverage/
 *.tgz
+# Except the committed, deterministic pins.test.mjs fixture: it must be
+# tracked so verifyPackageTarballs's own unit tests can hash a real file
+# without depending on an ambient sibling local-packages checkout.
+!test/fixtures/local-packages/*.tgz
 
 # CI-only sibling checkouts (template, theme-default) inside the workspace
 .siblings/

@@ -12,11 +12,19 @@ import { test } from 'node:test';
 
 import { comparePins, verifyPackageTarballs } from '../scripts/check-pins.mjs';
 
-/** Where the LOCAL-1 tarballs live, relative to this repository. */
-const LOCAL_PACKAGES = [
-  resolve('..', '..', 'local-packages'),
-  resolve('..', '..', '..', 'local-packages'),
-];
+/**
+ * Search roots for `verifyPackageTarballs`'s own unit tests below. These
+ * tests exercise the function directly (not through the real ledger, which
+ * no longer carries a LOCAL-1 package pin) so they need a real file on disk
+ * to hash. `test/fixtures/local-packages` holds a small tarball built once
+ * and committed as bytes precisely so this does not depend on ambient
+ * developer state: a GitHub Actions runner, like a bare clone, has no
+ * sibling `local-packages`
+ * checkout, and even where one exists its tarball's bytes are not
+ * reproducible from run to run (tar/gzip metadata varies by OS and tool).
+ * A fixture checked into git is read back byte-for-byte on every platform.
+ */
+const LOCAL_PACKAGES = [resolve('test', 'fixtures', 'local-packages')];
 
 const LEDGER = JSON.parse(readFileSync('pins/ledger.json', 'utf8'));
 
@@ -216,7 +224,7 @@ test('a package pin whose tarball hashes differently is drift', async () => {
     LOCAL_PACKAGES,
   );
   assert.equal(diagnostics.length, 1);
-  assert.match(String(diagnostics[0]), /sha256 is 822644a3/u);
+  assert.match(String(diagnostics[0]), /sha256 is b9133cff/u);
 });
 
 test('a package pin whose tarball is missing fails closed rather than passing', async () => {
