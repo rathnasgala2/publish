@@ -48,6 +48,7 @@ function supportingFiles() {
     'package.json',
     'package-lock.json',
     '.github/workflows/ci.yml',
+    '.github/workflows/nightly.yml',
     ...readdirSync('packages').map((name) => `packages/${name}/package.json`),
   ].map((file) => ({ file, source: readFileSync(file, 'utf8') }));
 }

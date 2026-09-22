@@ -39,6 +39,7 @@
     "architecture": "depcruise --validate .dependency-cruiser.cjs packages eslint.config.js",
     "duplication": "jscpd packages",
     "test": "npm run test --workspaces --if-present && npm run test:repo",
+    "test:unit": "npm run test --workspaces --if-present && npm run test:repo:unit",
     "declarations:generate": "npm run declarations:generate --workspaces --if-present",
     "declarations:check": "npm run declarations:check --workspaces --if-present",
     "sbom": "cyclonedx-npm --output-file sbom.cdx.json --output-format json --spec-version 1.6 && node scripts/normalize-sbom.mjs sbom.cdx.json",
@@ -49,6 +50,7 @@
     "schema-pin:check": "node scripts/check-no-local-schema-pin.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run architecture && npm run duplication && npm test && npm run sbom:check && npm run audit && npm run workflows:check && npm run workflows:drift && npm run pins:check && npm run schema-pin:check",
     "test:repo": "node --test 'test/*.test.mjs'",
+    "test:repo:unit": "node --test $(ls test/*.test.mjs | grep -v '/sandbox.test.mjs$')",
     "pins:check": "node scripts/check-pins.mjs"
   },
   "devDependencies": {

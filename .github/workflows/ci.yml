@@ -1,5 +1,24 @@
 name: CI
 
+# Fast, per-push gate: does THIS commit look broken? format:check, lint,
+# typecheck, workflow-pin discipline, the gitleaks-fragment drift check and
+# the unit test suites (everything under test/ except sandbox.test.mjs, the
+# Docker-based build-sandbox proof) run here as independent parallel jobs,
+# so wall clock is the slowest single job rather than their sum.
+#
+# The build sandbox (test/sandbox.test.mjs, scripts/sandbox-build.sh) stays
+# out of this fast gate on purpose: each of its cases pulls/builds a
+# container image and runs it under `--network none` with dropped
+# capabilities, which is inherently a tens-of-seconds-per-case operation,
+# not a per-push budget item, even though it proves a core security
+# property (S4-T07 — untrusted author build code cannot see the network,
+# mutate the source tree or escape its resource limits). It still runs
+# every night in nightly.yml as part of the complete `npm run verify`.
+#
+# Everything else that was in the single "Quality and supply chain" job --
+# architecture (dependency-cruiser), duplication (jscpd), the full test
+# suite including the sandbox, sbom:check and audit -- also moved to
+# nightly.yml, unchanged in substance.
 on:
   push:
     branches:
@@ -14,24 +33,85 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Quality and supply chain
+  format:
+    name: Format
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  workflow-checks:
+    name: Workflow pins & gitleaks-fragment drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Verify workflow pin discipline
+        run: npm run workflows:check
+      - name: Check gitleaks fragment drift (infra sibling optional)
+        run: npm run workflows:drift
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     env:
       # Inside $GITHUB_WORKSPACE (actions/checkout refuses a `path:`
       # outside it — see rathnasgala2/publish#run 35724753393), under
       # `.siblings/` so publish's own format:check/lint gates (the only
       # gates that scan this repository recursively from its root; see
       # .prettierignore and eslint.config.js) can ignore that one
-      # directory instead. architecture/duplication/test are already
-      # scoped to packages/ and test/, so they never see it.
+      # directory instead.
       WORKSPACE_ROOT: ${{ github.workspace }}/.siblings
     steps:
-      - name: Check out the complete history
+      - name: Check out the repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          fetch-depth: 0
           persist-credentials: false
 
       # PLACEHOLDER (W0-01): ref is provisional until the template
@@ -39,10 +119,6 @@ jobs:
       # pin to. packages/publish-action's template-bridge.js (TEMPLATE_ROOT)
       # needs this checkout by path, and its own dependencies installed,
       # for the S2-T20/S2-T20b build/publish tests `npm test` runs.
-      # `path: .siblings/template` (inside $GITHUB_WORKSPACE, matching
-      # WORKSPACE_ROOT above) is required by actions/checkout; it is kept
-      # out of publish's own recursive lint/format scans via
-      # .prettierignore/eslint.config.js instead.
       - name: Check out the template sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -81,29 +157,7 @@ jobs:
         working-directory: .siblings/template
         run: npm ci
 
-      - name: Run repository gates
-        run: npm run verify
-
-      - name: Verify workflow pin discipline
-        run: npm run workflows:check
-
-      - name: Check gitleaks fragment drift (infra sibling optional)
-        run: npm run workflows:drift
-
-      - name: Install the checksum-pinned Gitleaks binary
-        shell: bash
-        run: |
-          install -d "${RUNNER_TEMP}/gitleaks"
-          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
-            'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz' \
-            --output "${RUNNER_TEMP}/gitleaks/gitleaks.tar.gz"
-          cd "${RUNNER_TEMP}/gitleaks"
-          printf '%s  %s\n' \
-            '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb' \
-            'gitleaks.tar.gz' | sha256sum --check --strict
-          tar --extract --gzip --file gitleaks.tar.gz gitleaks
-
-      - name: Scan repository history for secrets
-        run: >-
-          "${RUNNER_TEMP}/gitleaks/gitleaks" git --redact --no-banner
-          --log-opts="--all" .
+      - name:
+          Run unit tests (workspaces + repo-level, excluding the Docker sandbox
+          proof)
+        run: npm run test:unit

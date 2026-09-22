@@ -1,0 +1,110 @@
+name: Nightly
+
+# The complete gate, once a day: everything that used to run on every push
+# in the single "Quality and supply chain" job, unchanged in substance --
+# `npm run verify` (format, lint, typecheck, architecture, duplication, the
+# full test suite including the Docker build-sandbox proof, sbom:check,
+# audit), the workflow-pin check and the gitleaks-fragment drift check, and
+# the gitleaks secret scan itself. ci.yml now runs only the fast subset
+# (format, lint, typecheck, unit tests minus the sandbox proof, workflow
+# pins, drift) on every push and pull request.
+on:
+  schedule:
+    # 03:47 UTC: staggered ~30 minutes after infra's nightly run (03:17 UTC)
+    # so the two repositories' nightly jobs don't contend for the same
+    # scheduling slot, and outside the top-of-hour crowd.
+    - cron: '47 3 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    name: Quality and supply chain (complete)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      # Inside $GITHUB_WORKSPACE, under `.siblings/` — mirrors ci.yml
+      # (actions/checkout refuses a `path:` outside $GITHUB_WORKSPACE).
+      WORKSPACE_ROOT: ${{ github.workspace }}/.siblings
+    steps:
+      - name: Check out the complete history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # PLACEHOLDER (W0-01): ref is provisional until the template
+      # repository exists on GitHub with a frozen contract revision to
+      # pin to. packages/publish-action's template-bridge.js (TEMPLATE_ROOT)
+      # needs this checkout by path, and its own dependencies installed,
+      # for the S2-T20/S2-T20b build/publish tests `npm test` runs.
+      - name: Check out the template sibling repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/template
+          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          path: .siblings/template
+          persist-credentials: false
+
+      # PLACEHOLDER (W0-01): ref is provisional until the theme-default
+      # repository exists on GitHub with a frozen release to pin to.
+      # packages/publish-action's theme-bridge.js (LOCAL-only sibling
+      # fallback step) needs this checkout by path for the same tests.
+      - name: Check out the theme-default sibling repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/theme-default
+          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          path: .siblings/theme-default
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Verify toolchain pins
+        shell: bash
+        run: |
+          test "$(node --version)" = "v24.18.0"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install the template sibling's own dependencies
+        working-directory: .siblings/template
+        run: npm ci
+
+      - name: Run the complete repository gate
+        run: npm run verify
+
+      - name: Verify workflow pin discipline
+        run: npm run workflows:check
+
+      - name: Check gitleaks fragment drift (infra sibling optional)
+        run: npm run workflows:drift
+
+      - name: Install the checksum-pinned Gitleaks binary
+        shell: bash
+        run: |
+          install -d "${RUNNER_TEMP}/gitleaks"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz' \
+            --output "${RUNNER_TEMP}/gitleaks/gitleaks.tar.gz"
+          cd "${RUNNER_TEMP}/gitleaks"
+          printf '%s  %s\n' \
+            '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb' \
+            'gitleaks.tar.gz' | sha256sum --check --strict
+          tar --extract --gzip --file gitleaks.tar.gz gitleaks
+
+      - name: Scan repository history for secrets
+        run: >-
+          "${RUNNER_TEMP}/gitleaks/gitleaks" git --redact --no-banner
+          --log-opts="--all" .
