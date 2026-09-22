@@ -1,9 +1,9 @@
 # Reviewed 2026-09-22: every entry below is a synthetic fixture, not a credential.
 #
 # packages/publish-kernel/test/secret-redaction.test.js -- the corpus the
-# redaction code is tested against: literal placeholder shapes such as
-# AKIAABCDEFGHIJKLMNOP and repeated-character tokens. The test asserts these
-# are redacted, so they must stay verbatim in the source.
+# redaction code is tested against: placeholder credential shapes and
+# repeated-character tokens. The test asserts these are redacted, so they
+# must stay verbatim in the source.
 #
 # scripts/minio-spaces.sh -- a local development container script using
 # MinIO's documented default credentials against 127.0.0.1. Never used
@@ -25,3 +25,7 @@ c2a8f4cec6dd6f1174fe42c45feff5745493b5e1:packages/publish-kernel/test/secret-red
 c2a8f4cec6dd6f1174fe42c45feff5745493b5e1:packages/publish-kernel/test/secret-redaction.test.js:aws-access-token:80
 c2a8f4cec6dd6f1174fe42c45feff5745493b5e1:packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:9
 c2a8f4cec6dd6f1174fe42c45feff5745493b5e1:scripts/minio-spaces.sh:generic-api-key:24
+#
+# The line below is this file's own earlier revision: a comment that quoted
+# one of those placeholder shapes verbatim. The comment no longer does.
+d6b82ef2c0ea5fe5eace5d875f9f8644e3856a5b:.gitleaksignore:aws-access-token:5
