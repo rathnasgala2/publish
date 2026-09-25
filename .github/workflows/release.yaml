@@ -39,17 +39,19 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # PLACEHOLDER (W0-01): ref is provisional until the template
-      # repository exists on GitHub with a frozen contract revision to
-      # pin to. packages/publish-action's template-bridge.js (TEMPLATE_ROOT)
-      # needs this checkout by path, and its own dependencies installed,
-      # for the tests npm run verify's `npm test` runs. Mirrors ci.yml
-      # exactly so release verifies against the same inputs CI does.
+      # packages/publish-action's template-bridge.js (TEMPLATE_ROOT) needs
+      # this checkout by path, and its own dependencies installed, for the
+      # tests npm run verify's `npm test` runs. Mirrors ci.yml exactly so
+      # release verifies against the same inputs CI does. Pinned to the
+      # commit the themes use for 2.0.0 (S6-T01 schema re-pin to registry
+      # 2.11.0) rather than a mutable `main`, so a push to the sibling
+      # repository cannot change what this job installs and runs in the
+      # job that holds npm publish credentials.
       - name: Check out the template sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/template
-          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          ref: 15142f8baebaff5e174ac07d784073d2d2163b88
           path: .siblings/template
           persist-credentials: false
 
@@ -84,7 +86,7 @@ jobs:
 
       - name: Install the template sibling's own dependencies
         working-directory: .siblings/template
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run the complete release gate
         run: npm run verify

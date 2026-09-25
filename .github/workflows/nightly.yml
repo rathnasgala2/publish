@@ -80,7 +80,7 @@ jobs:
 
       - name: Install the template sibling's own dependencies
         working-directory: .siblings/template
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run the complete repository gate
         run: npm run verify

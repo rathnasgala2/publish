@@ -30,6 +30,7 @@
     "@rathnasgala2/adapter-protocol": "0.2.0"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   }
 }

@@ -38,6 +38,7 @@
     "yaml": "2.9.0"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   }
 }

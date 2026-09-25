@@ -56,12 +56,27 @@ function walk(value, location, visit) {
     const out = {};
     for (const [key, entry] of Object.entries(value)) {
       const keyLocation = `${location}/${key}`;
-      out[key] =
+      const replacement =
         CREDENTIAL_KEY_PATTERN.test(key) &&
         typeof entry === 'string' &&
         entry.length > 0
           ? REDACTED
           : walk(entry, keyLocation, visit);
+      // `Object.entries` yields "__proto__" as a genuine own enumerable key
+      // for a value produced by `JSON.parse`. A plain `out[key] = ...`
+      // assignment for that key name goes through `Object.prototype`'s
+      // `__proto__` accessor instead of creating an own property, which
+      // both drops the credential subtree from the redacted clone and lets
+      // the input set the clone's prototype. `Object.defineProperty` always
+      // creates (or overwrites) an own data property, regardless of key
+      // name, so "__proto__", "constructor" and "prototype" are redacted
+      // and cloned like any other key.
+      Object.defineProperty(out, key, {
+        value: replacement,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     return out;
   }

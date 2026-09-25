@@ -44,6 +44,72 @@ test('redactSecrets leaves ordinary values untouched', () => {
   assert.deepEqual(redactSecrets(input), input);
 });
 
+test('redactSecrets keeps a "__proto__" own key as data instead of setting the clone\'s prototype', () => {
+  const input = JSON.parse(
+    '{"__proto__":{"secret":"sk-live-abcdef1234567890"}}',
+  );
+  const out = redactSecrets(input);
+  assert.equal(
+    Object.getPrototypeOf(out),
+    Object.prototype,
+    'the clone must not have an attacker-supplied prototype',
+  );
+  assert.ok(
+    Object.prototype.hasOwnProperty.call(out, '__proto__'),
+    '"__proto__" must survive as an own property of the clone',
+  );
+  const proto = /** @type {Record<string, unknown>} */ (
+    Object.getOwnPropertyDescriptor(out, '__proto__')?.value
+  );
+  assert.equal(proto.secret, '[REDACTED]');
+  assert.ok(
+    !JSON.stringify(out).includes('sk-live-abcdef1234567890'),
+    'the raw credential must not survive redaction',
+  );
+});
+
+test('redactSecrets does not pollute Object.prototype via a nested "__proto__" key', () => {
+  redactSecrets(
+    JSON.parse('{"a":{"__proto__":{"polluted":"sk-live-abcdef1234567890"}}}'),
+  );
+  assert.equal(
+    /** @type {Record<string, unknown>} */ ({}).polluted,
+    undefined,
+    'Object.prototype must remain unpolluted after redacting nested input',
+  );
+});
+
+test('redactSecrets treats "constructor" and "prototype" as ordinary keys', () => {
+  const out = redactSecrets({
+    constructor: { password: 'hunter2' },
+    prototype: { apiKey: 'sk-live-abcdef1234567890' },
+    kept: 'value',
+  });
+  assert.equal(
+    /** @type {{password: string}} */ (out.constructor).password,
+    '[REDACTED]',
+  );
+  assert.equal(
+    /** @type {{apiKey: string}} */ (out.prototype).apiKey,
+    '[REDACTED]',
+  );
+  assert.equal(out.kept, 'value');
+  assert.equal(Object.getPrototypeOf(out), Object.prototype);
+});
+
+test('redactSecrets redacts "__proto__" credentials inside an array of objects', () => {
+  const input = JSON.parse(
+    '[{"__proto__":{"secret":"sk-live-abcdef1234567890"}},{"kept":"value"}]',
+  );
+  const out = redactSecrets(input);
+  assert.equal(Object.getPrototypeOf(out[0]), Object.prototype);
+  const proto = /** @type {Record<string, unknown>} */ (
+    Object.getOwnPropertyDescriptor(out[0], '__proto__')?.value
+  );
+  assert.equal(proto.secret, '[REDACTED]');
+  assert.equal(out[1].kept, 'value');
+});
+
 test('findSecretExposure detects a credential-bearing key with a non-empty value', () => {
   const findings = findSecretExposure({ password: 'hunter2' });
   assert.ok(findings.some((f) => f.code === 'SECRET_EXPOSURE_DETECTED'));

@@ -27,7 +27,8 @@
     "test": "node --test"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@rathnasgala2/adapter-protocol": "0.2.0",
