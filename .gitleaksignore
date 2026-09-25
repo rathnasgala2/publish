@@ -29,3 +29,11 @@ c2a8f4cec6dd6f1174fe42c45feff5745493b5e1:scripts/minio-spaces.sh:generic-api-key
 # The line below is this file's own earlier revision: a comment that quoted
 # one of those placeholder shapes verbatim. The comment no longer does.
 d6b82ef2c0ea5fe5eace5d875f9f8644e3856a5b:.gitleaksignore:aws-access-token:5
+#
+# Reviewed 2026-09-25: PUB-C2 __proto__ regression tests added to
+# packages/publish-kernel/test/secret-redaction.test.js reuse the same
+# synthetic "sk-live-..." placeholder shape as the existing corpus above,
+# at new line numbers. Same fixture, not a credential.
+de604a5d8f3a7c9d8bc132d048a8dd8808ac8a3b:packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:49
+de604a5d8f3a7c9d8bc132d048a8dd8808ac8a3b:packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:85
+de604a5d8f3a7c9d8bc132d048a8dd8808ac8a3b:packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:102
