@@ -5,15 +5,22 @@ Author-facing publish orchestration entry: GitHub Action plus local `npx`
 
 ## Status
 
-Implemented (S2-T20, extended by S2-T20b's theme wiring). This package is the
+Implemented (S2-T20, extended by S2-T20b's theme wiring) and **unpublished**:
+`package.json` sets `"private": true` (PUB-H8), so `npm publish` refuses this
+package regardless of `release.yaml`'s exclusion list. This package is the
 workspace's sole composition root: it normalizes an author repository into a
 validated `build-input:2.0.0` document, resolves and verifies the
 `gala.lock.json`-pinned theme package (see "Theme resolution" below), calls
 `@rathnasgala2/template`'s `renderPublication`, and drives
 `@rathnasgala2/publish-kernel` plus the selected `@rathnasgala2/adapter-*`
-implementation. Only `local-directory` is implemented; `github-pages` and
-`do-spaces` selection fails closed with `TARGET_CAPABILITY_UNAVAILABLE` until
-S2-T18/S2-T19 land.
+implementation.
+
+`adapter-github-pages` and `adapter-do-spaces` are themselves fully implemented
+and published (S4-T04/S4-T05) — the gap is in this package's own wiring, not in
+those adapters: `assertImplementedAdapter` (`src/adapter-select.js`) only admits
+`local-directory` today, and `github-pages`/`do-spaces` selection fails closed
+with `TARGET_CAPABILITY_UNAVAILABLE` until S2-T18/S2-T19 wire them into this
+composition root.
 
 ## Two invocation shapes, one implementation
 

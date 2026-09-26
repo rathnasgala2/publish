@@ -8,6 +8,20 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- **PUB-H8:** `package.json` sets `"private": true`, so `npm publish` refuses
+  this package structurally instead of relying only on `release.yaml`'s
+  exclusion list. `@rathnasgala2/template` is now declared as an optional
+  `peerDependencies` entry (`^2.0.0`), so this package's dependency closure is
+  honest even though `template` is not yet on the npm registry.
+  `workspace-siblings.js`'s `resolveWorkspaceRoot` now refuses its LOCAL-only
+  relative sibling default outright when this module is running from inside a
+  `node_modules` tree (the shape of an installed dependency) and requires an
+  absolute `WORKSPACE_ROOT` in that case, closing the path by which an installed
+  copy could `import()` code from outside a consumer's project. `WORKSPACE_ROOT`
+  must now be an absolute path when set.
+
 ### Changed
 
 - **PUBLISH-S4-6b — the build leaves its two validated fact records next to the

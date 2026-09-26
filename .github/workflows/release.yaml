@@ -119,8 +119,12 @@ jobs:
       # Publish order follows the six packages' dependency graph:
       # adapter-protocol has no in-repo dependents below it, publish-kernel
       # depends on it, and the three concrete adapters plus the conformance
-      # kit sit above both. packages/publish-action is a scaffold
-      # placeholder (DEC-097-adjacent) and is deliberately excluded.
+      # kit sit above both. packages/publish-action is implemented but
+      # carries "private": true (PUB-H8) and is deliberately excluded from
+      # this list -- npm would refuse to publish it even if it were not.
+      # Its composition root still wires only local-directory of the three
+      # adapters (see packages/publish-action/README.md "Status"), which is
+      # the remaining reason it stays unpublished.
       - name: Publish bumped packages in dependency order
         shell: bash
         env:

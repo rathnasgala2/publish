@@ -2,8 +2,10 @@ name: 'Gala publish'
 description: >-
   Build an author repository into a deterministic static publication and deploy
   it through the non-disableable publish-kernel and the selected destination
-  adapter. Only local-directory is implemented as of S2-T20; github-pages and
-  do-spaces selection fails closed until S2-T18/S2-T19 land.
+  adapter. This composition root wires only local-directory as of S2-T20;
+  github-pages and do-spaces are separately implemented and published adapter
+  packages, but selecting them here fails closed until S2-T18/S2-T19 wire them
+  into this Action.
 author: 'Galascribe'
 
 inputs:
@@ -31,10 +33,11 @@ inputs:
     required: false
   adapter:
     description: >-
-      The destination adapter to deploy through. Only "local-directory" is
-      implemented in this repository; "github-pages" and "do-spaces" are valid
-      closed-vocabulary identities but fail closed with
-      TARGET_CAPABILITY_UNAVAILABLE until S2-T18/S2-T19 land.
+      The destination adapter to deploy through. Only "local-directory" is wired
+      into this Action's composition root; "github-pages" and "do-spaces" are
+      valid closed-vocabulary identities (and are themselves implemented,
+      published adapter packages) but selecting either one here fails closed
+      with TARGET_CAPABILITY_UNAVAILABLE until S2-T18/S2-T19 wire them in.
     required: false
     default: 'local-directory'
   adapter-config-path:

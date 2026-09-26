@@ -2,7 +2,9 @@
  * Resolve the workspace root directory that contains this repository's
  * sibling checkouts: `WORKSPACE_ROOT` (DEC-015 name) when set to a
  * non-empty string, otherwise the fixed relative default from this
- * module's own file location.
+ * module's own file location -- unless this module is running from inside
+ * a `node_modules` tree, in which case the relative default is refused
+ * (PUB-H8) and `WORKSPACE_ROOT` is mandatory.
  *
  * @param {NodeJS.ProcessEnv} [env] the process environment (injectable for
  *   tests; defaults to `process.env`)
@@ -23,6 +25,19 @@ export function resolveWorkspaceRoot(env?: NodeJS.ProcessEnv): string;
  * @returns {string} the absolute candidate directory
  */
 export function resolveWorkspaceSibling(siblingName: string, env?: NodeJS.ProcessEnv): string;
+/**
+ * A workspace-sibling env override (`WORKSPACE_ROOT`) was set but is not an
+ * absolute path, or the relative default was reached from inside a
+ * `node_modules` tree with no override set.
+ */
+export class WorkspaceRootInvalidError extends Error {
+    /**
+     * @param {string} detail human-readable detail
+     */
+    constructor(detail: string);
+    /** @type {string} */
+    code: string;
+}
 /**
  * A named workspace sibling repository could not be found on disk at the
  * resolved location. Always names `WORKSPACE_ROOT` in its message so the

@@ -11,15 +11,15 @@ closed adapter-capability contract.
 
 ## Packages
 
-| Package                                 | Status                        |
-| --------------------------------------- | ----------------------------- |
-| `@rathnasgala2/publish-kernel`          | implemented (S2-T16)          |
-| `@rathnasgala2/adapter-protocol`        | implemented (S2-T15)          |
-| `@rathnasgala2/adapter-conformance-kit` | implemented (S2-T17)          |
-| `@rathnasgala2/adapter-local-directory` | implemented (S2-T17)          |
-| `@rathnasgala2/adapter-github-pages`    | implemented (S4-T04)          |
-| `@rathnasgala2/adapter-do-spaces`       | implemented (S4-T05)          |
-| `@rathnasgala2/publish-action`          | scaffold placeholder (S2-T20) |
+| Package                                 | Status                                                              |
+| --------------------------------------- | ------------------------------------------------------------------- |
+| `@rathnasgala2/publish-kernel`          | implemented (S2-T16)                                                |
+| `@rathnasgala2/adapter-protocol`        | implemented (S2-T15)                                                |
+| `@rathnasgala2/adapter-conformance-kit` | implemented (S2-T17)                                                |
+| `@rathnasgala2/adapter-local-directory` | implemented (S2-T17)                                                |
+| `@rathnasgala2/adapter-github-pages`    | implemented (S4-T04)                                                |
+| `@rathnasgala2/adapter-do-spaces`       | implemented (S4-T05)                                                |
+| `@rathnasgala2/publish-action`          | implemented (S2-T20/S2-T20b), unpublished (`private: true`, PUB-H8) |
 
 ## Commands
 
