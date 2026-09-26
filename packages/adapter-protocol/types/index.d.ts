@@ -1,3 +1,4 @@
+export { REDACTION_PLACEHOLDER } from "./redaction.js";
 export { loadAdapterModule } from "./loader.js";
 export { generateUuidV7 } from "./uuid.js";
 export { AdapterProtocolError, finding } from "./errors.js";

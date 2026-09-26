@@ -10,6 +10,11 @@ and this project adheres to
 
 ### Added
 
+- **PUB-L1:** `REDACTION_PLACEHOLDER` now comes from
+  `@rathnasgala2/adapter-protocol`, the one redaction sentinel every package
+  uses, instead of this package's own `'[redacted]'` literal. The value changes
+  from `'[redacted]'` to `'[REDACTED]'`; this constant is internal and was not
+  part of the published root export.
 - **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
   tree-shake an unused re-export from this package's barrel entry point instead
   of conservatively retaining the whole thing.

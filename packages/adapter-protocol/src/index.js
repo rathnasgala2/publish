@@ -50,6 +50,8 @@ export {
   sha256Hex,
 } from './digest.js';
 
+export { REDACTION_PLACEHOLDER } from './redaction.js';
+
 export {
   FRAME_CEILING_BYTES,
   FRAME_LENGTH_PREFIX_BYTES,

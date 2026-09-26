@@ -34,5 +34,5 @@ export function assertFreeOfSecrets(value: unknown, secrets: readonly (string | 
  * @returns {Promise<T>} the function's result
  */
 export function withRedactedFailures<T>(secrets: readonly (string | undefined)[], run: () => Promise<T>): Promise<T>;
-/** The placeholder a redacted secret is replaced with. */
-export const REDACTION_PLACEHOLDER: "[redacted]";
+export { REDACTION_PLACEHOLDER };
+import { REDACTION_PLACEHOLDER } from '@rathnasgala2/adapter-protocol';

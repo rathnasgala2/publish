@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Added
 
+- **PUB-L1:** `test/redaction-sentinel-agreement.test.mjs` proves
+  `publish-kernel` and `adapter-github-pages` use the same redaction sentinel
+  now that both import `@rathnasgala2/adapter-protocol`'s
+  `REDACTION_PLACEHOLDER`.
 - **PUB-M12:** `npm run placeholder:check`
   (`scripts/check-placeholder-markers.mjs`) fails if the literal
   `PLACEHOLDER (W0-01)` marker text appears anywhere in the scanned files

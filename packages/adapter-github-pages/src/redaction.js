@@ -16,9 +16,11 @@
  * @module
  */
 
+import { REDACTION_PLACEHOLDER } from '@rathnasgala2/adapter-protocol';
+
 import { PagesAdapterError } from './errors.js';
-/** The placeholder a redacted secret is replaced with. */
-export const REDACTION_PLACEHOLDER = '[redacted]';
+
+export { REDACTION_PLACEHOLDER };
 
 /**
  * Replace every occurrence of every secret in one string.

@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Added
 
+- **PUB-L1:** `REDACTION_PLACEHOLDER` (`'[REDACTED]'`) is now exported -- the
+  one redaction sentinel `publish-kernel` and `adapter-github-pages` both use,
+  instead of each defining its own (`'[REDACTED]'` vs `'[redacted]'`).
 - **PUB-M2:** the README's new "Version numbers" section documents the
   relationship between the npm package version, `ADAPTER_PROTOCOL_VERSION` and
   the schema/profile versions this package consumes.

@@ -13,9 +13,9 @@
  * @module
  */
 
-import { kernelFinding } from './errors.js';
+import { REDACTION_PLACEHOLDER as REDACTED } from '@rathnasgala2/adapter-protocol';
 
-const REDACTED = '[REDACTED]';
+import { kernelFinding } from './errors.js';
 
 /** Key names that make an otherwise-plain string value credential-bearing. */
 const CREDENTIAL_KEY_PATTERN =

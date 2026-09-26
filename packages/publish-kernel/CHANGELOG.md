@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- **PUB-L1:** the internal `REDACTED` placeholder now comes from
+  `@rathnasgala2/adapter-protocol`'s `REDACTION_PLACEHOLDER`, the one redaction
+  sentinel every package uses, instead of this package's own `'[REDACTED]'`
+  literal (the value is unchanged).
+
 ### Added
 
 - **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can

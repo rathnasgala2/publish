@@ -39,6 +39,7 @@ test('the public entry point re-exports every module surface', () => {
     'isDigestString',
     'projectArtifactEntry',
     'sha256Hex',
+    'REDACTION_PLACEHOLDER',
     'FRAME_CEILING_BYTES',
     'FRAME_LENGTH_PREFIX_BYTES',
     'decodeFrame',
