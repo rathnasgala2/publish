@@ -5,8 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "node": "24.18.0",
-    "npm": "11.16.0"
+    "node": ">=24.0.0"
   },
   "exports": {
     ".": {
@@ -30,7 +29,7 @@
     "declarations:check": "node ../../scripts/check-declarations.mjs adapter-local-directory"
   },
   "dependencies": {
-    "@rathnasgala2/adapter-protocol": "0.2.0",
+    "@rathnasgala2/adapter-protocol": "^0.2.0",
     "@rathnasgala2/schemas": "2.11.0"
   },
   "devDependencies": {
@@ -40,5 +39,21 @@
   "publishConfig": {
     "access": "public",
     "provenance": true
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rathnasgala2/publish.git",
+    "directory": "packages/adapter-local-directory"
+  },
+  "homepage": "https://github.com/rathnasgala2/publish/tree/main/packages/adapter-local-directory#readme",
+  "bugs": {
+    "url": "https://github.com/rathnasgala2/publish/issues"
+  },
+  "keywords": [
+    "gala",
+    "galascribe",
+    "publish",
+    "adapter",
+    "local-directory"
+  ]
 }

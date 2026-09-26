@@ -5,8 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "node": "24.18.0",
-    "npm": "11.16.0"
+    "node": ">=24.0.0"
   },
   "exports": {
     ".": {
@@ -34,14 +33,30 @@
     "declarations:check": "node ../../scripts/check-declarations.mjs publish-action"
   },
   "dependencies": {
-    "@rathnasgala2/adapter-local-directory": "0.1.0",
-    "@rathnasgala2/adapter-protocol": "0.2.0",
-    "@rathnasgala2/publish-kernel": "0.1.0",
+    "@rathnasgala2/adapter-local-directory": "^0.1.0",
+    "@rathnasgala2/adapter-protocol": "^0.2.0",
+    "@rathnasgala2/publish-kernel": "^0.1.0",
     "@rathnasgala2/schemas": "2.11.0",
     "yaml": "2.9.0"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rathnasgala2/publish.git",
+    "directory": "packages/publish-action"
+  },
+  "homepage": "https://github.com/rathnasgala2/publish/tree/main/packages/publish-action#readme",
+  "bugs": {
+    "url": "https://github.com/rathnasgala2/publish/issues"
+  },
+  "keywords": [
+    "gala",
+    "galascribe",
+    "publish",
+    "github-action",
+    "cli"
+  ]
 }
