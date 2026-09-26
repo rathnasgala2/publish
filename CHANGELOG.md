@@ -10,6 +10,12 @@ and this project adheres to
 
 ### Added
 
+- **PUB-L7:** `CLAUDE.md`'s "Commands" section now lists every gate
+  `npm run verify` actually runs (`coverage:check`, `sbom:check`,
+  `workflows:check`, `workflows:drift`, `schema-pin:check`, `placeholder:check`
+  were missing). `test/claude-md-commands.test.mjs` parses `package.json`'s
+  `verify` script and asserts every command it chains is listed, so the two
+  cannot silently drift apart again.
 - **PUB-L6:** deleted the dead `verifyPackageTarballs` local-tarball-pin
   machinery from `scripts/check-pins.mjs` (and the matching `packages` loop in
   `comparePins`, the `packages` field in `pins/ledger.json`, and the fixture
