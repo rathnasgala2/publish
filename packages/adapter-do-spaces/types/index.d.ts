@@ -193,6 +193,8 @@ export function rollback(input: {
     idempotencyKey: string;
     files?: readonly StagedFile[];
 }): Promise<Readonly<Record<string, unknown>>>;
+export { SpacesAdapterError } from "./errors.js";
+export * from "./types.js";
 export { computeArtifactDigest } from "./artifact-projection.js";
 export { deriveOrigins } from "./origins.js";
 export { forgetDestination } from "./store.js";
@@ -214,19 +216,7 @@ export const PACKAGE_STATUS: Readonly<{
     implemented: true;
     implementingTask: "S4-T05";
 }>;
-export type SpacesDestination = Readonly<{
-    region: string;
-    servedBucket: string;
-    stagingBucket: string;
-    accessKeyId: string;
-    secretAccessKey: string;
-    sessionToken?: string;
-    publicBaseUrl?: string;
-    controlPlaneEvidence?: Readonly<Record<string, unknown>>;
-    fetch?: typeof globalThis.fetch;
-    publicFetch?: typeof globalThis.fetch;
-    onProviderCall?: (record: import("./s3.js").ProviderCallRecord) => void;
-}>;
+export type SpacesDestination = import("./types.js").SpacesDestination;
 export type StagedFile = Readonly<{
     path: string;
     bytes: Buffer;

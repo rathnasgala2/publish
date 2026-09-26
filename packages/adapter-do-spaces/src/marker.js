@@ -11,6 +11,7 @@
  * @module
  */
 
+import { SpacesAdapterError } from './errors.js';
 import { canonicalizeJson } from '@rathnasgala2/adapter-protocol';
 import { validateGalaDocument } from '@rathnasgala2/schemas';
 
@@ -55,8 +56,9 @@ export const MARKER = Object.freeze({
     };
     const result = validateGalaDocument(MARKER_SCHEMA_ID, document);
     if (!result.valid) {
-      throw new Error(
-        `SPACES_MARKER_INVALID: ${JSON.stringify(result.diagnostics)}`,
+      throw new SpacesAdapterError(
+        `SPACES_MARKER_INVALID`,
+        `${JSON.stringify(result.diagnostics)}`,
       );
     }
     // The marker body profile is `spaces-generation-marker-jcs-v2`: the

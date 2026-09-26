@@ -251,6 +251,7 @@ export function rollback(input: {
     pagesOidcToken?: string;
     pagesOidcClaims?: import("./oidc.js").PagesOidcExpectation;
 }): Promise<Readonly<Record<string, unknown>>>;
+export { PagesAdapterError } from "./errors.js";
 export { computeArtifactDigest } from "./artifact-projection.js";
 export { forgetDestination } from "./store.js";
 /** This package's runtime status: fully implemented per S4-T04 (W4-11). */

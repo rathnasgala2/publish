@@ -29,6 +29,7 @@
  * @module
  */
 
+import { SpacesAdapterError } from './errors.js';
 import {
   fenceDisagrees,
   fenceFor,
@@ -65,6 +66,8 @@ import {
 
 export { generateUuidV7 } from '@rathnasgala2/adapter-protocol';
 export { EXPECT_NOTHING_SERVED } from '@rathnasgala2/adapter-protocol';
+export { SpacesAdapterError } from './errors.js';
+export * from './types.js';
 export { computeArtifactDigest } from './artifact-projection.js';
 export { ADAPTER_VERSION, GENERATION_MARKER_KEY } from './constants.js';
 export { deriveOrigins } from './origins.js';
@@ -90,21 +93,7 @@ export {
 } from './control-plane.js';
 
 /**
- * @typedef {Readonly<{
- *   region: string,
- *   servedBucket: string,
- *   stagingBucket: string,
- *   accessKeyId: string,
- *   secretAccessKey: string,
- *   sessionToken?: string,
- *   publicBaseUrl?: string,
- *   controlPlaneEvidence?: Readonly<Record<string, unknown>>,
- *   fetch?: typeof globalThis.fetch,
- *   publicFetch?: typeof globalThis.fetch,
- *   onProviderCall?: (
- *     record: import('./s3.js').ProviderCallRecord
- *   ) => void
- * }>} SpacesDestination
+ * @typedef {import('./types.js').SpacesDestination} SpacesDestination
  */
 
 /**
@@ -541,8 +530,9 @@ export async function stage(input) {
   const remembered = recallStage(context.identity, prefix.stageToken);
   if (remembered !== null) {
     if (remembered.artifactDigest !== input.artifactDigest) {
-      throw new Error(
-        `IDEMPOTENCY_KEY_REUSE_CONFLICT: this operation/attempt/generation already staged artifact digest ${remembered.artifactDigest}`,
+      throw new SpacesAdapterError(
+        `IDEMPOTENCY_KEY_REUSE_CONFLICT`,
+        `this operation/attempt/generation already staged artifact digest ${remembered.artifactDigest}`,
       );
     }
     if (alreadyStaged.length > 0) {
@@ -667,14 +657,16 @@ async function replaceServedRoot(input, plan) {
       : recallStage(context.identity, input.stageToken);
   const files = input.files ?? remembered?.files;
   if (files === undefined) {
-    throw new Error(
-      `SPACES_STAGE_NOT_FOUND: stage token ${JSON.stringify(input.stageToken ?? null)} was not staged by this run and the closed Spaces catalog has no object-GET row to read it back with; supply its bytes through "files"`,
+    throw new SpacesAdapterError(
+      `SPACES_STAGE_NOT_FOUND`,
+      `stage token ${JSON.stringify(input.stageToken ?? null)} was not staged by this run and the closed Spaces catalog has no object-GET row to read it back with; supply its bytes through "files"`,
     );
   }
   const artifactId = input.artifactId ?? remembered?.artifactId;
   if (artifactId === undefined) {
-    throw new Error(
-      'SPACES_ACTIVATION_IDENTITY_UNAVAILABLE: the generation marker needs an artifactId; supply "artifactId" when activating bytes this run did not stage',
+    throw new SpacesAdapterError(
+      'SPACES_ACTIVATION_IDENTITY_UNAVAILABLE',
+      'the generation marker needs an artifactId; supply "artifactId" when activating bytes this run did not stage',
     );
   }
   const artifactDigest =
@@ -685,8 +677,9 @@ async function replaceServedRoot(input, plan) {
   if (input.expectedArtifactDigest !== undefined) {
     const recomputed = computeArtifactDigest(files);
     if (recomputed !== input.expectedArtifactDigest) {
-      throw new Error(
-        `STAGE_INTEGRITY_MISMATCH: the staged generation digests to ${recomputed}, which disagrees with the expected artifact digest ${input.expectedArtifactDigest}; refusing to activate a partial or tampered stage`,
+      throw new SpacesAdapterError(
+        `STAGE_INTEGRITY_MISMATCH`,
+        `the staged generation digests to ${recomputed}, which disagrees with the expected artifact digest ${input.expectedArtifactDigest}; refusing to activate a partial or tampered stage`,
       );
     }
   }
@@ -783,8 +776,9 @@ async function replaceServedRoot(input, plan) {
 
   const confirmed = await readServedMarker(context);
   if (confirmed.generationId !== input.generationId) {
-    throw new Error(
-      `SPACES_ACTIVATION_UNCONFIRMED: after writing the pointer the served marker names ${JSON.stringify(confirmed.generationId)}`,
+    throw new SpacesAdapterError(
+      `SPACES_ACTIVATION_UNCONFIRMED`,
+      `after writing the pointer the served marker names ${JSON.stringify(confirmed.generationId)}`,
     );
   }
 
@@ -941,8 +935,9 @@ export async function cleanupStaged(input) {
   try {
     coordinates = parseStageToken(stageToken);
   } catch {
-    throw new Error(
-      `SPACES_CLEANUP_PREFIX_REFUSED: ${JSON.stringify(stageToken)} does not invert to this adapter's own operation-scoped stage prefix under ${STAGE_PREFIX}`,
+    throw new SpacesAdapterError(
+      `SPACES_CLEANUP_PREFIX_REFUSED`,
+      `${JSON.stringify(stageToken)} does not invert to this adapter's own operation-scoped stage prefix under ${STAGE_PREFIX}`,
     );
   }
   // Belt and braces: the inverse is arithmetic, but cleanup deletes by
@@ -950,8 +945,9 @@ export async function cleanupStaged(input) {
   // shape this adapter can derive. A prefix naming `_gala/staged/v2/` would
   // otherwise delete every other operation's stage.
   if (!isOwnedStagePrefix(coordinates.operationPrefix)) {
-    throw new Error(
-      `SPACES_CLEANUP_PREFIX_REFUSED: ${JSON.stringify(coordinates.operationPrefix)} is not this adapter's own operation-scoped stage prefix under ${STAGE_PREFIX}`,
+    throw new SpacesAdapterError(
+      `SPACES_CLEANUP_PREFIX_REFUSED`,
+      `${JSON.stringify(coordinates.operationPrefix)} is not this adapter's own operation-scoped stage prefix under ${STAGE_PREFIX}`,
     );
   }
 
@@ -1015,8 +1011,9 @@ export async function rollback(input) {
       input.targetGenerationId,
     );
     if (remembered === null) {
-      throw new Error(
-        `ROLLBACK_INPUT_UNAVAILABLE: generation ${JSON.stringify(input.targetGenerationId)} was not staged by this run and the closed Spaces catalog has no object-GET row to read a historical generation back with; supply its bytes through "files"`,
+      throw new SpacesAdapterError(
+        `ROLLBACK_INPUT_UNAVAILABLE`,
+        `generation ${JSON.stringify(input.targetGenerationId)} was not staged by this run and the closed Spaces catalog has no object-GET row to read a historical generation back with; supply its bytes through "files"`,
       );
     }
     files = remembered.files.filter(

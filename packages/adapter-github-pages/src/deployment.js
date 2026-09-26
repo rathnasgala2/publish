@@ -13,6 +13,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 import { canonicalizeJson, domainDigest } from '@rathnasgala2/adapter-protocol';
 
 import {
@@ -89,13 +90,15 @@ export function assertCanonicalCreateBody(bodyText) {
   try {
     parsed = JSON.parse(bodyText);
   } catch {
-    throw new Error(
-      'PAGES_CREATE_BODY_NONCANONICAL: the create request entity is not JSON',
+    throw new PagesAdapterError(
+      'PAGES_CREATE_BODY_NONCANONICAL',
+      'the create request entity is not JSON',
     );
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error(
-      'PAGES_CREATE_BODY_NONCANONICAL: the create request entity is not a JSON object',
+    throw new PagesAdapterError(
+      'PAGES_CREATE_BODY_NONCANONICAL',
+      'the create request entity is not a JSON object',
     );
   }
   const keys = Object.keys(/** @type {Record<string, unknown>} */ (parsed));
@@ -103,13 +106,15 @@ export function assertCanonicalCreateBody(bodyText) {
     keys.length !== CREATE_BODY_MEMBERS.length ||
     !CREATE_BODY_MEMBERS.every((name, index) => keys[index] === name)
   ) {
-    throw new Error(
-      `PAGES_CREATE_BODY_NONCANONICAL: the create request entity must have exactly the three members ${CREATE_BODY_MEMBERS.join(', ')} in JCS order`,
+    throw new PagesAdapterError(
+      `PAGES_CREATE_BODY_NONCANONICAL`,
+      `the create request entity must have exactly the three members ${CREATE_BODY_MEMBERS.join(', ')} in JCS order`,
     );
   }
   if (canonicalizeJson(parsed) !== bodyText) {
-    throw new Error(
-      'PAGES_CREATE_BODY_NONCANONICAL: the create request entity is not compact RFC 8785 JCS',
+    throw new PagesAdapterError(
+      'PAGES_CREATE_BODY_NONCANONICAL',
+      'the create request entity is not compact RFC 8785 JCS',
     );
   }
 }
@@ -134,18 +139,21 @@ export function buildCreateDeploymentBody(input) {
     artifactId > MAXIMUM_ARTIFACT_ID ||
     String(artifactId) !== String(input.pagesArtifactId)
   ) {
-    throw new Error(
-      `PAGES_ARTIFACT_ID_INVALID: ${JSON.stringify(String(input.pagesArtifactId))} is not a JSON integer in 1..${MAXIMUM_ARTIFACT_ID}; a string artifact id, a non-integer and an unsafe integer are all refused`,
+    throw new PagesAdapterError(
+      `PAGES_ARTIFACT_ID_INVALID`,
+      `${JSON.stringify(String(input.pagesArtifactId))} is not a JSON integer in 1..${MAXIMUM_ARTIFACT_ID}; a string artifact id, a non-integer and an unsafe integer are all refused`,
     );
   }
   if (!BUILD_VERSION_PATTERN.test(input.pagesBuildVersion)) {
-    throw new Error(
-      'PAGES_BUILD_VERSION_INVALID: pages_build_version must be exactly 40 lowercase hexadecimal characters',
+    throw new PagesAdapterError(
+      'PAGES_BUILD_VERSION_INVALID',
+      'pages_build_version must be exactly 40 lowercase hexadecimal characters',
     );
   }
   if (typeof input.oidcToken !== 'string' || input.oidcToken === '') {
-    throw new Error(
-      'PAGES_OIDC_TOKEN_REQUIRED: oidc_token is a mandatory member of the create request entity',
+    throw new PagesAdapterError(
+      'PAGES_OIDC_TOKEN_REQUIRED',
+      'oidc_token is a mandatory member of the create request entity',
     );
   }
   const bodyText = canonicalizeJson({
@@ -155,8 +163,9 @@ export function buildCreateDeploymentBody(input) {
   });
   assertCanonicalCreateBody(bodyText);
   if (bodyText.includes(input.githubToken)) {
-    throw new Error(
-      'PAGES_SECRET_LEAK_DETECTED: the GitHub token reached the create request body; DEC-097 section 7 forbids it',
+    throw new PagesAdapterError(
+      'PAGES_SECRET_LEAK_DETECTED',
+      'the GitHub token reached the create request body; DEC-097 section 7 forbids it',
     );
   }
   return Object.freeze({
@@ -211,8 +220,9 @@ export async function createDeployment(context, input) {
     const parsed = /** @type {Record<string, unknown>} */ (response.body ?? {});
     const observedId = parsed.id === undefined ? undefined : String(parsed.id);
     if (observedId !== input.pagesBuildVersion) {
-      throw new Error(
-        `PAGES_DEPLOYMENT_ID_MISMATCH: provider returned deployment id ${JSON.stringify(observedId)} for requested pages_build_version ${JSON.stringify(input.pagesBuildVersion)}`,
+      throw new PagesAdapterError(
+        `PAGES_DEPLOYMENT_ID_MISMATCH`,
+        `provider returned deployment id ${JSON.stringify(observedId)} for requested pages_build_version ${JSON.stringify(input.pagesBuildVersion)}`,
       );
     }
 
@@ -223,8 +233,9 @@ export async function createDeployment(context, input) {
         : undefined;
     const pollUrl = buildPollUrl(context, input.pagesBuildVersion);
     if (observedStatusUrl === pollUrl) {
-      throw new Error(
-        'PAGES_STATUS_URL_EQUALS_POLL_URL: DEC-097 section 7 forbids equality between the create response status_url and the independently constructed poll URL',
+      throw new PagesAdapterError(
+        'PAGES_STATUS_URL_EQUALS_POLL_URL',
+        'DEC-097 section 7 forbids equality between the create response status_url and the independently constructed poll URL',
       );
     }
 
@@ -294,8 +305,9 @@ export async function pollDeployment(context, pagesDeploymentId, options) {
     observedStatuses.push(status);
 
     if (!PAGES_DEPLOYMENT_STATUSES.includes(status)) {
-      throw new Error(
-        `PAGES_DEPLOYMENT_STATUS_UNKNOWN: ${JSON.stringify(status)} is outside the eleven accepted statuses; the destination fence stays held`,
+      throw new PagesAdapterError(
+        `PAGES_DEPLOYMENT_STATUS_UNKNOWN`,
+        `${JSON.stringify(status)} is outside the eleven accepted statuses; the destination fence stays held`,
       );
     }
     if (status === SUCCESS_STATUS) {
@@ -305,15 +317,17 @@ export async function pollDeployment(context, pagesDeploymentId, options) {
       return { status, succeeded: false, observedStatuses, waitedSeconds };
     }
     if (!TEMPORARY_STATUSES.includes(status)) {
-      throw new Error(
-        `PAGES_DEPLOYMENT_STATUS_UNPARTITIONED: ${JSON.stringify(status)} is neither temporary nor terminal`,
+      throw new PagesAdapterError(
+        `PAGES_DEPLOYMENT_STATUS_UNPARTITIONED`,
+        `${JSON.stringify(status)} is neither temporary nor terminal`,
       );
     }
 
     const wait = POLL_SCHEDULE_SECONDS[attempt] ?? POLL_TAIL_SECONDS;
     if (spent + wait > budget) {
-      throw new Error(
-        `PAGES_DEPLOYMENT_POLL_BUDGET_EXHAUSTED: ${pagesDeploymentId} was still ${status} after ${spent} seconds; the outcome is ambiguous and the destination fence stays held`,
+      throw new PagesAdapterError(
+        `PAGES_DEPLOYMENT_POLL_BUDGET_EXHAUSTED`,
+        `${pagesDeploymentId} was still ${status} after ${spent} seconds; the outcome is ambiguous and the destination fence stays held`,
       );
     }
     spent += wait;

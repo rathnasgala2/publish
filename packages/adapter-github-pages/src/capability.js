@@ -15,6 +15,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 import {
   ROLLBACK,
   assertValidCapabilityDeclaration,
@@ -54,8 +55,9 @@ import {
 export const CALL_CLASS_BINDING_PROFILE = (() => {
   const profile = ACTIVE_DIGEST_PROFILES.providerCallClassBinding;
   if (profile === undefined) {
-    throw new Error(
-      'PAGES_DIGEST_PROFILE_MISSING: @rathnasgala2/schemas/digest-profiles exports no providerCallClassBinding profile',
+    throw new PagesAdapterError(
+      'PAGES_DIGEST_PROFILE_MISSING',
+      '@rathnasgala2/schemas/digest-profiles exports no providerCallClassBinding profile',
     );
   }
   return profile;
@@ -63,7 +65,8 @@ export const CALL_CLASS_BINDING_PROFILE = (() => {
 
 const ROW_OR_UNDEFINED = getCapabilityRow('github-pages');
 if (ROW_OR_UNDEFINED === undefined) {
-  throw new Error(
+  throw new PagesAdapterError(
+    'PAGES_CAPABILITY_ROW_MISSING',
     'adapter-protocol does not declare a github-pages capability row',
   );
 }

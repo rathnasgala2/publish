@@ -67,50 +67,6 @@ export function verifyPagesOidcToken(token: unknown, expected: PagesOidcExpectat
  * @returns {PagesOidcExpectation} the validated expectation
  */
 export function requireOidcExpectation(expected: unknown): PagesOidcExpectation;
-/**
- * The `gala-pages-oidc-v2` credential-source profile: the local, structural
- * binding checks this adapter performs on the Pages OIDC JWT immediately
- * before placing it — and only it — in the create-deployment request body.
- *
- * ## Trust boundary (read this before changing anything here)
- *
- * This adapter **never mints a credential**. The JWT is caller-supplied
- * input: DEC-097 section 7 places the one token acquisition in the Pages
- * environment job, which calls the GitHub-hosted runner URL from
- * `ACTIONS_ID_TOKEN_REQUEST_URL` exactly once with
- * `ACTIONS_ID_TOKEN_REQUEST_TOKEN` (that is what the job's `id-token: write`
- * permission is for), against an origin that must byte-equal one member of
- * the capability-authorized `githubActionsOidcOriginCatalog`.
- *
- * For this in-job, single-use credential the trust boundary is therefore
- * that exact catalog-authorized, DNS/TLS-authenticated runner token endpoint
- * and bearer exchange — **not** anything this module does. GitHub Pages is
- * the relying party that cryptographically validates the JWT when it
- * processes create-deployment. Accordingly this module **deliberately
- * performs no issuer-signature or JWKS verification and makes no discovery,
- * issuer-key or JWKS network call of any kind**; no such unbudgeted request,
- * cache or key-set digest may be inferred from it. The checks below prevent
- * a token minted for another bound context from being forwarded; they are
- * expressly not an independent issuer-authenticity proof, and a stale or
- * signature-substituted token is not a locally authenticated finding — it
- * reaches the disposable Pages relying party, which must reject it before
- * any candidate activation can be derived.
- *
- * ## What is checked
- *
- * Three compact-JWT segments in canonical unpadded base64url; duplicate-key-
- * free JSON object header and payload; and the exact binding claims: issuer,
- * audience `https://github.com/<repository_owner>`, one of the two supported
- * default-environment subject forms with every inserted component recomputed
- * from the separately verified `repository`, `repository_owner`,
- * `repository_id` and `repository_owner_id` claims, `environment`, and the
- * caller-supplied ref/SHA/run id/run attempt/`job_workflow_ref`/
- * `job_workflow_sha` expectations.
- *
- * No error raised here ever contains a token byte.
- *
- * @module
- */
 /** The closed credential-source profile this module implements. */
 export const PAGES_OIDC_PROFILE: "gala-pages-oidc-v2";
 /** The exact required `iss` claim. */

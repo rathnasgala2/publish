@@ -27,7 +27,7 @@ export function buildControlPlaneRequestCatalog(origins: import("./origins.js").
  * exact code `AccessDenied`.
  *
  * @param {{
- *   destination: import('./index.js').SpacesDestination,
+ *   destination: import('./types.js').SpacesDestination,
  *   fetch?: typeof globalThis.fetch
  * }} input the destination carrying the limited caller key
  * @returns {Promise<Readonly<Record<string, unknown>>>} a credential-free
@@ -35,7 +35,7 @@ export function buildControlPlaneRequestCatalog(origins: import("./origins.js").
  *   observed error codes
  */
 export function proveLimitedKeyAccessDenied(input: {
-    destination: import("./index.js").SpacesDestination;
+    destination: import("./types.js").SpacesDestination;
     fetch?: typeof globalThis.fetch;
 }): Promise<Readonly<Record<string, unknown>>>;
 /** The exact control-plane request-catalog profile. */

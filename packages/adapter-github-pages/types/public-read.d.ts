@@ -25,16 +25,6 @@ export function readPublic(context: PublicContext, artifactRelativePath: string)
     bytes: Buffer | null;
     etag: string | null;
 }>;
-/**
- * Credential-free public reads of the activated Pages origin.
- *
- * These are the adapter's `public-http` and `generation-marker` verification
- * capabilities. They carry no `authorization` header (the credential-egress
- * profile declares zero credentials on the public origin), follow no
- * redirect, and read a bounded body.
- *
- * @module
- */
 /** Maximum bytes any single public read will accept. */
 export const MAXIMUM_PUBLIC_BODY_BYTES: 33554432;
 export type PublicContext = Readonly<{

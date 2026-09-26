@@ -15,6 +15,7 @@
  * @module
  */
 
+import { SpacesAdapterError } from './errors.js';
 import {
   ROLLBACK,
   assertValidCapabilityDeclaration,
@@ -51,7 +52,8 @@ import {
 
 const ROW_OR_UNDEFINED = getCapabilityRow('do-spaces');
 if (ROW_OR_UNDEFINED === undefined) {
-  throw new Error(
+  throw new SpacesAdapterError(
+    'SPACES_CAPABILITY_ROW_MISSING',
     'adapter-protocol does not declare a do-spaces capability row',
   );
 }

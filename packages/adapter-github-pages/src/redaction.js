@@ -16,6 +16,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 /** The placeholder a redacted secret is replaced with. */
 export const REDACTION_PLACEHOLDER = '[redacted]';
 
@@ -81,8 +82,9 @@ export function assertFreeOfSecrets(value, secrets, label) {
       continue;
     }
     if (strings.some((candidate) => candidate.includes(secret))) {
-      throw new Error(
-        `PAGES_SECRET_LEAK_DETECTED: a credential's bytes reached ${label}; DEC-097 section 7 forbids it`,
+      throw new PagesAdapterError(
+        `PAGES_SECRET_LEAK_DETECTED`,
+        `a credential's bytes reached ${label}; DEC-097 section 7 forbids it`,
       );
     }
   }

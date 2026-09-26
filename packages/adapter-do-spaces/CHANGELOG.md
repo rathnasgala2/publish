@@ -8,6 +8,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- **PUB-H6:** every refusal this package raises is now a typed
+  `SpacesAdapterError` (`src/errors.js`, exported from the package root)
+  carrying a stable `code` property (e.g.
+  `error.code === 'SPACES_PROVIDER_STATUS_UNEXPECTED'`), instead of a bare
+  `Error` a caller had to parse `CODE: detail` out of. `.message` is unchanged,
+  so this is additive, not breaking.
+
 ## [0.1.0] - 2026-09-22
 
 ### Changed

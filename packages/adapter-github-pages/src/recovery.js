@@ -25,6 +25,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 import {
   canonicalizeJson,
   domainDigest,
@@ -79,7 +80,7 @@ const RFC3339 =
  * @returns {never} never returns
  */
 function refuse(code, detail) {
-  throw new Error(`${code}: ${detail}`);
+  throw new PagesAdapterError(code, detail);
 }
 
 /**

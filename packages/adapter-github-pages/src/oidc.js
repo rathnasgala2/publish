@@ -43,6 +43,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 /** The closed credential-source profile this module implements. */
 export const PAGES_OIDC_PROFILE = 'gala-pages-oidc-v2';
 
@@ -83,7 +84,7 @@ const CANONICAL_DECIMAL = /^(?:0|[1-9][0-9]*)$/u;
  * @returns {never} never returns
  */
 function refuse(code, detail) {
-  throw new Error(`${code}: ${detail}`);
+  throw new PagesAdapterError(code, detail);
 }
 
 /**

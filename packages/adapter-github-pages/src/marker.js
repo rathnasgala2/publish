@@ -10,6 +10,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 import { validateGalaDocument } from '@rathnasgala2/schemas';
 
 /** The exact schema identity every marker is validated against. */
@@ -34,8 +35,9 @@ export function buildValidatedMarker(identity) {
   });
   const validation = validateGalaDocument(MARKER_SCHEMA_ID, marker);
   if (!validation.valid) {
-    throw new Error(
-      `PAGES_MARKER_INVALID: ${JSON.stringify(validation.diagnostics)}`,
+    throw new PagesAdapterError(
+      `PAGES_MARKER_INVALID`,
+      `${JSON.stringify(validation.diagnostics)}`,
     );
   }
   return marker;

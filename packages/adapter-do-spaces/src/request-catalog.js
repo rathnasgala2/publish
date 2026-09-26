@@ -18,6 +18,7 @@
  * @module
  */
 
+import { SpacesAdapterError } from './errors.js';
 import { canonicalizeJson } from '@rathnasgala2/adapter-protocol';
 
 /** The exact request-template profile this adapter declares. */
@@ -448,8 +449,9 @@ export function requireTemplate(templates, stage, callClass) {
     (row) => row.stage === stage && row.callClass === callClass,
   );
   if (matches.length !== 1) {
-    throw new Error(
-      `SPACES_CALL_NOT_IN_CATALOG: ${stage}/${callClass} is not a row of ${REQUEST_TEMPLATE_PROFILE} (${matches.length} matching rows)`,
+    throw new SpacesAdapterError(
+      `SPACES_CALL_NOT_IN_CATALOG`,
+      `${stage}/${callClass} is not a row of ${REQUEST_TEMPLATE_PROFILE} (${matches.length} matching rows)`,
     );
   }
   return /** @type {RequestTemplate} */ (matches[0]);

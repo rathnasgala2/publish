@@ -21,6 +21,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 import {
   fenceDisagrees,
   fenceFor,
@@ -63,6 +64,7 @@ export {
   fenceFor,
   generateUuidV7,
 } from '@rathnasgala2/adapter-protocol';
+export { PagesAdapterError } from './errors.js';
 export { computeArtifactDigest } from './artifact-projection.js';
 export { decodeCarrier, encodeCarrier } from './carrier.js';
 export { GENERATION_MARKER_PATH } from './constants.js';
@@ -378,8 +380,9 @@ export async function stage(input) {
       continue;
     }
     if (existing.artifactDigest !== input.artifactDigest) {
-      throw new Error(
-        `IDEMPOTENCY_KEY_REUSE_CONFLICT: idempotency key ${JSON.stringify(input.idempotencyKey)} was already used for a different artifact digest`,
+      throw new PagesAdapterError(
+        `IDEMPOTENCY_KEY_REUSE_CONFLICT`,
+        `idempotency key ${JSON.stringify(input.idempotencyKey)} was already used for a different artifact digest`,
       );
     }
     return Object.freeze({
@@ -407,8 +410,9 @@ export async function stage(input) {
   ];
   const carrierBytes = encodeCarrier(carrierFiles);
   if (carrierBytes.byteLength > MAXIMUM_PAGES_CARRIER_BYTES) {
-    throw new Error(
-      `PAGES_CARRIER_TOO_LARGE: ${carrierBytes.byteLength} bytes exceed the ${MAXIMUM_PAGES_CARRIER_BYTES}-byte Pages artifact ceiling`,
+    throw new PagesAdapterError(
+      `PAGES_CARRIER_TOO_LARGE`,
+      `${carrierBytes.byteLength} bytes exceed the ${MAXIMUM_PAGES_CARRIER_BYTES}-byte Pages artifact ceiling`,
     );
   }
   const carrierDigest = sha256Hex(carrierBytes);
@@ -423,8 +427,9 @@ export async function stage(input) {
     published.artifactDigest !== undefined &&
     published.artifactDigest !== carrierDigest
   ) {
-    throw new Error(
-      `PAGES_CARRIER_HANDOFF_MISMATCH: the artifact publisher reported digest ${published.artifactDigest} for a carrier whose bytes digest to ${carrierDigest}`,
+    throw new PagesAdapterError(
+      `PAGES_CARRIER_HANDOFF_MISMATCH`,
+      `the artifact publisher reported digest ${published.artifactDigest} for a carrier whose bytes digest to ${carrierDigest}`,
     );
   }
 
@@ -507,8 +512,9 @@ export async function recoverPriorAttempt(input) {
 function requirePagesOidc(destination, input) {
   const token = input.pagesOidcToken ?? destination.oidcToken;
   if (typeof token !== 'string' || token === '') {
-    throw new Error(
-      'PAGES_OIDC_TOKEN_REQUIRED: oidc_token is a mandatory member of the create request entity (DEC-097 section 7). Supply it as input.pagesOidcToken or destination.oidcToken; this repository never mints a credential.',
+    throw new PagesAdapterError(
+      'PAGES_OIDC_TOKEN_REQUIRED',
+      'oidc_token is a mandatory member of the create request entity (DEC-097 section 7). Supply it as input.pagesOidcToken or destination.oidcToken; this repository never mints a credential.',
     );
   }
   const claims = requireOidcExpectation(
@@ -518,8 +524,9 @@ function requirePagesOidc(destination, input) {
     destination.repositoryId === undefined ||
     destination.repositoryOwnerId === undefined
   ) {
-    throw new Error(
-      'PAGES_OIDC_EXPECTATION_INVALID: destination.repositoryId and destination.repositoryOwnerId are required so the two admitted subject forms can be recomputed from the verified claims',
+    throw new PagesAdapterError(
+      'PAGES_OIDC_EXPECTATION_INVALID',
+      'destination.repositoryId and destination.repositoryOwnerId are required so the two admitted subject forms can be recomputed from the verified claims',
     );
   }
   return {
@@ -577,13 +584,15 @@ export async function activate(input) {
   );
   const mode = input.mode ?? NORMAL_MODE;
   if (!AUTHORITY_MODES.includes(mode)) {
-    throw new Error(
-      `PAGES_AUTHORITY_MODE_INVALID: ${JSON.stringify(mode)} is not one of ${AUTHORITY_MODES.join(', ')}`,
+    throw new PagesAdapterError(
+      `PAGES_AUTHORITY_MODE_INVALID`,
+      `${JSON.stringify(mode)} is not one of ${AUTHORITY_MODES.join(', ')}`,
     );
   }
   if (mode === NORMAL_MODE && input.pagesRecovery !== undefined) {
-    throw new Error(
-      'PAGES_RECOVERY_RECORD_FORBIDDEN: normal mode forbids pagesRecovery and every recovery-prior call',
+    throw new PagesAdapterError(
+      'PAGES_RECOVERY_RECORD_FORBIDDEN',
+      'normal mode forbids pagesRecovery and every recovery-prior call',
     );
   }
   const oidc = requirePagesOidc(input.destination, input);
@@ -673,8 +682,9 @@ export async function activate(input) {
 
   const record = state.stages.get(input.stageToken);
   if (record === undefined) {
-    throw new Error(
-      `PAGES_STAGE_NOT_FOUND: stage token ${JSON.stringify(input.stageToken)} has no staged carrier in this run`,
+    throw new PagesAdapterError(
+      `PAGES_STAGE_NOT_FOUND`,
+      `stage token ${JSON.stringify(input.stageToken)} has no staged carrier in this run`,
     );
   }
 
@@ -689,8 +699,9 @@ export async function activate(input) {
         .map((file) => projectEntry(file.path, file.bytes)),
     );
     if (recomputed !== input.expectedArtifactDigest) {
-      throw new Error(
-        `STAGE_INTEGRITY_MISMATCH: staged carrier digests to ${recomputed}, which disagrees with the expected artifact digest ${input.expectedArtifactDigest}; refusing to promote a partial or tampered stage`,
+      throw new PagesAdapterError(
+        `STAGE_INTEGRITY_MISMATCH`,
+        `staged carrier digests to ${recomputed}, which disagrees with the expected artifact digest ${input.expectedArtifactDigest}; refusing to promote a partial or tampered stage`,
       );
     }
   }
@@ -740,8 +751,9 @@ export async function activate(input) {
   state.inFlight.delete(input.generationId);
 
   if (!polled.succeeded) {
-    throw new Error(
-      `PAGES_DEPLOYMENT_FAILED: deployment ${pagesBuildVersion} reached terminal status ${polled.status}`,
+    throw new PagesAdapterError(
+      `PAGES_DEPLOYMENT_FAILED`,
+      `deployment ${pagesBuildVersion} reached terminal status ${polled.status}`,
     );
   }
 
@@ -931,8 +943,9 @@ export async function rollback(input) {
       (candidate) => candidate.generationId === input.targetGenerationId,
     );
     if (record === undefined) {
-      throw new Error(
-        `ROLLBACK_INPUT_UNAVAILABLE: generation ${JSON.stringify(input.targetGenerationId)} was not staged by this run and GitHub Pages cannot read a historical artifact back; supply its bytes through "files"`,
+      throw new PagesAdapterError(
+        `ROLLBACK_INPUT_UNAVAILABLE`,
+        `generation ${JSON.stringify(input.targetGenerationId)} was not staged by this run and GitHub Pages cannot read a historical artifact back; supply its bytes through "files"`,
       );
     }
     files = decodeCarrier(record.carrierBytes).filter(

@@ -9,6 +9,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 /** Maximum bytes any single public read will accept. */
 export const MAXIMUM_PUBLIC_BODY_BYTES = 33554432;
 
@@ -53,8 +54,9 @@ export async function readPublic(context, artifactRelativePath) {
   }
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.byteLength > MAXIMUM_PUBLIC_BODY_BYTES) {
-    throw new Error(
-      `PAGES_PUBLIC_BODY_TOO_LARGE: ${artifactRelativePath} returned ${bytes.byteLength} bytes`,
+    throw new PagesAdapterError(
+      `PAGES_PUBLIC_BODY_TOO_LARGE`,
+      `${artifactRelativePath} returned ${bytes.byteLength} bytes`,
     );
   }
   return { status: 200, bytes, etag };
