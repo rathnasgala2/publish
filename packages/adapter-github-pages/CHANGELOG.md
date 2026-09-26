@@ -8,6 +8,38 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-26
+
+### Added
+
+- **PUB-L1:** `REDACTION_PLACEHOLDER` now comes from
+  `@rathnasgala2/adapter-protocol`, the one redaction sentinel every package
+  uses, instead of this package's own `'[redacted]'` literal. The value changes
+  from `'[redacted]'` to `'[REDACTED]'`; this constant is internal and was not
+  part of the published root export.
+- **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
+  tree-shake an unused re-export from this package's barrel entry point instead
+  of conservatively retaining the whole thing.
+- **PUB-L5:** `verifyPagesOidcToken` now checks the token's `exp`, `iat` and
+  (when present) `nbf` claims, each within a new `PAGES_OIDC_CLOCK_SKEW_SECONDS`
+  (300s) tolerance, raising `PAGES_OIDC_TOKEN_EXPIRED` or
+  `PAGES_OIDC_TOKEN_NOT_YET_VALID`. This is a belt-and-braces check: GitHub
+  Pages remains the authoritative relying party for token staleness (this
+  module's own trust-boundary documentation is unchanged), but failing here
+  first costs nothing and produces a far clearer diagnostic than a Pages-side
+  rejection.
+- **PUB-M5:** `computeArtifactDigest` (marker-coordinate exclusion aside) now
+  delegates to `@rathnasgala2/adapter-protocol`'s implementation of the same
+  name instead of restating the `GALA-ARTIFACT-V2 ` formula locally.
+- **PUB-H6:** every refusal this package raises is now a typed
+  `PagesAdapterError` (`src/errors.js`, exported from the package root) carrying
+  a stable `code` property (e.g.
+  `error.code === 'PAGES_OIDC_SUBJECT_MISMATCH'`), instead of a bare `Error` a
+  caller had to parse `CODE: detail` out of. `.message` is unchanged, so this is
+  additive, not breaking.
+
+## [0.1.0] - 2026-09-22
+
 ### Changed
 
 - **PUBLISH-S4-6a — `ADAPTER_VERSION` is the installed package version.**

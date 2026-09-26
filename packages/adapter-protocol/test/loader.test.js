@@ -51,3 +51,52 @@ test('loadAdapterModule rejects a module with a default export', async () => {
       ),
   );
 });
+
+test('loadAdapterModule refuses a specifier that is neither admitted nor a file: URL (PUB-M8)', async () => {
+  await assert.rejects(
+    () => loadAdapterModule('@rathnasgala2/adapter-not-a-real-adapter'),
+    (error) =>
+      error instanceof AdapterProtocolError &&
+      error.findings.some(
+        (finding) => finding.code === 'ADAPTER_SPECIFIER_NOT_ADMITTED',
+      ),
+  );
+});
+
+test('loadAdapterModule refuses a relative-path specifier', async () => {
+  await assert.rejects(
+    () => loadAdapterModule('./sneaky-adapter.js'),
+    (error) =>
+      error instanceof AdapterProtocolError &&
+      error.findings.some(
+        (finding) => finding.code === 'ADAPTER_SPECIFIER_NOT_ADMITTED',
+      ),
+  );
+});
+
+test('loadAdapterModule refuses an http(s) URL specifier', async () => {
+  await assert.rejects(
+    () => loadAdapterModule('https://example.test/adapter.js'),
+    (error) =>
+      error instanceof AdapterProtocolError &&
+      error.findings.some(
+        (finding) => finding.code === 'ADAPTER_SPECIFIER_NOT_ADMITTED',
+      ),
+  );
+});
+
+test("design check: a file: specifier with a .. segment resolves and loads normally (the loader trusts its caller for file: paths; containment is the composition root's responsibility, not this allowlist's)", async () => {
+  const traversal = pathToFileURL(
+    path.join(here, 'fixtures', 'adapters', 'nested', '..', 'valid-adapter.js'),
+  ).href;
+  // The URL constructor normalizes the .. segment away before loadAdapterModule
+  // ever sees the string, so this is not a path-traversal vector: it resolves
+  // to exactly the same file a non-traversing specifier would name.
+  assert.ok(!traversal.includes('..'));
+  const lifecycle = /** @type {Record<string, unknown>} */ (
+    /** @type {unknown} */ (await loadAdapterModule(traversal))
+  );
+  for (const name of LIFECYCLE_OPERATIONS) {
+    assert.equal(typeof lifecycle[name], 'function');
+  }
+});

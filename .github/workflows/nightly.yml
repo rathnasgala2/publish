@@ -5,9 +5,13 @@ name: Nightly
 # `npm run verify` (format, lint, typecheck, architecture, duplication, the
 # full test suite including the Docker build-sandbox proof, sbom:check,
 # audit), the workflow-pin check and the gitleaks-fragment drift check, and
-# the gitleaks secret scan itself. ci.yml now runs only the fast subset
-# (format, lint, typecheck, unit tests minus the sandbox proof, workflow
-# pins, drift) on every push and pull request.
+# the gitleaks secret scan itself. ci.yml now also runs the complete
+# `npm run verify` on every push and pull request (PUB-M1's full-verify job),
+# so this workflow's `quality` job is now belt-and-braces for drift with no
+# push to this repository. A separate `spaces-minio-conformance` job
+# (PUB-M10) runs adapter-do-spaces's real-server conformance suite against a
+# throwaway, digest-pinned MinIO container -- CI otherwise only ever proves
+# that adapter against a fake S3 server written by the same authors.
 on:
   schedule:
     # 03:47 UTC: staggered ~30 minutes after infra's nightly run (03:17 UTC)
@@ -39,28 +43,29 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # PLACEHOLDER (W0-01): ref is provisional until the template
-      # repository exists on GitHub with a frozen contract revision to
-      # pin to. packages/publish-action's template-bridge.js (TEMPLATE_ROOT)
-      # needs this checkout by path, and its own dependencies installed,
-      # for the S2-T20/S2-T20b build/publish tests `npm test` runs.
+      # packages/publish-action's template-bridge.js (TEMPLATE_ROOT) needs
+      # this checkout by path, and its own dependencies installed, for the
+      # S2-T20/S2-T20b build/publish tests `npm test` runs. Pinned to the
+      # commit published as template 2.1.0 (PUB-H5 pin bump, theme-default
+      # 2.1.0 cut against it) rather than a mutable `main`, so a push to the
+      # sibling repository cannot silently change what this job tests against.
       - name: Check out the template sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/template
-          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          ref: 20f8fdefe822f264f9d7fdd787d0d58431930a0b
           path: .siblings/template
           persist-credentials: false
 
-      # PLACEHOLDER (W0-01): ref is provisional until the theme-default
-      # repository exists on GitHub with a frozen release to pin to.
       # packages/publish-action's theme-bridge.js (LOCAL-only sibling
       # fallback step) needs this checkout by path for the same tests.
+      # Pinned to the commit published as theme-default 2.1.0 (PUB-H5 pin
+      # bump, cut against template 2.1.0), rather than a mutable `main`.
       - name: Check out the theme-default sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/theme-default
-          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          ref: d64aac777ce79ab1270d407b571d2fb0e89d548f
           path: .siblings/theme-default
           persist-credentials: false
 
@@ -95,7 +100,7 @@ jobs:
         shell: bash
         run: |
           install -d "${RUNNER_TEMP}/gitleaks"
-          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location --retry 3 \
             'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz' \
             --output "${RUNNER_TEMP}/gitleaks/gitleaks.tar.gz"
           cd "${RUNNER_TEMP}/gitleaks"
@@ -108,3 +113,40 @@ jobs:
         run: >-
           "${RUNNER_TEMP}/gitleaks/gitleaks" git --redact --no-banner
           --log-opts="--all" .
+
+  spaces-minio-conformance:
+    name: adapter-do-spaces MinIO conformance (PUB-M10)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      # Without this job, adapter-do-spaces is validated in CI only against
+      # test/fake-s3-server.js, a fake written by the same authors as the
+      # adapter -- any shared misunderstanding of S3 semantics (conditional
+      # PUT behaviour, ETag quoting, error codes, SigV4 canonicalisation
+      # edge cases) is invisible. This runs the identical conformance
+      # fixture against a real, throwaway, digest-pinned MinIO server.
+      - name: Start the throwaway MinIO server
+        run: |
+          endpoint_assignment="$(scripts/minio-spaces.sh up)"
+          echo "${endpoint_assignment}" >> "${GITHUB_ENV}"
+
+      - name: Run adapter-do-spaces against real MinIO
+        run: npm test --workspace packages/adapter-do-spaces
+
+      - name: Remove the throwaway MinIO server
+        if: always()
+        run: scripts/minio-spaces.sh down

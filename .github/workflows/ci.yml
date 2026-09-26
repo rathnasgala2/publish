@@ -11,19 +11,19 @@ name: CI
 # review): a vulnerable dependency or a leaked secret must not sit on main
 # for up to 24h.
 #
-# The build sandbox (test/sandbox.test.mjs, scripts/sandbox-build.sh) stays
-# out of this fast gate on purpose: each of its cases pulls/builds a
-# container image and runs it under `--network none` with dropped
-# capabilities, which is inherently a tens-of-seconds-per-case operation,
-# not a per-push budget item, even though it proves a core security
-# property (S4-T07 — untrusted author build code cannot see the network,
-# mutate the source tree or escape its resource limits). It still runs
-# every night in nightly.yml as part of the complete `npm run verify`.
-#
-# Everything else that was in the single "Quality and supply chain" job --
-# architecture (dependency-cruiser), duplication (jscpd), the full test
-# suite including the sandbox and sbom:check -- also moved to nightly.yml,
-# unchanged in substance.
+# PUB-M1: the fast jobs above are a strict subset of `npm run verify`, so a
+# merged PR could violate the dependency-cruiser adapter-isolation gate, the
+# pin ledger, the SBOM or any other gate that only ran nightly and sit on
+# `main` for up to 24h. The `full-verify` job below runs the complete,
+# unabridged `npm run verify` (every one of the twelve gates the workspace
+# root README enumerates, plus the license/provenance/declarations/manifest/
+# changelog gates added since) on every push and pull request too, so a
+# merge can no longer land in a state nightly.yml would have caught first.
+# It is slower than the fast jobs above (it includes the Docker build-sandbox
+# proof); that is an accepted per-push cost for closing the gap. nightly.yml
+# is kept as a scheduled catch for drift that lands with no push to this
+# repository (e.g. a transitive advisory published against an already-merged
+# lockfile) and for the gitleaks full-history scan.
 on:
   push:
     branches:
@@ -119,28 +119,29 @@ jobs:
         with:
           persist-credentials: false
 
-      # PLACEHOLDER (W0-01): ref is provisional until the template
-      # repository exists on GitHub with a frozen contract revision to
-      # pin to. packages/publish-action's template-bridge.js (TEMPLATE_ROOT)
-      # needs this checkout by path, and its own dependencies installed,
-      # for the S2-T20/S2-T20b build/publish tests `npm test` runs.
+      # packages/publish-action's template-bridge.js (TEMPLATE_ROOT) needs
+      # this checkout by path, and its own dependencies installed, for the
+      # S2-T20/S2-T20b build/publish tests `npm test` runs. Pinned to the
+      # commit published as template 2.1.0 (PUB-H5 pin bump, theme-default
+      # 2.1.0 cut against it) rather than a mutable `main`, so a push to the
+      # sibling repository cannot silently change what this job tests against.
       - name: Check out the template sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/template
-          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          ref: 20f8fdefe822f264f9d7fdd787d0d58431930a0b
           path: .siblings/template
           persist-credentials: false
 
-      # PLACEHOLDER (W0-01): ref is provisional until the theme-default
-      # repository exists on GitHub with a frozen release to pin to.
       # packages/publish-action's theme-bridge.js (LOCAL-only sibling
       # fallback step) needs this checkout by path for the same tests.
+      # Pinned to the commit published as theme-default 2.1.0 (PUB-H5 pin
+      # bump, cut against template 2.1.0), rather than a mutable `main`.
       - name: Check out the theme-default sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/theme-default
-          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          ref: d64aac777ce79ab1270d407b571d2fb0e89d548f
           path: .siblings/theme-default
           persist-credentials: false
 
@@ -197,7 +198,7 @@ jobs:
         shell: bash
         run: |
           install -d "${RUNNER_TEMP}/gitleaks"
-          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location --retry 3 \
             'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz' \
             --output "${RUNNER_TEMP}/gitleaks/gitleaks.tar.gz"
           cd "${RUNNER_TEMP}/gitleaks"
@@ -210,3 +211,47 @@ jobs:
         run: >-
           "${RUNNER_TEMP}/gitleaks/gitleaks" git --redact --no-banner
           --log-opts="--all" .
+
+  full-verify:
+    name: Full verify (PUB-M1)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      WORKSPACE_ROOT: ${{ github.workspace }}/.siblings
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Check out the template sibling repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/template
+          ref: 20f8fdefe822f264f9d7fdd787d0d58431930a0b
+          path: .siblings/template
+          persist-credentials: false
+
+      - name: Check out the theme-default sibling repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/theme-default
+          ref: d64aac777ce79ab1270d407b571d2fb0e89d548f
+          path: .siblings/theme-default
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install the template sibling's own dependencies
+        working-directory: .siblings/template
+        run: npm ci --ignore-scripts
+
+      - name: Run the complete repository gate
+        run: npm run verify

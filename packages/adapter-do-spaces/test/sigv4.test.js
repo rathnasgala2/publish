@@ -108,6 +108,89 @@ test('every S3 request signs the payload hash and the date', () => {
   );
 });
 
+test('signRequest refuses a header outside host/content-type/cache-control/x-amz-* (PUB-M7)', () => {
+  assert.throws(
+    () =>
+      signRequest(
+        {
+          method: 'PUT',
+          host: 'served.nyc3.digitaloceanspaces.com',
+          key: 'index.html',
+          payloadSha256: EMPTY_PAYLOAD_SHA256,
+          instant: new Date('2026-09-17T00:00:00.000Z'),
+          // A provider-returned conditional guard is never legitimately
+          // routed through request.headers -- s3.js sends it unsigned,
+          // outside signRequest entirely -- so it is refused here.
+          headers: { 'if-match': '"etag-value"' },
+        },
+        {
+          accessKeyId: 'AKIDEXAMPLE',
+          secretAccessKey: SUITE_SECRET,
+          region: 'nyc3',
+        },
+      ),
+    (/** @type {unknown} */ error) =>
+      error instanceof Error && error.name === 'SpacesAdapterError',
+  );
+});
+
+test('signRequest accepts content-type, cache-control and x-amz-* headers passed through request.headers', () => {
+  const headers = signRequest(
+    {
+      method: 'PUT',
+      host: 'served.nyc3.digitaloceanspaces.com',
+      key: 'index.html',
+      payloadSha256: EMPTY_PAYLOAD_SHA256,
+      instant: new Date('2026-09-17T00:00:00.000Z'),
+      headers: {
+        'Content-Type': 'text/html',
+        'Cache-Control': 'public, max-age=60',
+        'x-amz-meta-example': 'value',
+      },
+    },
+    {
+      accessKeyId: 'AKIDEXAMPLE',
+      secretAccessKey: SUITE_SECRET,
+      region: 'nyc3',
+    },
+  );
+  assert.equal(headers['content-type'], 'text/html');
+  assert.equal(headers['cache-control'], 'public, max-age=60');
+  assert.equal(headers['x-amz-meta-example'], 'value');
+  assert.match(String(headers.authorization), /content-type/u);
+  assert.match(String(headers.authorization), /cache-control/u);
+  assert.match(String(headers.authorization), /x-amz-meta-example/u);
+});
+
+test('canonical header values collapse internal whitespace runs to one space (PUB-L4)', () => {
+  const base = /** @type {const} */ ({
+    method: 'PUT',
+    host: 'served.nyc3.digitaloceanspaces.com',
+    key: 'index.html',
+    payloadSha256: EMPTY_PAYLOAD_SHA256,
+    instant: new Date('2026-09-17T00:00:00.000Z'),
+  });
+  const credentials = {
+    accessKeyId: 'AKIDEXAMPLE',
+    secretAccessKey: SUITE_SECRET,
+    region: 'nyc3',
+  };
+
+  const singleSpace = signRequest(
+    { ...base, headers: { 'x-amz-meta-example': 'a b' } },
+    credentials,
+  );
+  const multipleSpaces = signRequest(
+    { ...base, headers: { 'x-amz-meta-example': 'a    b' } },
+    credentials,
+  );
+
+  // AWS SigV4 requires sequential internal spaces in a signed header value
+  // to be collapsed to one before signing; a value differing only in run
+  // length must therefore sign identically.
+  assert.equal(multipleSpaces.authorization, singleSpace.authorization);
+});
+
 test('a session token is signed, not merely sent', () => {
   const headers = signRequest(
     {

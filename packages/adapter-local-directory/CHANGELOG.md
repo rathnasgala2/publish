@@ -8,6 +8,21 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-26
+
+### Changed
+
+- **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
+  tree-shake an unused re-export from this package's barrel entry point instead
+  of conservatively retaining the whole thing.
+- **PUB-M5:** `computeArtifactDigest` now delegates to
+  `@rathnasgala2/adapter-protocol`'s implementation of the same name instead of
+  restating the `GALA-ARTIFACT-V2 ` formula locally, closing the gap a new
+  repository-level test (`test/artifact-digest-agreement.test.mjs`) proves
+  against `adapter-github-pages` and `adapter-do-spaces`.
+
+## [0.1.0] - 2026-09-22
+
 ### Changed
 
 - **PUBLISH-S4-6a — `ADAPTER_VERSION` is the installed package version.**

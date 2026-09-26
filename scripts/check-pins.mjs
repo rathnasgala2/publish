@@ -10,7 +10,6 @@
  * ledger entry left behind after its last use are all failures.
  */
 
-import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -55,7 +54,7 @@ async function readYamlFiles(directory) {
  * @param {Record<string, any>} ledger the parsed ledger
  * @param {readonly {file: string, source: string}[]} yamlFiles the YAML files
  * @param {readonly {file: string, source: string}[]} otherFiles other files
- *   that may reference a container image, binary or package pin
+ *   that may reference a container image or binary pin
  * @returns {string[]} one diagnostic per disagreement
  */
 export function comparePins(ledger, yamlFiles, otherFiles) {
@@ -85,8 +84,8 @@ export function comparePins(ledger, yamlFiles, otherFiles) {
       if (reference.startsWith('rathnasgala2/publish/')) {
         // A reference back into this repository is the author-replaced
         // caller pin, not a third-party action: it is recorded separately
-        // and is not expected to resolve until W0-01 publishes this
-        // repository.
+        // in pins/ledger.json's selfReferences, pinned to a real commit SHA
+        // now that W0-01 has published this repository.
         const expectedSelf = selfReferences.get(reference);
         if (expectedSelf === undefined) {
           diagnostics.push(
@@ -138,64 +137,6 @@ export function comparePins(ledger, yamlFiles, otherFiles) {
       );
     }
   }
-  for (const pkg of ledger.packages ?? []) {
-    const basename = path.posix.basename(String(pkg.source));
-    if (!haystack.includes(basename)) {
-      diagnostics.push(
-        `pins/ledger.json: package ${pkg.name}@${pkg.version} is recorded at a tarball no manifest or lockfile in this repository declares`,
-      );
-    }
-  }
-
-  return diagnostics;
-}
-
-/**
- * Prove each recorded package pin's tarball really hashes to the recorded
- * digest. The ledger's `sha256` is the only place the tarball's identity is
- * written down in this repository — `package.json` records a path and
- * `package-lock.json` records npm's own integrity string — so without this
- * check a re-pin could name one version and install another.
- *
- * @param {readonly Record<string, any>[]} packages the ledger package rows
- * @param {readonly string[]} searchRoots directories that may hold the
- *   tarballs, most specific first
- * @returns {Promise<string[]>} one diagnostic per disagreement
- */
-export async function verifyPackageTarballs(packages, searchRoots) {
-  /** @type {string[]} */
-  const diagnostics = [];
-  for (const pkg of packages) {
-    const basename = path.posix.basename(String(pkg.source));
-    /** @type {Buffer | null} */
-    let bytes = null;
-    /** @type {string | null} */
-    let found = null;
-    for (const root of searchRoots) {
-      const candidate = path.join(root, basename);
-      try {
-        bytes = await readFile(candidate);
-        found = candidate;
-        break;
-      } catch (error) {
-        if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') {
-          throw error;
-        }
-      }
-    }
-    if (bytes === null) {
-      diagnostics.push(
-        `pins/ledger.json: package ${pkg.name}@${pkg.version} records ${basename}, which was not found in ${searchRoots.join(', ')}`,
-      );
-      continue;
-    }
-    const digest = createHash('sha256').update(bytes).digest('hex');
-    if (digest !== String(pkg.sha256)) {
-      diagnostics.push(
-        `${found}: sha256 is ${digest} but pins/ledger.json records ${pkg.sha256} for ${pkg.name}@${pkg.version}`,
-      );
-    }
-  }
   return diagnostics;
 }
 
@@ -224,24 +165,12 @@ async function main() {
     otherFiles.push({ file, source: await readFile(file, 'utf8') });
   }
 
-  const diagnostics = [
-    ...comparePins(ledger, yamlFiles, otherFiles),
-    // The local tarball lives outside this repository (LOCAL-1), and a git
-    // worktree sits one level deeper than the repository it was made from,
-    // so both layouts are searched before the pin is declared unverifiable.
-    ...(await verifyPackageTarballs(ledger.packages ?? [], [
-      path.resolve('..', '..', 'local-packages'),
-      ...(process.env.WORKSPACE_ROOT === undefined
-        ? []
-        : [path.resolve(process.env.WORKSPACE_ROOT, '..', 'local-packages')]),
-      path.resolve('..', '..', '..', 'local-packages'),
-    ])),
-  ];
+  const diagnostics = comparePins(ledger, yamlFiles, otherFiles);
   if (diagnostics.length > 0) {
     throw new Error(diagnostics.join('\n'));
   }
   process.stdout.write(
-    `Verified ${ledger.actions.length} action pin(s), ${ledger.containerImages.length} image digest(s), ${ledger.binaries.length} binary checksum(s) and ${ledger.packages.length} package pin(s).\n`,
+    `Verified ${ledger.actions.length} action pin(s), ${ledger.containerImages.length} image digest(s) and ${ledger.binaries.length} binary checksum(s).\n`,
   );
 }
 

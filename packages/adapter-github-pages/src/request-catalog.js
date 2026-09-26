@@ -23,6 +23,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 import { canonicalizeJson } from '@rathnasgala2/adapter-protocol';
 
 /** The exact request-template profile this adapter declares. */
@@ -259,8 +260,9 @@ export function callClassIdBinding(stage, callClass) {
     (entry) => entry.stage === stage && entry.callClass === callClass,
   );
   if (row === undefined) {
-    throw new Error(
-      `PAGES_CALL_NOT_IN_CATALOG: (${JSON.stringify(stage)}, ${JSON.stringify(callClass)}) has no declared callClassBinding row`,
+    throw new PagesAdapterError(
+      `PAGES_CALL_NOT_IN_CATALOG`,
+      `(${JSON.stringify(stage)}, ${JSON.stringify(callClass)}) has no declared callClassBinding row`,
     );
   }
   return row;
@@ -401,8 +403,9 @@ export function requireTemplate(templates, stage, callClass) {
     (entry) => entry.stage === stage && entry.callClass === callClass,
   );
   if (found === undefined) {
-    throw new Error(
-      `PAGES_CALL_NOT_IN_CATALOG: (${JSON.stringify(stage)}, ${JSON.stringify(callClass)}) is not one of the nine admitted github-pages REST calls`,
+    throw new PagesAdapterError(
+      `PAGES_CALL_NOT_IN_CATALOG`,
+      `(${JSON.stringify(stage)}, ${JSON.stringify(callClass)}) is not one of the nine admitted github-pages REST calls`,
     );
   }
   return found;

@@ -27,6 +27,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 import { NORMAL_MODE, RECOVERY_MODE } from './constants.js';
 import { callClassIdBinding, requireTemplate } from './request-catalog.js';
 
@@ -96,8 +97,9 @@ export function renderRequestTarget(template, values) {
   return template.replace(/\{([A-Za-z]+)\}/gu, (_match, key) => {
     const value = values[key];
     if (value === undefined) {
-      throw new Error(
-        `PAGES_REQUEST_TARGET_PLACEHOLDER_UNBOUND: ${JSON.stringify(key)} has no value`,
+      throw new PagesAdapterError(
+        `PAGES_REQUEST_TARGET_PLACEHOLDER_UNBOUND`,
+        `${JSON.stringify(key)} has no value`,
       );
     }
     return encodeURIComponent(value);
@@ -129,8 +131,9 @@ export function selectDeploymentId(context, template) {
       ? 'pagesRecovery.priorPagesBuildVersion'
       : "the intent's pagesBuildVersion";
   if (typeof value !== 'string' || !BUILD_VERSION_PATTERN.test(value)) {
-    throw new Error(
-      `PAGES_DEPLOYMENT_ID_SOURCE_UNAVAILABLE: ${String(template.stage)}/${String(template.callClass)} statically selects ${label}, which is absent or not 40 lowercase hex characters`,
+    throw new PagesAdapterError(
+      `PAGES_DEPLOYMENT_ID_SOURCE_UNAVAILABLE`,
+      `${String(template.stage)}/${String(template.callClass)} statically selects ${label}, which is absent or not 40 lowercase hex characters`,
     );
   }
   return value;
@@ -150,8 +153,9 @@ export function assertModePermitsCall(context, tmpl) {
     String(tmpl.callClass),
   ).recoveryOnly;
   if (recoveryOnly && mode !== RECOVERY_MODE) {
-    throw new Error(
-      `PAGES_RECOVERY_CALL_FORBIDDEN: ${String(tmpl.stage)}/${String(tmpl.callClass)} is admitted only in ${RECOVERY_MODE} mode; ${JSON.stringify(mode)} forbids every recovery-prior call`,
+    throw new PagesAdapterError(
+      `PAGES_RECOVERY_CALL_FORBIDDEN`,
+      `${String(tmpl.stage)}/${String(tmpl.callClass)} is admitted only in ${RECOVERY_MODE} mode; ${JSON.stringify(mode)} forbids every recovery-prior call`,
     );
   }
 }
@@ -193,26 +197,30 @@ export function buildHeaders(context, tmpl) {
  */
 export function assertRequestMatchesTemplate(tmpl, request) {
   if (request.method !== tmpl.method) {
-    throw new Error(
-      `PAGES_REQUEST_DISAGREES_WITH_TEMPLATE: method ${request.method} is not the cataloged ${String(tmpl.method)}`,
+    throw new PagesAdapterError(
+      `PAGES_REQUEST_DISAGREES_WITH_TEMPLATE`,
+      `method ${request.method} is not the cataloged ${String(tmpl.method)}`,
     );
   }
   if (!request.url.startsWith(`${String(tmpl.origin)}/`)) {
-    throw new Error(
-      `PAGES_REQUEST_DISAGREES_WITH_TEMPLATE: the request URL is not on the cataloged origin ${String(tmpl.origin)}`,
+    throw new PagesAdapterError(
+      `PAGES_REQUEST_DISAGREES_WITH_TEMPLATE`,
+      `the request URL is not on the cataloged origin ${String(tmpl.origin)}`,
     );
   }
   if (new URL(request.url).search !== '') {
-    throw new Error(
-      'PAGES_REQUEST_DISAGREES_WITH_TEMPLATE: canonicalQueryProfile is "none", so no query component is representable',
+    throw new PagesAdapterError(
+      'PAGES_REQUEST_DISAGREES_WITH_TEMPLATE',
+      'canonicalQueryProfile is "none", so no query component is representable',
     );
   }
   for (const fixed of /** @type {{name: string, value: string}[]} */ (
     tmpl.fixedHeaders
   )) {
     if (request.headers[fixed.name] !== fixed.value) {
-      throw new Error(
-        `PAGES_REQUEST_DISAGREES_WITH_TEMPLATE: fixed header ${JSON.stringify(fixed.name)} is missing or not the cataloged value`,
+      throw new PagesAdapterError(
+        `PAGES_REQUEST_DISAGREES_WITH_TEMPLATE`,
+        `fixed header ${JSON.stringify(fixed.name)} is missing or not the cataloged value`,
       );
     }
   }
@@ -225,15 +233,17 @@ export function assertRequestMatchesTemplate(tmpl, request) {
   const permitted = new Set([...fixedNames, ...credentialNames]);
   for (const name of Object.keys(request.headers)) {
     if (!permitted.has(name)) {
-      throw new Error(
-        `PAGES_REQUEST_DISAGREES_WITH_TEMPLATE: header ${JSON.stringify(name)} is not declared by this template`,
+      throw new PagesAdapterError(
+        `PAGES_REQUEST_DISAGREES_WITH_TEMPLATE`,
+        `header ${JSON.stringify(name)} is not declared by this template`,
       );
     }
   }
   const expectsBody = tmpl.requestBodyProfile !== 'empty';
   if (expectsBody !== (request.body !== undefined)) {
-    throw new Error(
-      `PAGES_REQUEST_DISAGREES_WITH_TEMPLATE: requestBodyProfile is ${JSON.stringify(String(tmpl.requestBodyProfile))} but the request ${request.body === undefined ? 'has no' : 'has a'} body`,
+    throw new PagesAdapterError(
+      `PAGES_REQUEST_DISAGREES_WITH_TEMPLATE`,
+      `requestBodyProfile is ${JSON.stringify(String(tmpl.requestBodyProfile))} but the request ${request.body === undefined ? 'has no' : 'has a'} body`,
     );
   }
 }
@@ -267,8 +277,9 @@ export async function callProvider(context, stage, callClass, options) {
     tmpl.maximumRequestTargetBytes
   );
   if (Buffer.byteLength(requestTarget, 'utf8') > maximumTargetBytes) {
-    throw new Error(
-      `PAGES_REQUEST_TARGET_TOO_LONG: ${requestTarget.length} characters exceed the cataloged ${maximumTargetBytes}-byte ceiling`,
+    throw new PagesAdapterError(
+      `PAGES_REQUEST_TARGET_TOO_LONG`,
+      `${requestTarget.length} characters exceed the cataloged ${maximumTargetBytes}-byte ceiling`,
     );
   }
 
@@ -292,13 +303,15 @@ export async function callProvider(context, stage, callClass, options) {
 
   const rawBody = Buffer.from(await response.arrayBuffer());
   if (rawBody.byteLength > MAXIMUM_RESPONSE_BODY_BYTES) {
-    throw new Error(
-      `PAGES_RESPONSE_BODY_TOO_LARGE: ${rawBody.byteLength} bytes exceed the ${MAXIMUM_RESPONSE_BODY_BYTES}-byte ceiling`,
+    throw new PagesAdapterError(
+      `PAGES_RESPONSE_BODY_TOO_LARGE`,
+      `${rawBody.byteLength} bytes exceed the ${MAXIMUM_RESPONSE_BODY_BYTES}-byte ceiling`,
     );
   }
   if (!options.acceptStatuses.includes(response.status)) {
-    throw new Error(
-      `PAGES_PROVIDER_STATUS_UNEXPECTED: ${stage}/${callClass} returned HTTP ${response.status}, expected one of ${options.acceptStatuses.join(', ')}`,
+    throw new PagesAdapterError(
+      `PAGES_PROVIDER_STATUS_UNEXPECTED`,
+      `${stage}/${callClass} returned HTTP ${response.status}, expected one of ${options.acceptStatuses.join(', ')}`,
     );
   }
 

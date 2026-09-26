@@ -168,9 +168,26 @@ The conditional guard is likewise sent unsigned.
   scripts/minio-spaces.sh down
   ```
 
+  PUB-M10: `.github/workflows/nightly.yml`'s `spaces-minio-conformance` job runs
+  this every night, so the strongest local evidence for this adapter is no
+  longer generated only when someone runs it by hand.
+
 What none of that proves is DigitalOcean Spaces itself — the website
 configuration, the control-key `AccessDenied` check and the real static origin.
 That is backlog W4-16.
+
+## Errors
+
+Every refusal this package raises is a `SpacesAdapterError` (`src/errors.js`,
+exported from the package root), never a bare `Error`: it carries a stable,
+machine-readable `code` property alongside the ordinary `Error` message, so a
+caller can write `error.code === 'SPACES_PROVIDER_STATUS_UNEXPECTED'` instead of
+parsing `.message`. `.message` is `${code}: ${detail}`, so a caller matching a
+code inside the message still works. The code vocabulary is closed and stable:
+`grep -rn "new SpacesAdapterError(" src` lists every code this package can
+raise, grouped by the module that raises it (SigV4 signing, the request catalog,
+staging, the control plane, capability declaration). A new code is an additive
+change; renaming or removing one is breaking and belongs in `CHANGELOG.md`.
 
 ## Commands
 

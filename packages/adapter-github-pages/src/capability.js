@@ -15,6 +15,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 import {
   ROLLBACK,
   assertValidCapabilityDeclaration,
@@ -48,12 +49,15 @@ import {
  * (2.8.1). The inventory is typed as an open record, so the profile is
  * required here once, by name, and its absence is a refusal rather than an
  * `undefined` digest.
+ *
+ * @type {NonNullable<(typeof ACTIVE_DIGEST_PROFILES)['providerCallClassBinding']>}
  */
 export const CALL_CLASS_BINDING_PROFILE = (() => {
   const profile = ACTIVE_DIGEST_PROFILES.providerCallClassBinding;
   if (profile === undefined) {
-    throw new Error(
-      'PAGES_DIGEST_PROFILE_MISSING: @rathnasgala2/schemas/digest-profiles exports no providerCallClassBinding profile',
+    throw new PagesAdapterError(
+      'PAGES_DIGEST_PROFILE_MISSING',
+      '@rathnasgala2/schemas/digest-profiles exports no providerCallClassBinding profile',
     );
   }
   return profile;
@@ -61,7 +65,8 @@ export const CALL_CLASS_BINDING_PROFILE = (() => {
 
 const ROW_OR_UNDEFINED = getCapabilityRow('github-pages');
 if (ROW_OR_UNDEFINED === undefined) {
-  throw new Error(
+  throw new PagesAdapterError(
+    'PAGES_CAPABILITY_ROW_MISSING',
     'adapter-protocol does not declare a github-pages capability row',
   );
 }

@@ -27,6 +27,7 @@
  * @module
  */
 
+import { SpacesAdapterError } from './errors.js';
 import { requireTemplate } from './request-catalog.js';
 import {
   canonicalQuery,
@@ -154,22 +155,25 @@ function renderTarget(template, key) {
   const declared = String(template.requestTargetTemplate);
   if (declared === '/') {
     if (key !== '') {
-      throw new Error(
-        `SPACES_REQUEST_TARGET_MISMATCH: ${String(template.stage)}/${String(template.callClass)} declares the bucket target "/" but was given the key ${JSON.stringify(key)}`,
+      throw new SpacesAdapterError(
+        `SPACES_REQUEST_TARGET_MISMATCH`,
+        `${String(template.stage)}/${String(template.callClass)} declares the bucket target "/" but was given the key ${JSON.stringify(key)}`,
       );
     }
     return '/';
   }
   if (key === '') {
-    throw new Error(
-      `SPACES_REQUEST_TARGET_MISMATCH: ${String(template.stage)}/${String(template.callClass)} declares ${declared} but was given no object key`,
+    throw new SpacesAdapterError(
+      `SPACES_REQUEST_TARGET_MISMATCH`,
+      `${String(template.stage)}/${String(template.callClass)} declares ${declared} but was given no object key`,
     );
   }
   const target = canonicalUriForKey(key);
   const maximum = Number(template.maximumRequestTargetBytes);
   if (Buffer.byteLength(target, 'utf8') > maximum) {
-    throw new Error(
-      `SPACES_REQUEST_TARGET_TOO_LONG: ${target.length} rendered bytes exceed the declared ${maximum}-byte ceiling for ${String(template.stage)}/${String(template.callClass)}`,
+    throw new SpacesAdapterError(
+      `SPACES_REQUEST_TARGET_TOO_LONG`,
+      `${target.length} rendered bytes exceed the declared ${maximum}-byte ceiling for ${String(template.stage)}/${String(template.callClass)}`,
     );
   }
   return target;
@@ -189,8 +193,9 @@ function assertQueryProfile(template, query) {
       QUERY_PROFILE_PARAMETERS
     )[profile];
   if (admitted === undefined) {
-    throw new Error(
-      `SPACES_QUERY_PROFILE_UNKNOWN: ${profile} is not one of the five declared canonical query profiles`,
+    throw new SpacesAdapterError(
+      `SPACES_QUERY_PROFILE_UNKNOWN`,
+      `${profile} is not one of the five declared canonical query profiles`,
     );
   }
   const issued = Object.keys(query).sort();
@@ -199,15 +204,17 @@ function assertQueryProfile(template, query) {
       !admitted.required.includes(name) &&
       !admitted.optional.includes(name)
     ) {
-      throw new Error(
-        `SPACES_QUERY_PARAMETER_UNDECLARED: ${name} is outside ${profile} for ${String(template.stage)}/${String(template.callClass)}`,
+      throw new SpacesAdapterError(
+        `SPACES_QUERY_PARAMETER_UNDECLARED`,
+        `${name} is outside ${profile} for ${String(template.stage)}/${String(template.callClass)}`,
       );
     }
   }
   for (const name of admitted.required) {
     if (!issued.includes(name)) {
-      throw new Error(
-        `SPACES_QUERY_PARAMETER_MISSING: ${profile} requires ${name} for ${String(template.stage)}/${String(template.callClass)}`,
+      throw new SpacesAdapterError(
+        `SPACES_QUERY_PARAMETER_MISSING`,
+        `${profile} requires ${name} for ${String(template.stage)}/${String(template.callClass)}`,
       );
     }
   }
@@ -236,8 +243,9 @@ function renderHeaders(template, inputs) {
    */
   const place = (name, value) => {
     if (name in signed || name in unsigned) {
-      throw new Error(
-        `SPACES_REQUEST_HEADER_DUPLICATE: ${row} renders ${name} more than once`,
+      throw new SpacesAdapterError(
+        `SPACES_REQUEST_HEADER_DUPLICATE`,
+        `${row} renders ${name} more than once`,
       );
     }
     if (SIGNED_HEADER_NAMES.has(name)) {
@@ -251,13 +259,15 @@ function renderHeaders(template, inputs) {
     template.derivedHeaders
   ).some((header) => header.name === 'x-amz-meta-gala-sha256');
   if (declaresMetadata && inputs.metadata === undefined) {
-    throw new Error(
-      `SPACES_REQUEST_METADATA_MISSING: ${row} declares the object metadata set but none was supplied`,
+    throw new SpacesAdapterError(
+      `SPACES_REQUEST_METADATA_MISSING`,
+      `${row} declares the object metadata set but none was supplied`,
     );
   }
   if (!declaresMetadata && inputs.metadata !== undefined) {
-    throw new Error(
-      `SPACES_REQUEST_METADATA_UNDECLARED: ${row} declares no object metadata set, so one may not be sent`,
+    throw new SpacesAdapterError(
+      `SPACES_REQUEST_METADATA_UNDECLARED`,
+      `${row} declares no object metadata set, so one may not be sent`,
     );
   }
 
@@ -295,8 +305,9 @@ function renderHeaders(template, inputs) {
         // reads and the exact body bytes it hashes, and are merged below.
         break;
       default:
-        throw new Error(
-          `SPACES_REQUEST_HEADER_SOURCE_UNKNOWN: ${row} declares ${header.name} from ${header.source}`,
+        throw new SpacesAdapterError(
+          `SPACES_REQUEST_HEADER_SOURCE_UNKNOWN`,
+          `${row} declares ${header.name} from ${header.source}`,
         );
     }
   }
@@ -332,8 +343,9 @@ export async function send(client, request) {
     request.callClass,
   );
   if (String(template.origin) !== client.origin) {
-    throw new Error(
-      `SPACES_CALL_ORIGIN_MISMATCH: ${request.stage}/${request.callClass} is declared against ${String(template.origin)} but was issued against ${client.origin}`,
+    throw new SpacesAdapterError(
+      `SPACES_CALL_ORIGIN_MISMATCH`,
+      `${request.stage}/${request.callClass} is declared against ${String(template.origin)} but was issued against ${client.origin}`,
     );
   }
 
@@ -347,8 +359,9 @@ export async function send(client, request) {
       !CONDITIONAL_HEADER_NAMES.has(name) ||
       String(template.callClass) !== CONDITIONAL_CALL_CLASS
     ) {
-      throw new Error(
-        `SPACES_REQUEST_HEADER_UNDECLARED: ${request.stage}/${request.callClass} may not send ${name}`,
+      throw new SpacesAdapterError(
+        `SPACES_REQUEST_HEADER_UNDECLARED`,
+        `${request.stage}/${request.callClass} may not send ${name}`,
       );
     }
   }
@@ -394,15 +407,17 @@ export async function send(client, request) {
       continue;
     }
     if (!declaredNames.has(name)) {
-      throw new Error(
-        `SPACES_REQUEST_HEADER_UNDECLARED: ${request.stage}/${request.callClass} would send ${name}, which its template does not declare`,
+      throw new SpacesAdapterError(
+        `SPACES_REQUEST_HEADER_UNDECLARED`,
+        `${request.stage}/${request.callClass} would send ${name}, which its template does not declare`,
       );
     }
   }
   for (const name of declaredNames) {
     if (!(name in wireHeaders)) {
-      throw new Error(
-        `SPACES_REQUEST_HEADER_MISSING: ${request.stage}/${request.callClass} declares ${name} but did not render it`,
+      throw new SpacesAdapterError(
+        `SPACES_REQUEST_HEADER_MISSING`,
+        `${request.stage}/${request.callClass} declares ${name} but did not render it`,
       );
     }
   }
@@ -445,8 +460,9 @@ export async function send(client, request) {
 
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.byteLength > MAXIMUM_RESPONSE_BODY_BYTES) {
-    throw new Error(
-      `SPACES_RESPONSE_BODY_TOO_LARGE: ${request.key} returned ${bytes.byteLength} bytes`,
+    throw new SpacesAdapterError(
+      `SPACES_RESPONSE_BODY_TOO_LARGE`,
+      `${request.key} returned ${bytes.byteLength} bytes`,
     );
   }
   /** @type {Record<string, string>} */
@@ -476,8 +492,9 @@ export function requireStatus(response, acceptStatuses, callClass) {
     return response;
   }
   const code = response.bytes.toString('utf8').match(/<Code>([^<]+)<\/Code>/u);
-  throw new Error(
-    `SPACES_PROVIDER_STATUS_UNEXPECTED: ${callClass} returned HTTP ${response.status}${code === null ? '' : ` (${code[1]})`}, expected one of ${acceptStatuses.join(', ')}`,
+  throw new SpacesAdapterError(
+    `SPACES_PROVIDER_STATUS_UNEXPECTED`,
+    `${callClass} returned HTTP ${response.status}${code === null ? '' : ` (${code[1]})`}, expected one of ${acceptStatuses.join(', ')}`,
   );
 }
 

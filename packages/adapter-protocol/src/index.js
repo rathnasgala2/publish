@@ -41,11 +41,16 @@ export {
 export { isFilesystemProviderLimits, isHttpProviderLimits } from './limits.js';
 
 export {
+  ARTIFACT_DIGEST_DOMAIN,
   canonicalizeJson,
+  computeArtifactDigest,
   domainDigest,
   isDigestString,
+  projectArtifactEntry,
   sha256Hex,
 } from './digest.js';
+
+export { REDACTION_PLACEHOLDER } from './redaction.js';
 
 export {
   FRAME_CEILING_BYTES,

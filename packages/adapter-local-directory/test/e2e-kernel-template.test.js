@@ -23,17 +23,11 @@
  * publishes for `.` (`src/core/index.js`) — its package entry, reached
  * without an npm-managed symlink or lockfile edge.
  *
- * `renderPublication`'s public entry point does not yet expose a way to
- * compute the current render-policy identity a fixture's content records
- * must carry (only the internal renderer does, via
- * `src/core/internal/content-security.js`'s `computeRenderPolicyIdentity`,
- * not re-exported from `src/core/index.js`). This test reaches that one
- * internal module the same way: a direct path resolved from `template`'s
- * root, the same technique `template`'s own `test/helpers/schema-fixtures.js`
- * uses to build a renderable fixture from the `@rathnasgala2/schemas`
- * canonical example. If a future `template` release publishes this as a
- * public helper, this import should switch to the package's public entry
- * point.
+ * `template@2.1.0` publishes `computeRenderPolicyIdentity` and
+ * `computeBodyDigest` from its public entry point (`src/core/index.js`), so
+ * this test no longer reaches into `src/core/internal/content-security.js`
+ * (PUB-H5's deferred half, closed once `template` shipped the public
+ * helper).
  */
 
 import assert from 'node:assert/strict';
@@ -124,7 +118,7 @@ async function loadRenderableBuildInput() {
   buildInput.appearance.fontAssets = [];
 
   const { computeBodyDigest, computeRenderPolicyIdentity } =
-    await importTemplateModule('src/core/internal/content-security.js');
+    await importTemplateModule('src/core/index.js');
   const identity = await /** @type {() => Promise<Record<string, unknown>>} */ (
     computeRenderPolicyIdentity
   )();

@@ -25,6 +25,7 @@
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 import {
   canonicalizeJson,
   domainDigest,
@@ -79,7 +80,7 @@ const RFC3339 =
  * @returns {never} never returns
  */
 function refuse(code, detail) {
-  throw new Error(`${code}: ${detail}`);
+  throw new PagesAdapterError(code, detail);
 }
 
 /**
@@ -535,8 +536,9 @@ export function validateReconciliationRecovery(recovery, binding) {
  */
 export function assertRecoveryModePermitted(mode) {
   if (mode !== RECOVERY_MODE) {
-    throw new Error(
-      `PAGES_RECOVERY_CALL_FORBIDDEN: the recovery-prior call plan is admitted only in ${RECOVERY_MODE} mode, not ${JSON.stringify(mode)}`,
+    refuse(
+      'PAGES_RECOVERY_CALL_FORBIDDEN',
+      `the recovery-prior call plan is admitted only in ${RECOVERY_MODE} mode, not ${JSON.stringify(mode)}`,
     );
   }
 }

@@ -9,6 +9,7 @@ import {
   decodeFrames,
   encodeFrame,
 } from '../src/frame.js';
+import { createSeededRandom, pickSeed } from './helpers/seeded-random.js';
 
 test('encodeFrame then decodeFrame round-trips a message', () => {
   const message = { hello: 'world', n: 3 };
@@ -135,20 +136,26 @@ test('decodeFrames on an empty buffer returns no messages', () => {
   assert.deepEqual(decodeFrames(Buffer.alloc(0)), []);
 });
 
-test('property: every encodeFrame output decodes back to an equal message', () => {
+test('property: every encodeFrame output decodes back to an equal message', (t) => {
+  const seed = pickSeed();
+  t.diagnostic(`seed=${seed} (rerun with TEST_SEED=${seed} to replay)`);
+  const random = createSeededRandom(seed);
   for (let i = 0; i < 100; i += 1) {
     const message = {
-      id: Math.floor(Math.random() * 1_000_000),
-      values: Array.from({ length: 5 }, () => Math.random().toString(36)),
+      id: Math.floor(random() * 1_000_000),
+      values: Array.from({ length: 5 }, () => random().toString(36)),
     };
     const decoded = decodeFrame(encodeFrame(message));
     assert.deepEqual(decoded.message, message);
   }
 });
 
-test('property: coalescing N frames and decoding recovers exactly N messages in order', () => {
+test('property: coalescing N frames and decoding recovers exactly N messages in order', (t) => {
+  const seed = pickSeed();
+  t.diagnostic(`seed=${seed} (rerun with TEST_SEED=${seed} to replay)`);
+  const random = createSeededRandom(seed);
   for (let trial = 0; trial < 25; trial += 1) {
-    const count = Math.floor(Math.random() * 8) + 1;
+    const count = Math.floor(random() * 8) + 1;
     const messages = Array.from({ length: count }, (_, index) => ({
       index,
     }));

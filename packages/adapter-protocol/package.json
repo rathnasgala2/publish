@@ -1,12 +1,12 @@
 {
   "name": "@rathnasgala2/adapter-protocol",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "In-process deployment adapter lifecycle interface, closed capability vocabulary, provider limit profiles, negotiation and frame/message contract for Galascribe v2.",
   "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": false,
   "engines": {
-    "node": "24.18.0",
-    "npm": "11.16.0"
+    "node": ">=24.0.0"
   },
   "exports": {
     ".": {
@@ -35,5 +35,21 @@
   "publishConfig": {
     "access": "public",
     "provenance": true
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rathnasgala2/publish.git",
+    "directory": "packages/adapter-protocol"
+  },
+  "homepage": "https://github.com/rathnasgala2/publish/tree/main/packages/adapter-protocol#readme",
+  "bugs": {
+    "url": "https://github.com/rathnasgala2/publish/issues"
+  },
+  "keywords": [
+    "gala",
+    "galascribe",
+    "publish",
+    "adapter",
+    "protocol"
+  ]
 }

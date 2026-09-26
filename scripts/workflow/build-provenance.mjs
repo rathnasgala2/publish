@@ -85,7 +85,7 @@ export const SPDX_23_JSON_SCHEMA_DIGEST =
  */
 export const PROVENANCE_MEMBERS_NOT_YET_HELD = Object.freeze({
   workflowFiles:
-    'the four workflow-file evidence rows need the numeric repository id of rathnasgala2/publish, which does not exist until W0-01 publishes it',
+    "the four workflow-file evidence rows need rathnasgala2/publish's numeric repository id (now 1381257185, since W0-01 published it 2026-09-25) plus a content digest of each pinned workflow file at that commit; assembling those rows is unimplemented, not blocked on the id",
   actionPins:
     'actionDefinitionDigest is a digest over each pinned action definition at its commit; the runner does not hold those bytes',
   rebuildRecord:

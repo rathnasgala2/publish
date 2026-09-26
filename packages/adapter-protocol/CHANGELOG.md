@@ -8,6 +8,57 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-26
+
+### Added
+
+- **PUB-L1:** `REDACTION_PLACEHOLDER` (`'[REDACTED]'`) is now exported -- the
+  one redaction sentinel `publish-kernel` and `adapter-github-pages` both use,
+  instead of each defining its own (`'[REDACTED]'` vs `'[redacted]'`).
+- **PUB-M2:** the README's new "Version numbers" section documents the
+  relationship between the npm package version, `ADAPTER_PROTOCOL_VERSION` and
+  the schema/profile versions this package consumes.
+  `test/protocol-version.test.js` and `protocol-version-history.json` assert the
+  enforced rule: a change to `ADAPTER_PROTOCOL_VERSION` requires at least a
+  minor bump of the package version.
+- **PUB-M8:** `loadAdapterModule` now refuses any specifier that is not one of
+  the three admitted adapter package specifiers
+  (`@rathnasgala2/adapter-local-directory`,
+  `@rathnasgala2/adapter-github-pages`, `@rathnasgala2/adapter-do-spaces`) or a
+  `file:` URL, throwing `AdapterProtocolError` with finding code
+  `ADAPTER_SPECIFIER_NOT_ADMITTED` before attempting the `import()`. The
+  protocol's own admission table already closes the `adapterId` vocabulary to
+  these three, so this allowlist closes the gap between "three admitted
+  adapters" and "any module specifier a caller can construct".
+- **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
+  tree-shake an unused re-export from this package's barrel entry point instead
+  of conservatively retaining the whole thing.
+- **PUB-M3:** `canonicalizeJson` now throws a `TypeError` for a value whose
+  prototype is neither `Object.prototype` nor `null` (a `Date`, `Map`, `Set` or
+  class instance), instead of silently canonicalizing it as `{}` via
+  `Object.keys`. Every DEC-097 contract digest in this repository is built from
+  this primitive, so a `Date`-bearing record (the most likely mistake, given how
+  many records carry timestamps) previously produced a well-formed, stable,
+  wrong digest with no diagnostic.
+- **PUB-M4:** the property tests in `test/digest.test.js`,
+  `test/capability-vocabulary.test.js` and `test/frame.test.js` now draw from a
+  seeded PRNG (`test/helpers/seeded-random.js`) instead of bare `Math.random()`,
+  printing the seed as a test diagnostic so a CI failure can be replayed with
+  `TEST_SEED=<seed>`. The two key-order/set-equality properties that used
+  `array.toSorted(() => Math.random() - 0.5)` — a comparator-as-shuffle that is
+  non-uniform and, for small arrays, often returns the input order unchanged —
+  now use an unbiased Fisher-Yates shuffle, plus a new deterministic
+  reverse-order case that proves the property at least once independent of any
+  PRNG outcome.
+- **PUB-M5:** `computeArtifactDigest`, `projectArtifactEntry` and
+  `ARTIFACT_DIGEST_DOMAIN` are now exported. This is the single implementation
+  of the DEC-097 section 8 `GALA-ARTIFACT-V2 ` artifact digest;
+  `adapter-local-directory`, `adapter-github-pages` and `adapter-do-spaces` each
+  delegate to it instead of restating the path-sort-and-hash formula
+  independently.
+
+## [0.2.0] - 2026-09-22
+
 ### Changed
 
 - **`requireGenerationFence` is no looser than the wire (PUBLISH-S4-5).** The

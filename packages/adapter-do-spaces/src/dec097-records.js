@@ -30,6 +30,7 @@
  * @module
  */
 
+import { SpacesAdapterError } from './errors.js';
 import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
 
 /**
@@ -44,7 +45,8 @@ function profile(name) {
       /** @type {unknown} */ (ACTIVE_DIGEST_PROFILES)
     )[name];
   if (found === undefined) {
-    throw new Error(
+    throw new SpacesAdapterError(
+      `SPACES_DIGEST_PROFILE_MISSING`,
       `the pinned @rathnasgala2/schemas package exports no ${name} digest profile`,
     );
   }

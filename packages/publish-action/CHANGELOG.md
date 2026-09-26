@@ -10,6 +10,33 @@ and this project adheres to
 
 ### Changed
 
+- **PUB-H5:** `template-bridge.js`'s `currentRenderPolicyIdentity` now imports
+  `computeRenderPolicyIdentity` from `template`'s public entry point
+  (`src/core/index.js`) instead of `src/core/internal/content-security.js`, now
+  that the pinned `template@2.1.0` publishes it publicly. The `gala.lock.json`
+  test fixture and `theme-bridge.test.js`'s `REAL_THEME` now pin
+  `template`/`theme-default` at `2.1.0` to match the sibling checkouts CI
+  provides.
+
+### Added
+
+- **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
+  tree-shake an unused re-export from this package's barrel entry point instead
+  of conservatively retaining the whole thing.
+- **PUB-H8:** `package.json` sets `"private": true`, so `npm publish` refuses
+  this package structurally instead of relying only on `release.yaml`'s
+  exclusion list. `@rathnasgala2/template` is now declared as an optional
+  `peerDependencies` entry (`^2.0.0`), so this package's dependency closure is
+  honest even though `template` is not yet on the npm registry.
+  `workspace-siblings.js`'s `resolveWorkspaceRoot` now refuses its LOCAL-only
+  relative sibling default outright when this module is running from inside a
+  `node_modules` tree (the shape of an installed dependency) and requires an
+  absolute `WORKSPACE_ROOT` in that case, closing the path by which an installed
+  copy could `import()` code from outside a consumer's project. `WORKSPACE_ROOT`
+  must now be an absolute path when set.
+
+### Changed
+
 - **PUBLISH-S4-6b — the build leaves its two validated fact records next to the
   manifest.** `runBuild` writes `work/build-input.json` (the normalized
   `build-input:2.0.0` the renderer consumed, whose `inputDigest` is the

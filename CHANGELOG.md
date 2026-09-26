@@ -8,6 +8,129 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+- **PUB-H5:** the `rathnasgala2/template` and `rathnasgala2/theme-default`
+  sibling pins (`.github/workflows/{ci,nightly,release}.yaml`'s `ref:` values)
+  are bumped from the 2.0.0-era commits to the published 2.1.0 releases
+  (`template@20f8fdefe822f264f9d7fdd787d0d58431930a0b`,
+  `theme-default@b8015f166ef62c73e3096dab9bb74648a701d85e`); every fixture that
+  pinned the 2.0.0 contract
+  (`packages/publish-action/test/fixtures/minimal-repository/gala.lock.json`,
+  `test/sbom.test.mjs`'s synthetic dependency-DAG rows) is bumped to match.
+  `template-bridge.js`'s `currentRenderPolicyIdentity` (and the
+  `adapter-local-directory` S2-T17 e2e test) now import
+  `computeRenderPolicyIdentity`/`computeBodyDigest` from `template`'s public
+  entry point (`src/core/index.js`) instead of reaching into
+  `src/core/internal/content-security.js`, closing PUB-H5's deferred half now
+  that `template@2.1.0` publishes the helper publicly.
+  `packages/publish-action/test/e2e-npx-and-action.test.js`'s theme `<link>`
+  assertion now tolerates the `integrity`/`crossorigin` attributes
+  `template@2.1.0` (TPL-M1) adds to every theme stylesheet link, instead of
+  matching the pre-TPL-M1 exact tag text.
+- **PUB-H5:** `scripts/check-coverage.mjs` now runs each package's coverage with
+  `--test-coverage-include=src/**/*.js`, scoping the measured percentage to that
+  package's own source instead of every module its test process happens to load
+  (a workspace sibling for `publish-kernel`, or the real `v2/template` sibling
+  repository for `adapter-local-directory` and `publish-action`). The 2.1.0 pin
+  bump changed how much of `template`'s own code those tests exercise, which
+  moved the unscoped aggregate even though every package's own `src/` coverage
+  was unchanged byte-for-byte; `coverage-thresholds.json`'s floors are
+  recalculated (raised, never lowered) against the newly-scoped measurement.
+
+- **PUB-M12 (follow-up):** `rathnasgala2/publish` resolved on GitHub 2026-09-25.
+  Every self-reference is re-pinned to a real commit SHA (`pins/ledger.json`'s
+  `selfReferences[0]`, `docs/callers/gala-publish-v2.yml`'s `uses:` pin) instead
+  of the all-zero placeholder, and `scripts/check-pins.mjs` /
+  `scripts/workflow/build-provenance.mjs` no longer describe the self-reference
+  as unresolvable. `TRACKED_PLACEHOLDERS` in
+  `scripts/check-placeholder-markers.mjs` is now empty, and the gate hard-fails
+  `verify` if an all-zero self-reference SHA is ever reintroduced once the
+  repository is known to resolve — a warning that a resolved condition never
+  turns into a failure is not a gate.
+- **PUB-L8:** `release.yaml`'s push path filter now also covers `scripts/**`,
+  `pins/**` and `.github/workflows/release.yaml` itself, not only
+  `packages/**`/`package.json`/`package-lock.json`. A fix to the release gate
+  (or a pin-ledger change `npm run verify` depends on) is now exercised on the
+  next push instead of waiting for an unrelated package change.
+- **PUB-L7:** `CLAUDE.md`'s "Commands" section now lists every gate
+  `npm run verify` actually runs (`coverage:check`, `sbom:check`,
+  `workflows:check`, `workflows:drift`, `schema-pin:check`, `placeholder:check`
+  were missing). `test/claude-md-commands.test.mjs` parses `package.json`'s
+  `verify` script and asserts every command it chains is listed, so the two
+  cannot silently drift apart again.
+- **PUB-L6:** deleted the dead `verifyPackageTarballs` local-tarball-pin
+  machinery from `scripts/check-pins.mjs` (and the matching `packages` loop in
+  `comparePins`, the `packages` field in `pins/ledger.json`, and the fixture
+  tarball `test/fixtures/local-packages/rathnasgala2-schemas-2.10.0.tgz`).
+  `scripts/check-no-local-schema-pin.mjs` now forbids the LOCAL-1 local-tarball
+  convention outright for every package, so a `ledger.packages` entry of this
+  shape can never legitimately exist again; keeping the path permanently
+  exercised only by synthetic test rows was dead weight.
+- **PUB-L3:** the root README's "Working from a git worktree" section no longer
+  claims `publish-action` resolves `schema`, `api` and `infra` as siblings; only
+  `template` and `theme-<slug>` are ever resolved this way
+  (`workspace-siblings.js` is called with nothing else).
+- **PUB-L1:** `test/redaction-sentinel-agreement.test.mjs` proves
+  `publish-kernel` and `adapter-github-pages` use the same redaction sentinel
+  now that both import `@rathnasgala2/adapter-protocol`'s
+  `REDACTION_PLACEHOLDER`.
+- **PUB-M12:** `npm run placeholder:check`
+  (`scripts/check-placeholder-markers.mjs`) fails if the literal
+  `PLACEHOLDER (W0-01)` marker text appears anywhere in the scanned files
+  (workflows, `docs/callers/`, the pin ledger, the two scripts that document the
+  self-reference) without a matching entry in the script's
+  `TRACKED_PLACEHOLDERS` inventory. It also checks, on every run, whether
+  `rathnasgala2/publish` now resolves on GitHub while `pins/ledger.json` still
+  records the all-zero self-reference placeholder, and prints a loud warning
+  (not a failure — the reconciliation itself is a deliberate, separate change)
+  if so. At this commit, 10 of the 13 markers the 2026-09-25 review found were
+  already resolved by the earlier PUB-H5 SHA pin; the remaining 3 are the
+  inherently unresolvable-until-publish self-reference, now tracked explicitly.
+  Wired into `npm run verify`.
+- **PUB-M10:** `.github/workflows/nightly.yml` gains a
+  `spaces-minio-conformance` job that starts the digest-pinned throwaway MinIO
+  container and runs `adapter-do-spaces`'s real-server conformance suite every
+  night. Previously that suite ran only when a maintainer invoked
+  `scripts/minio-spaces.sh` by hand, so CI only ever proved the adapter against
+  a fake S3 server written by the same authors.
+- **PUB-M13:** `release.yaml`'s publish loop now captures `npm view --json` and
+  branches on `error.code === 'E404'` specifically instead of treating any
+  non-zero exit as "not published". A registry 5xx, timeout, auth failure or
+  rate limit now fails the release job instead of falling through to an
+  attempted republish that fails with `EPUBLISHCONFLICT` partway through the
+  dependency-ordered loop. `test/release-npm-view.test.mjs` proves the embedded
+  extractor actually discriminates E404 from other failures.
+- **PUB-M8:** `test/loader-admits-adapters.test.mjs` proves
+  `@rathnasgala2/adapter-protocol`'s new `loadAdapterModule` specifier allowlist
+  actually admits and loads the three real published adapters
+  (`adapter-local-directory`, `adapter-github-pages`, `adapter-do-spaces`), from
+  the repository level since `adapter-protocol` itself stays dependency-free.
+- **PUB-M11:** every package manifest declares `"sideEffects": false`, and
+  `scripts/check-manifest-conformance.mjs` (`npm run manifest:check`) now fails
+  if a package is missing it. These are side-effect-free barrel entry points; a
+  bundler can now tree-shake an unused re-export instead of conservatively
+  retaining the whole package.
+- **PUB-M9:** `npm run coverage:check` (`scripts/check-coverage.mjs`) runs
+  `node --test --experimental-test-coverage` per workspace package and fails if
+  a package's line or branch percentage drops below the floor recorded in
+  `coverage-thresholds.json`, seeded at each package's currently measured value.
+  Wired into `npm run verify`.
+- **PUB-M5:** `test/artifact-digest-agreement.test.mjs` proves
+  `adapter-local-directory`, `adapter-github-pages` and `adapter-do-spaces`
+  still agree byte-for-byte on the `computeArtifactDigest` formula over a shared
+  fixture set (empty files, unicode paths, nested directories, the reserved
+  generation-marker coordinate), now that all three delegate to
+  `@rathnasgala2/adapter-protocol`'s single implementation.
+- **PUB-M1:** `.github/workflows/ci.yml` gains a `full-verify` job that runs the
+  complete `npm run verify` (including `architecture`, `duplication`,
+  `sbom:check`, `pins:check`, `schema-pin:check` and the Docker build-sandbox
+  proof) on every push and pull request, not only nightly. A merge can no longer
+  land an adapter-isolation, SBOM or pin-ledger violation that sits on `main`
+  for up to 24h before nightly.yml catches it.
+
 ### Changed
 
 - **Contract re-pin: `@rathnasgala2/schemas` moved from the LOCAL-1/LOCAL-43

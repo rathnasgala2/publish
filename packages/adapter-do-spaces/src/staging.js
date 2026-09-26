@@ -19,6 +19,7 @@
  * @module
  */
 
+import { SpacesAdapterError } from './errors.js';
 import { MAXIMUM_SINGLE_PART_BYTES, STAGE_PREFIX } from './constants.js';
 import { requireStatus, send } from './s3.js';
 
@@ -268,8 +269,9 @@ export async function uploadMultipart(client, plan, key, bytes, metadata) {
     .toString('utf8')
     .match(/<UploadId>([\s\S]*?)<\/UploadId>/u)?.[1];
   if (uploadId === undefined) {
-    throw new Error(
-      'SPACES_MULTIPART_CREATE_MALFORMED: the create-multipart response carried no UploadId',
+    throw new SpacesAdapterError(
+      'SPACES_MULTIPART_CREATE_MALFORMED',
+      'the create-multipart response carried no UploadId',
     );
   }
 
@@ -294,8 +296,9 @@ export async function uploadMultipart(client, plan, key, bytes, metadata) {
         `${plan.stage}/${plan.multipartPart}`,
       );
       if (uploaded.etag === null) {
-        throw new Error(
-          `SPACES_MULTIPART_PART_MALFORMED: part ${partNumber} returned no ETag`,
+        throw new SpacesAdapterError(
+          `SPACES_MULTIPART_PART_MALFORMED`,
+          `part ${partNumber} returned no ETag`,
         );
       }
       parts.push({ partNumber, etag: uploaded.etag });

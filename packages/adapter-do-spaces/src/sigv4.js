@@ -18,6 +18,25 @@
 
 import { createHash, createHmac } from 'node:crypto';
 
+import { SpacesAdapterError } from './errors.js';
+
+/**
+ * The exact header-name vocabulary `signRequest` signs (PUB-M7): `host`,
+ * `content-type`, `cache-control` and the `x-amz-*` family -- the same
+ * closed set `s3.js`'s `SIGNED_HEADER_NAMES` declares, because every one of
+ * these carries adapter-chosen meaning this signer controls end-to-end
+ * (including the object's `Cache-Control` metadata value, which needs the
+ * same integrity protection as any other adapter-supplied header). A truly
+ * hop-by-hop header (`accept-encoding`, `connection`, `content-length`) or a
+ * provider-returned conditional guard (`if-match`, `if-none-match`) is never
+ * routed through `request.headers` at all -- `s3.js` sends those unsigned,
+ * outside this function. Anything else passed in `request.headers` is
+ * refused rather than silently signed, so a header this signer does not
+ * actually control never ends up inside the signature.
+ */
+const SIGNABLE_HEADER_PATTERN =
+  /^(?:host|content-type|cache-control)$|^x-amz-/u;
+
 /** The SigV4 algorithm identifier. */
 export const ALGORITHM = 'AWS4-HMAC-SHA256';
 
@@ -153,7 +172,12 @@ export function deriveSigningKey(
 export function computeSignature(request, credentials) {
   const service = request.service ?? SERVICE;
   const canonicalHeaders = request.signedHeaderNames
-    .map((name) => `${name}:${String(request.headers[name] ?? '').trim()}\n`)
+    .map(
+      (name) =>
+        `${name}:${String(request.headers[name] ?? '')
+          .trim()
+          .replace(/\s+/gu, ' ')}\n`,
+    )
     .join('');
   const signedHeaders = request.signedHeaderNames.join(';');
   const canonicalRequest = [
@@ -192,13 +216,14 @@ export function computeSignature(request, credentials) {
  * Sign one request, returning exactly the headers that must be sent
  * verbatim.
  *
- * Only headers this signer controls end-to-end are signed: `host`, the
- * `x-amz-*` family and `content-type`. A conditional or cache header is
- * deliberately *not* signed and is sent by the caller as an unsigned
- * header, because an HTTP client is entitled to add or rewrite those (Node
- * adds `pragma: no-cache` and rewrites `cache-control` the moment a
- * conditional header is present), and S3 honours an unsigned header
- * perfectly well.
+ * Only headers this signer controls end-to-end are signed: `host`,
+ * `content-type`, `cache-control` and the `x-amz-*` family (PUB-M7; see
+ * {@link SIGNABLE_HEADER_PATTERN}). A provider-returned conditional guard
+ * (`if-match`/`if-none-match`) is sent unsigned by the caller and never
+ * reaches this function at all -- it is a provider-returned ETag, not a
+ * value this adapter chose, so it is not eligible to be signed in the first
+ * place. Any header outside the signable set is refused rather than
+ * silently signed.
  *
  * @param {{
  *   method: string,
@@ -227,7 +252,14 @@ export function signRequest(request, credentials) {
     headers['x-amz-security-token'] = credentials.sessionToken;
   }
   for (const [name, value] of Object.entries(request.headers ?? {})) {
-    headers[name.toLowerCase()] = value;
+    const lowerName = name.toLowerCase();
+    if (!SIGNABLE_HEADER_PATTERN.test(lowerName)) {
+      throw new SpacesAdapterError(
+        'SPACES_UNSIGNABLE_HEADER',
+        `header ${JSON.stringify(name)} is not host, content-type or an x-amz-* header; only headers this signer controls end-to-end may be signed`,
+      );
+    }
+    headers[lowerName] = value;
   }
 
   const { signature, scope, signedHeaders } = computeSignature(

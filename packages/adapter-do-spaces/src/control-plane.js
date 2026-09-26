@@ -31,6 +31,7 @@
  * @module
  */
 
+import { SpacesAdapterError } from './errors.js';
 import { domainDigest } from '@rathnasgala2/adapter-protocol';
 
 import {
@@ -200,7 +201,7 @@ function errorCode(bytes) {
  * exact code `AccessDenied`.
  *
  * @param {{
- *   destination: import('./index.js').SpacesDestination,
+ *   destination: import('./types.js').SpacesDestination,
  *   fetch?: typeof globalThis.fetch
  * }} input the destination carrying the limited caller key
  * @returns {Promise<Readonly<Record<string, unknown>>>} a credential-free
@@ -260,13 +261,15 @@ export async function proveLimitedKeyAccessDenied(input) {
     const code = errorCode(bytes);
 
     if (response.status >= 200 && response.status < 400) {
-      throw new Error(
-        `SPACES_LIMITED_KEY_OVERPRIVILEGED: the limited deployment key read the ${target} bucket's website configuration (HTTP ${response.status} at ${origin}${CONTROL_PLANE_REQUEST_TARGET}); it must be denied before a single object is mutated`,
+      throw new SpacesAdapterError(
+        `SPACES_LIMITED_KEY_OVERPRIVILEGED`,
+        `the limited deployment key read the ${target} bucket's website configuration (HTTP ${response.status} at ${origin}${CONTROL_PLANE_REQUEST_TARGET}); it must be denied before a single object is mutated`,
       );
     }
     if (response.status !== 403 || code !== 'AccessDenied') {
-      throw new Error(
-        `SPACES_LIMITED_KEY_DENIAL_UNPROVEN: ${origin}${CONTROL_PLANE_REQUEST_TARGET} answered HTTP ${response.status}${code === null ? ' with no well-formed S3 Error code' : ` (${code})`}; only an exact 403 AccessDenied proves the limited key is denied`,
+      throw new SpacesAdapterError(
+        `SPACES_LIMITED_KEY_DENIAL_UNPROVEN`,
+        `${origin}${CONTROL_PLANE_REQUEST_TARGET} answered HTTP ${response.status}${code === null ? ' with no well-formed S3 Error code' : ` (${code})`}; only an exact 403 AccessDenied proves the limited key is denied`,
       );
     }
     observations.push(

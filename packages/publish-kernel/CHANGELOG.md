@@ -8,6 +8,29 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-26
+
+### Changed
+
+- **PUB-L2:** `checkPathContainment`'s doc comment no longer claims a
+  cross-entry NFC-collision check that cannot occur by construction (any
+  individual non-NFC path is already rejected, so two distinct NFC-form paths
+  cannot collapse to the same one). Only the case-folded cross-entry check is
+  real; the doc now says so and explains why the NFC half was unreachable rather
+  than implying a second check exists.
+- **PUB-L1:** the internal `REDACTED` placeholder now comes from
+  `@rathnasgala2/adapter-protocol`'s `REDACTION_PLACEHOLDER`, the one redaction
+  sentinel every package uses, instead of this package's own `'[REDACTED]'`
+  literal (the value is unchanged).
+
+### Added
+
+- **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
+  tree-shake an unused re-export from this package's barrel entry point instead
+  of conservatively retaining the whole thing.
+
+## [0.1.0] - 2026-09-22
+
 ### Changed
 
 - **Breaking (LOCAL-47, adapter protocol `2.1.0`):** duty 6's

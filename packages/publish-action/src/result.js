@@ -17,7 +17,7 @@ import { EXIT_CODES } from './constants.js';
  * uses, aliased here from the published declaration surface so both stay in
  * sync.
  *
- * @typedef {import('./index.d.ts').PublishActionFinding} Finding
+ * @typedef {import('./types.js').PublishActionFinding} Finding
  */
 
 const BLOCKING_SEVERITIES = Object.freeze([
@@ -67,7 +67,7 @@ export function exitCodeForFindings(findings) {
  *   byteCount?: string,
  *   previewUrl?: string
  * }} fields the envelope's fields
- * @returns {import('./index.d.ts').ResultEnvelope} the frozen envelope
+ * @returns {import('./types.js').ResultEnvelope} the frozen envelope
  */
 export function buildResultEnvelope(fields) {
   return Object.freeze({

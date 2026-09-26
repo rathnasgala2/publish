@@ -47,7 +47,7 @@ const MARKER_CONTENT = `${JSON.stringify(
 export class UnsafeBuildDirectoryError extends Error {
   /**
    * @param {string} message human-readable summary
-   * @param {readonly import('./index.d.ts').PublishActionFinding[]} findings typed findings
+   * @param {readonly import('./types.js').PublishActionFinding[]} findings typed findings
    */
   constructor(message, findings = []) {
     super(message);
@@ -59,7 +59,7 @@ export class UnsafeBuildDirectoryError extends Error {
 /**
  * @param {string} code stable finding code
  * @param {string} detail human-readable detail
- * @returns {import('./index.d.ts').PublishActionFinding} one typed `SOURCE_ERROR` finding
+ * @returns {import('./types.js').PublishActionFinding} one typed `SOURCE_ERROR` finding
  */
 function unsafeDirectoryFinding(code, detail) {
   return {

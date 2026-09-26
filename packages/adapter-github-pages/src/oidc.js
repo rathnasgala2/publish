@@ -36,13 +36,18 @@
  * from the separately verified `repository`, `repository_owner`,
  * `repository_id` and `repository_owner_id` claims, `environment`, and the
  * caller-supplied ref/SHA/run id/run attempt/`job_workflow_ref`/
- * `job_workflow_sha` expectations.
+ * `job_workflow_sha` expectations; and (PUB-L5, belt-and-braces) `exp`,
+ * `iat` and, when present, `nbf`, each within
+ * {@link PAGES_OIDC_CLOCK_SKEW_SECONDS} of the check's own clock -- Pages
+ * remains the authoritative check for token staleness, per the trust
+ * boundary above.
  *
  * No error raised here ever contains a token byte.
  *
  * @module
  */
 
+import { PagesAdapterError } from './errors.js';
 /** The closed credential-source profile this module implements. */
 export const PAGES_OIDC_PROFILE = 'gala-pages-oidc-v2';
 
@@ -56,6 +61,17 @@ export const PAGES_OIDC_ENVIRONMENT = 'github-pages';
 export const PAGES_OIDC_MINIMUM_BYTES = 1;
 /** Inclusive upper byte bound on the compact JWT. */
 export const PAGES_OIDC_MAXIMUM_BYTES = 8000;
+
+/**
+ * PUB-L5: clock-skew tolerance, in seconds, for the belt-and-braces
+ * `exp`/`iat`/`nbf` checks below. GitHub Pages is the relying party that
+ * authoritatively rejects a stale or not-yet-valid token (this module's own
+ * header explains why that is the real trust boundary); this check exists
+ * only to fail closed earlier, with a clearer diagnostic, when it costs
+ * nothing to do so. 300 seconds is generous enough to absorb ordinary
+ * runner/host clock drift without weakening the check.
+ */
+export const PAGES_OIDC_CLOCK_SKEW_SECONDS = 300;
 
 const BASE64URL_SEGMENT = /^[A-Za-z0-9_-]+$/u;
 const CANONICAL_DECIMAL = /^(?:0|[1-9][0-9]*)$/u;
@@ -83,7 +99,7 @@ const CANONICAL_DECIMAL = /^(?:0|[1-9][0-9]*)$/u;
  * @returns {never} never returns
  */
 function refuse(code, detail) {
-  throw new Error(`${code}: ${detail}`);
+  throw new PagesAdapterError(code, detail);
 }
 
 /**
@@ -270,6 +286,66 @@ function requireCanonicalDecimal(value, name) {
 }
 
 /**
+ * Read one required numeric claim (a JWT `NumericDate`: seconds since the
+ * epoch, per RFC 7519 section 2).
+ *
+ * @param {Record<string, unknown>} payload the parsed payload
+ * @param {string} name the claim name
+ * @returns {number} the claim value
+ */
+function requireNumericClaim(payload, name) {
+  const value = payload[name];
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    refuse(
+      'PAGES_OIDC_CLAIM_MISSING',
+      `the ${JSON.stringify(name)} claim is absent or not a finite number`,
+    );
+  }
+  return /** @type {number} */ (value);
+}
+
+/**
+ * Belt-and-braces temporal validity: `exp` and `iat` are required and
+ * checked with a {@link PAGES_OIDC_CLOCK_SKEW_SECONDS} tolerance; `nbf` is
+ * checked the same way when present, since RFC 7519 makes it optional.
+ * Failing here is never the last word -- Pages independently rejects a
+ * stale token when it validates the signature -- but it produces a far
+ * clearer diagnostic than a Pages-side rejection, at zero verification cost.
+ *
+ * @param {Record<string, unknown>} payload the parsed payload
+ * @param {() => number} now the clock source, in epoch milliseconds
+ *   (injectable so a test can pin "now" instead of racing the wall clock at
+ *   the 300-second skew boundary; defaults to the real `Date.now`)
+ * @returns {void}
+ */
+function requireTemporalValidity(payload, now) {
+  const nowSeconds = now() / 1000;
+  const expiresAt = requireNumericClaim(payload, 'exp');
+  if (nowSeconds > expiresAt + PAGES_OIDC_CLOCK_SKEW_SECONDS) {
+    refuse(
+      'PAGES_OIDC_TOKEN_EXPIRED',
+      `the token's "exp" claim (${expiresAt}) is in the past beyond the ${PAGES_OIDC_CLOCK_SKEW_SECONDS}s skew tolerance`,
+    );
+  }
+  const issuedAt = requireNumericClaim(payload, 'iat');
+  if (issuedAt > nowSeconds + PAGES_OIDC_CLOCK_SKEW_SECONDS) {
+    refuse(
+      'PAGES_OIDC_TOKEN_NOT_YET_VALID',
+      `the token's "iat" claim (${issuedAt}) is in the future beyond the ${PAGES_OIDC_CLOCK_SKEW_SECONDS}s skew tolerance`,
+    );
+  }
+  if (payload.nbf !== undefined) {
+    const notBefore = requireNumericClaim(payload, 'nbf');
+    if (notBefore > nowSeconds + PAGES_OIDC_CLOCK_SKEW_SECONDS) {
+      refuse(
+        'PAGES_OIDC_TOKEN_NOT_YET_VALID',
+        `the token's "nbf" claim (${notBefore}) is in the future beyond the ${PAGES_OIDC_CLOCK_SKEW_SECONDS}s skew tolerance`,
+      );
+    }
+  }
+}
+
+/**
  * Compare one claim against its expectation without echoing either value's
  * observed bytes where the claim could carry caller content.
  *
@@ -315,6 +391,10 @@ export function buildSubjectForms(identity) {
  *
  * @param {unknown} token the caller-supplied compact JWT
  * @param {PagesOidcExpectation} expected the expected bindings
+ * @param {() => number} [now] the clock source used for the `exp`/`iat`/`nbf`
+ *   checks, in epoch milliseconds. Defaults to `Date.now`; a test supplies a
+ *   fixed function to check the {@link PAGES_OIDC_CLOCK_SKEW_SECONDS}
+ *   boundary deterministically instead of racing the real clock.
  * @returns {Readonly<{
  *   profile: string,
  *   subjectForm: 'name' | 'identifier',
@@ -322,7 +402,7 @@ export function buildSubjectForms(identity) {
  *   tokenByteCount: number
  * }>} non-secret evidence about the accepted token
  */
-export function verifyPagesOidcToken(token, expected) {
+export function verifyPagesOidcToken(token, expected, now = Date.now) {
   if (typeof token !== 'string' || token === '') {
     refuse(
       'PAGES_OIDC_TOKEN_REQUIRED',
@@ -362,6 +442,8 @@ export function verifyPagesOidcToken(token, expected) {
     ).toString('utf8'),
     'JWT payload',
   );
+
+  requireTemporalValidity(payload, now);
 
   const repositoryOwner = requireStringClaim(payload, 'repository_owner');
   const repositoryClaim = requireStringClaim(payload, 'repository');

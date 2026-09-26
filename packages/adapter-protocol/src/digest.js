@@ -59,6 +59,13 @@ function canonicalizeValue(value) {
     return `[${value.map((entry) => canonicalizeValue(entry)).join(',')}]`;
   }
   if (typeof value === 'object') {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new TypeError(
+        'Canonical JSON rejects a non-plain object (e.g. Date, Map, Set or ' +
+          'a class instance); pass a plain object or array literal instead',
+      );
+    }
     const record = /** @type {Record<string, unknown>} */ (value);
     const keys = Object.keys(record)
       .filter((key) => record[key] !== undefined)
@@ -130,6 +137,65 @@ export function sha256Hex(bytes) {
   const hash = createHash('sha256');
   hash.update(bytes);
   return `sha256:${hash.digest('hex')}`;
+}
+
+/**
+ * The `GALA-ARTIFACT-V2 ` domain separator (DEC-097 section 8): the
+ * UTF-8 path-sorted `{path, byteLength, sha256}` entry-list digest every S2
+ * destination adapter verifies `stage`/`activate`/`observe` artifacts
+ * against. Exported so the one {@link computeArtifactDigest} implementation
+ * below, and any adapter that needs the raw separator directly, share the
+ * exact same string rather than each declaring its own copy (PUB-M5: three
+ * adapters previously restated this formula independently with no test
+ * proving they agreed).
+ *
+ * @type {string}
+ */
+export const ARTIFACT_DIGEST_DOMAIN = 'GALA-ARTIFACT-V2 ';
+
+/**
+ * @typedef {Readonly<{path: string, byteLength: string, sha256: string}>} ArtifactEntry
+ */
+
+/**
+ * Project one `{path, bytes}` pair onto its `GALA-ARTIFACT-V2 ` manifest
+ * entry.
+ *
+ * @param {string} entryPath the artifact-relative UTF-8 path
+ * @param {Uint8Array | Buffer} bytes the file bytes
+ * @returns {ArtifactEntry} the projected, frozen entry
+ */
+export function projectArtifactEntry(entryPath, bytes) {
+  return Object.freeze({
+    path: entryPath,
+    byteLength: String(bytes.byteLength),
+    sha256: sha256Hex(bytes),
+  });
+}
+
+/**
+ * The single implementation of the DEC-097 section 8 artifact digest:
+ * UTF-8-path-sort the `{path, bytes}` file set, project each entry to
+ * `{path, byteLength, sha256}`, and digest the ordered list under
+ * {@link ARTIFACT_DIGEST_DOMAIN}. `adapter-local-directory`,
+ * `adapter-github-pages` and `adapter-do-spaces` each re-export this (a
+ * marker-excluding wrapper where the adapter's own carrier reserves a
+ * marker coordinate) instead of restating the formula, so the three
+ * adapters' `computeArtifactDigest` are provably the same function rather
+ * than three implementations a repository-level test merely observes to
+ * currently agree.
+ *
+ * @param {readonly Readonly<{path: string, bytes: Uint8Array | Buffer}>[]} files
+ *   the complete file set, in any order
+ * @returns {string} the `GALA-ARTIFACT-V2 ` artifact digest
+ */
+export function computeArtifactDigest(files) {
+  const entries = files
+    .map((file) => projectArtifactEntry(file.path, file.bytes))
+    .sort((left, right) =>
+      left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+    );
+  return domainDigest(ARTIFACT_DIGEST_DOMAIN, entries);
 }
 
 /**

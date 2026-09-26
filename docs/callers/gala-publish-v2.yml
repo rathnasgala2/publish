@@ -40,8 +40,12 @@ jobs:
       (github.event_name == 'workflow_dispatch' &&
        startsWith(github.ref, 'refs/heads/gala/publish/'))
     # REPLACE the 40-character lowercase hexadecimal commit SHA below with
-    # the `rathnasgala2/publish` revision Gala tells you to pin.
-    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@0000000000000000000000000000000000000000
+    # the `rathnasgala2/publish` revision Gala tells you to pin. The value
+    # below is rathnasgala2/publish's own main HEAD at the time this example
+    # was last reconciled (2026-09-25) -- a real, resolvable commit, not a
+    # placeholder -- so replacing it exercises exactly the sha you must
+    # actually type in, rather than an all-zero sentinel.
+    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@88865c099e3638c20ca6665d4a9626feefc5277f
     with:
       # REPLACE with the signed Gala service-origin catalog location.
       service_origin_catalog_url: https://api.galascribe.com/v2/service-origins

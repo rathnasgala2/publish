@@ -194,6 +194,20 @@ untars the carrier this adapter produced, and serves the result from a separate
 public origin. `test/carrier.test.js` holds the codec goldens. What none of that
 can prove is the live GitHub Pages deployment API itself; that is backlog W4-16.
 
+## Errors
+
+Every refusal this package raises is a `PagesAdapterError` (`src/errors.js`,
+exported from the package root), never a bare `Error`: it carries a stable,
+machine-readable `code` property alongside the ordinary `Error` message, so a
+caller can write `error.code === 'PAGES_OIDC_SUBJECT_MISMATCH'` instead of
+parsing `.message`. `.message` is `${code}: ${detail}`, so a caller matching a
+code inside the message still works. The code vocabulary is closed and stable:
+`grep -rn "new PagesAdapterError(" src` lists every code this package can raise,
+grouped by the module that raises it (OIDC verification, the REST catalog, the
+request catalog, carrier/capability construction, recovery). A new code is an
+additive change; renaming or removing one is breaking and belongs in
+`CHANGELOG.md`.
+
 ## Commands
 
 ```sh

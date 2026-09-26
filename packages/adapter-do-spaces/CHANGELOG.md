@@ -8,6 +8,43 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-26
+
+### Added
+
+- **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
+  tree-shake an unused re-export from this package's barrel entry point instead
+  of conservatively retaining the whole thing.
+- **PUB-L4:** canonical header values now collapse sequential internal
+  whitespace to a single space before signing (AWS SigV4's requirement), not
+  only trim leading/trailing whitespace. Unreachable today (no header this
+  adapter sends carries internal runs of spaces), but closes a latent
+  `SignatureDoesNotMatch` the moment one does.
+- **PUB-M10:** README documents that `.github/workflows/nightly.yml`'s new
+  `spaces-minio-conformance` job now runs this package's real-server MinIO
+  conformance suite every night, so it is no longer generated only when run by
+  hand.
+- **PUB-M7:** `signRequest` now enforces the header filter it documents: only
+  `host`, `content-type`, `cache-control` and the `x-amz-*` family may be passed
+  through `request.headers`; anything else (for example a provider-returned
+  conditional guard) throws `SpacesAdapterError` with code
+  `SPACES_UNSIGNABLE_HEADER` instead of being silently signed. The JSDoc
+  previously claimed `cache-control` was deliberately never signed, which
+  contradicted `s3.js`'s own `SIGNED_HEADER_NAMES` (which does sign it, as
+  adapter-chosen object metadata) — the JSDoc and the allowlist now match what
+  `s3.js` actually sends.
+- **PUB-M5:** `computeArtifactDigest` (marker-coordinate exclusion aside) now
+  delegates to `@rathnasgala2/adapter-protocol`'s implementation of the same
+  name instead of restating the `GALA-ARTIFACT-V2 ` formula locally.
+- **PUB-H6:** every refusal this package raises is now a typed
+  `SpacesAdapterError` (`src/errors.js`, exported from the package root)
+  carrying a stable `code` property (e.g.
+  `error.code === 'SPACES_PROVIDER_STATUS_UNEXPECTED'`), instead of a bare
+  `Error` a caller had to parse `CODE: detail` out of. `.message` is unchanged,
+  so this is additive, not breaking.
+
+## [0.1.0] - 2026-09-22
+
 ### Changed
 
 - **PUBLISH-S4-6a — `ADAPTER_VERSION` is the installed package version.**

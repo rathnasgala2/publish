@@ -14,7 +14,7 @@ import { UnsafeBuildDirectoryError } from './build-directory-safety.js';
 
 /**
  * @param {unknown} error the thrown error
- * @returns {readonly import('./index.d.ts').PublishActionFinding[]} the
+ * @returns {readonly import('./types.js').PublishActionFinding[]} the
  *   error's findings, or one synthesized `ARTIFACT_SAFETY_ERROR` finding for
  *   an error this module does not specifically recognize (never lets an
  *   unrecognized error escape without a typed finding)
@@ -53,7 +53,7 @@ export function findingsFromError(error) {
     error
   );
   if (Array.isArray(candidate?.findings)) {
-    return /** @type {readonly import('./index.d.ts').PublishActionFinding[]} */ (
+    return /** @type {readonly import('./types.js').PublishActionFinding[]} */ (
       candidate.findings
     );
   }
