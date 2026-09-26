@@ -1,5 +1,12 @@
 /**
  * PUB-M12 regression for `scripts/check-placeholder-markers.mjs`.
+ *
+ * `rathnasgala2/publish` resolved on GitHub 2026-09-25; every self-reference
+ * was re-pinned to a real commit SHA in the same change that hardened this
+ * gate from "warn when resolved" to "hard-fail if a placeholder survives
+ * past resolution". `TRACKED_PLACEHOLDERS` is empty as a result -- these
+ * tests assert that state and the new hard-fail behavior, rather than the
+ * old "at least one tracked entry" shape.
  */
 
 import assert from 'node:assert/strict';
@@ -11,6 +18,7 @@ import { test } from 'node:test';
 
 import {
   checkMarkersAreTracked,
+  checkSelfReferencesResolved,
   TRACKED_PLACEHOLDERS,
 } from '../scripts/check-placeholder-markers.mjs';
 
@@ -26,19 +34,8 @@ test('placeholder:check passes against the real repository state', () => {
   );
 });
 
-test('TRACKED_PLACEHOLDERS is non-empty and every entry carries a note', () => {
-  assert.ok(TRACKED_PLACEHOLDERS.length > 0);
-  for (const entry of TRACKED_PLACEHOLDERS) {
-    assert.equal(typeof entry.file, 'string');
-    assert.ok(entry.note.length > 0);
-  }
-});
-
-test('checkMarkersAreTracked accepts a tracked file containing the marker', async () => {
-  const [tracked] = TRACKED_PLACEHOLDERS;
-  assert.ok(tracked, 'expected at least one tracked placeholder');
-  const diagnostics = await checkMarkersAreTracked([tracked.file]);
-  assert.deepEqual(diagnostics, []);
+test('TRACKED_PLACEHOLDERS is empty now that W0-01 has resolved', () => {
+  assert.deepEqual(TRACKED_PLACEHOLDERS, []);
 });
 
 test('checkMarkersAreTracked flags a marker in a file with no tracking entry', async () => {
@@ -66,4 +63,42 @@ test('checkMarkersAreTracked reports nothing for a file with no marker at all', 
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('checkSelfReferencesResolved is silent when resolution is unknown or false', async () => {
+  assert.deepEqual(await checkSelfReferencesResolved(undefined), []);
+  assert.deepEqual(await checkSelfReferencesResolved(false), []);
+});
+
+test('checkSelfReferencesResolved passes today: the real ledger carries no all-zero self-reference', async () => {
+  assert.deepEqual(await checkSelfReferencesResolved(true), []);
+});
+
+test('red when reverted: an all-zero self-reference SHA fails once the repository is known to resolve', async (t) => {
+  const ledgerPath = 'pins/ledger.json';
+  const original = await import('node:fs/promises').then((fs) =>
+    fs.readFile(ledgerPath, 'utf8'),
+  );
+  const ledger = JSON.parse(original);
+  const placeholderSha = '0'.repeat(40);
+  const reverted = {
+    ...ledger,
+    selfReferences: (ledger.selfReferences ?? []).map(
+      (/** @type {any} */ entry) => ({
+        ...entry,
+        sha: entry.reference.startsWith('rathnasgala2/publish/')
+          ? placeholderSha
+          : entry.sha,
+      }),
+    ),
+  };
+  const { writeFile: write } = await import('node:fs/promises');
+  await write(ledgerPath, JSON.stringify(reverted, null, 2) + '\n');
+  t.after(async () => {
+    await write(ledgerPath, original);
+  });
+
+  const diagnostics = await checkSelfReferencesResolved(true);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0] ?? '', /all-zero placeholder SHA/u);
 });

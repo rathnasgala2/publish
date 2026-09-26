@@ -78,9 +78,9 @@
   "selfReferences": [
     {
       "reference": "rathnasgala2/publish/.github/workflows/publish-v2.yml",
-      "sha": "0000000000000000000000000000000000000000",
-      "status": "author-replaced-placeholder",
-      "reason": "The fixed caller in docs/callers/ pins the exact rathnasgala2/publish commit the author is told to use. That commit does not exist until W0-01 publishes this repository, so the documented example carries an all-zero 40-hex placeholder the author replaces. S3 admits a caller only when this pin is a real full commit SHA."
+      "sha": "88865c099e3638c20ca6665d4a9626feefc5277f",
+      "status": "author-replaced-example",
+      "reason": "The fixed caller in docs/callers/ pins the exact rathnasgala2/publish commit the author is told to use. W0-01 has published this repository (verified 2026-09-25), so the documented example now carries a real commit SHA -- rathnasgala2/publish's main HEAD at reconciliation time -- instead of the all-zero placeholder it could only carry before this repository existed. The author still replaces it with whatever commit Gala tells them to pin; S3 admits a caller only when this pin is a real full commit SHA."
     }
   ]
 }

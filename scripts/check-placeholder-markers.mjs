@@ -3,10 +3,17 @@
  * PUB-M12: a `PLACEHOLDER (W0-01)` marker (or the all-zero self-reference
  * SHA it used to accompany in `.github/workflows/*` before PUB-H5 pinned
  * the sibling checkouts by SHA) is a correctness hole a test or gate
- * currently tolerates *by design*, on the understanding that W0-01
- * (`rathnasgala2/publish` publishing itself) will close it later. Nothing
- * previously failed once that day arrives, so the natural outcome was that
- * the placeholder just stayed.
+ * previously tolerated *by design*, on the understanding that W0-01
+ * (`rathnasgala2/publish` publishing itself) would close it later.
+ *
+ * `rathnasgala2/publish` now resolves on GitHub (verified 2026-09-25), so the
+ * one placeholder that inherently could not be resolved before that day --
+ * `pins/ledger.json`'s `selfReferences` all-zero SHA for the documented
+ * caller example, and the two script comments explaining why it could not
+ * yet be real -- has been reconciled in the same change that hardened this
+ * gate: every self-reference now pins the real commit SHA, and
+ * `scripts/check-pins.mjs` / `scripts/workflow/build-provenance.mjs` no
+ * longer describe it as unresolvable.
  *
  * This does two things:
  *
@@ -14,21 +21,18 @@
  *    anywhere in the scanned files without a corresponding entry in
  *    {@link TRACKED_PLACEHOLDERS} below -- an untracked placeholder can
  *    land invisibly today; this makes adding one require adding its
- *    tracking entry in the same change.
- * 2. Turns the one remaining, inherently unresolvable-until-publish
- *    placeholder -- the `pins/ledger.json` `selfReferences` all-zero SHA
- *    for `rathnasgala2/publish` -- into a gate that closes itself: once
- *    that repository actually resolves on GitHub, this prints a loud,
- *    impossible-to-miss warning on every single `verify` run instead of
- *    silently continuing to accept the placeholder forever. It warns
- *    rather than fails `verify`: the W0-01 reconciliation itself (re-pin
- *    every self-reference to the real commit SHA, delete the
- *    placeholder-handling branches in `scripts/check-pins.mjs` and
- *    `scripts/workflow/build-provenance.mjs`) is a deliberate, reviewed
- *    change of its own, not something this check should perform or force
- *    on an unrelated commit the moment the repository happens to go
- *    public. A network failure while checking is never treated as
- *    "resolved" -- only a definite answer either way changes the outcome.
+ *    tracking entry in the same change. `TRACKED_PLACEHOLDERS` is empty
+ *    now that W0-01 has landed; a future placeholder needs a fresh entry
+ *    and a fresh reviewed reason it cannot be resolved today.
+ * 2. Hard-fails -- it no longer only warns -- if `rathnasgala2/publish`
+ *    resolves on GitHub (which it now does, permanently) and
+ *    `pins/ledger.json`'s `selfReferences` still records the all-zero
+ *    placeholder SHA for it. A gate that only warns once the blocking
+ *    condition is gone is not a gate; nothing else in `verify` would ever
+ *    catch a placeholder SHA regressing back in. A network failure while
+ *    checking is never treated as "resolved" -- only a definite answer
+ *    either way changes the outcome, so an offline run never fails on this
+ *    account.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -36,30 +40,20 @@ import path from 'node:path';
 import { runIfMain } from './run-if-main.mjs';
 
 const MARKER_TEXT = 'PLACEHOLDER (W0-01)';
+const ALL_ZERO_SHA = '0000000000000000000000000000000000000000';
+const SELF_REFERENCE_REPOSITORY = 'rathnasgala2/publish';
 
 /**
  * The complete, reviewed inventory of every place a W0-01 placeholder is
- * known to live today. Each entry documents *why* it cannot be resolved
- * before `rathnasgala2/publish` exists. Raising or lowering this list is a
- * deliberate, reviewed edit -- it is the "tracking entry" the marker-scan
- * gate below requires.
+ * known to live today that cannot yet be resolved. Empty now that
+ * `rathnasgala2/publish` has published and every self-reference has been
+ * re-pinned to a real commit SHA. Raising this list is a deliberate,
+ * reviewed edit -- it is the "tracking entry" the marker-scan gate below
+ * requires.
  *
  * @type {readonly {file: string, note: string}[]}
  */
-export const TRACKED_PLACEHOLDERS = Object.freeze([
-  {
-    file: 'pins/ledger.json',
-    note: 'selfReferences[0]: the rathnasgala2/publish caller pin cannot be a real SHA until this repository exists.',
-  },
-  {
-    file: 'scripts/check-pins.mjs',
-    note: 'documents why the self-reference is not expected to resolve until W0-01 publishes this repository.',
-  },
-  {
-    file: 'scripts/workflow/build-provenance.mjs',
-    note: "documents that the workflow-file evidence rows need rathnasgala2/publish's numeric repository id, unavailable until W0-01.",
-  },
-]);
+export const TRACKED_PLACEHOLDERS = Object.freeze([]);
 
 /**
  * A conservative, explicit file scope: every place a placeholder marker has
@@ -121,7 +115,7 @@ async function repositoryResolvesOnGitHub() {
   const timeout = setTimeout(() => controller.abort(), 5000);
   try {
     const response = await fetch(
-      'https://api.github.com/repos/rathnasgala2/publish',
+      `https://api.github.com/repos/${SELF_REFERENCE_REPOSITORY}`,
       {
         signal: controller.signal,
         headers: { 'user-agent': 'publish-repo-check-placeholder-markers' },
@@ -142,39 +136,61 @@ async function repositoryResolvesOnGitHub() {
 }
 
 /**
+ * Hard-fail once `rathnasgala2/publish` is known to resolve on GitHub and
+ * `pins/ledger.json` still records an all-zero placeholder self-reference
+ * SHA for it. Below this point in time there is nothing left that
+ * legitimately excuses the placeholder.
+ *
+ * @param {boolean | undefined} resolved the result of
+ *   {@link repositoryResolvesOnGitHub}
+ * @returns {Promise<string[]>} one diagnostic per still-placeholder
+ *   self-reference, empty if there is none or `resolved` is not `true`
+ */
+export async function checkSelfReferencesResolved(resolved) {
+  if (resolved !== true) {
+    return [];
+  }
+  const ledger = JSON.parse(await readFile('pins/ledger.json', 'utf8'));
+  /** @type {string[]} */
+  const diagnostics = [];
+  for (const entry of ledger.selfReferences ?? []) {
+    if (
+      typeof entry.reference === 'string' &&
+      entry.reference.startsWith(`${SELF_REFERENCE_REPOSITORY}/`) &&
+      entry.sha === ALL_ZERO_SHA
+    ) {
+      diagnostics.push(
+        `pins/ledger.json: selfReferences entry for ${entry.reference} still carries the all-zero placeholder SHA, but ${SELF_REFERENCE_REPOSITORY} now resolves on GitHub -- re-pin it to a real commit SHA.`,
+      );
+    }
+  }
+  return diagnostics;
+}
+
+/**
  * @returns {Promise<void>} resolves when every placeholder is tracked and
- *   (where checkable) still genuinely unresolved
+ *   no self-reference placeholder survives past the point it could be
+ *   resolved
  */
 async function main() {
   const files = await scanScope();
   const diagnostics = await checkMarkersAreTracked(files);
 
   const resolved = await repositoryResolvesOnGitHub();
-  if (resolved === true) {
-    console.warn(
-      '\n'.repeat(2) +
-        '################################################################\n' +
-        '# PUB-M12: rathnasgala2/publish now resolves on GitHub, but     #\n' +
-        '# pins/ledger.json still records the all-zero selfReferences    #\n' +
-        '# placeholder. W0-01 has landed: file a deliberate change to    #\n' +
-        '# re-pin every self-reference to the real commit SHA and remove #\n' +
-        '# the placeholder-handling branches in scripts/check-pins.mjs   #\n' +
-        '# and scripts/workflow/build-provenance.mjs.                    #\n' +
-        '################################################################\n',
-    );
-  } else if (resolved === undefined) {
+  if (resolved === undefined) {
     console.log(
       'placeholder:check: could not reach the GitHub API to test whether ' +
-        'rathnasgala2/publish now resolves; treating the self-reference ' +
-        'placeholder as still open (not a failure).',
+        `${SELF_REFERENCE_REPOSITORY} resolves; skipping the self-reference ` +
+        'resolution check for this run (not a failure).',
     );
   }
+  diagnostics.push(...(await checkSelfReferencesResolved(resolved)));
 
   if (diagnostics.length > 0) {
     throw new Error(diagnostics.join('\n'));
   }
   console.log(
-    `placeholder:check: ${TRACKED_PLACEHOLDERS.length} tracked W0-01 placeholder(s), no untracked marker found.`,
+    `placeholder:check: ${TRACKED_PLACEHOLDERS.length} tracked W0-01 placeholder(s), no untracked marker found, no unresolved self-reference.`,
   );
 }
 

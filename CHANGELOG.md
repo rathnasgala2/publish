@@ -10,6 +10,16 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M12 (follow-up):** `rathnasgala2/publish` resolved on GitHub 2026-09-25.
+  Every self-reference is re-pinned to a real commit SHA (`pins/ledger.json`'s
+  `selfReferences[0]`, `docs/callers/gala-publish-v2.yml`'s `uses:` pin) instead
+  of the all-zero placeholder, and `scripts/check-pins.mjs` /
+  `scripts/workflow/build-provenance.mjs` no longer describe the self-reference
+  as unresolvable. `TRACKED_PLACEHOLDERS` in
+  `scripts/check-placeholder-markers.mjs` is now empty, and the gate hard-fails
+  `verify` if an all-zero self-reference SHA is ever reintroduced once the
+  repository is known to resolve — a warning that a resolved condition never
+  turns into a failure is not a gate.
 - **PUB-L8:** `release.yaml`'s push path filter now also covers `scripts/**`,
   `pins/**` and `.github/workflows/release.yaml` itself, not only
   `packages/**`/`package.json`/`package-lock.json`. A fix to the release gate

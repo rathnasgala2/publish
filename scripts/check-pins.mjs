@@ -84,8 +84,8 @@ export function comparePins(ledger, yamlFiles, otherFiles) {
       if (reference.startsWith('rathnasgala2/publish/')) {
         // A reference back into this repository is the author-replaced
         // caller pin, not a third-party action: it is recorded separately
-        // and is not expected to resolve until W0-01 publishes this
-        // repository.
+        // in pins/ledger.json's selfReferences, pinned to a real commit SHA
+        // now that W0-01 has published this repository.
         const expectedSelf = selfReferences.get(reference);
         if (expectedSelf === undefined) {
           diagnostics.push(
