@@ -1,0 +1,10 @@
+{
+  "$schema": "PUB-M9: a coverage ratchet. Each package's line/branch percentage must never fall below the value recorded here (a small tolerance absorbs floating-point rounding). Raise a value only when coverage has genuinely improved and stays there -- never lower one to make a regression pass.",
+  "@rathnasgala2/adapter-protocol": { "line": 98.7, "branch": 96.4 },
+  "@rathnasgala2/publish-kernel": { "line": 83.0, "branch": 95.7 },
+  "@rathnasgala2/adapter-conformance-kit": { "line": 79.1, "branch": 74.0 },
+  "@rathnasgala2/adapter-local-directory": { "line": 78.4, "branch": 68.6 },
+  "@rathnasgala2/adapter-github-pages": { "line": 89.2, "branch": 80.7 },
+  "@rathnasgala2/adapter-do-spaces": { "line": 90.4, "branch": 81.5 },
+  "@rathnasgala2/publish-action": { "line": 78.9, "branch": 69.8 }
+}

@@ -10,6 +10,11 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M9:** `npm run coverage:check` (`scripts/check-coverage.mjs`) runs
+  `node --test --experimental-test-coverage` per workspace package and fails if
+  a package's line or branch percentage drops below the floor recorded in
+  `coverage-thresholds.json`, seeded at each package's currently measured value.
+  Wired into `npm run verify`.
 - **PUB-M5:** `test/artifact-digest-agreement.test.mjs` proves
   `adapter-local-directory`, `adapter-github-pages` and `adapter-do-spaces`
   still agree byte-for-byte on the `computeArtifactDigest` formula over a shared
