@@ -29,7 +29,10 @@
     "declarations:generate": "tsc -p tsconfig.declarations.json",
     "declarations:check": "node ../../scripts/check-declarations.mjs adapter-conformance-kit"
   },
-  "dependencies": {
+  "peerDependencies": {
+    "@rathnasgala2/adapter-protocol": "^0.2.0"
+  },
+  "devDependencies": {
     "@rathnasgala2/adapter-protocol": "^0.2.0"
   },
   "publishConfig": {

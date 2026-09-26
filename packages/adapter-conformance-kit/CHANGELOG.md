@@ -8,6 +8,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- **PUB-M6:** `@rathnasgala2/adapter-protocol` moved from `dependencies` to
+  `peerDependencies` (plus a `devDependency` for this package's own tests). As a
+  regular dependency, this kit could resolve a different copy of the protocol
+  than the adapter under test, so it would validate a capability declaration
+  against an admission table the adapter never saw.
+
 ### Added
 
 - **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can

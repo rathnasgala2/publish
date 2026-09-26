@@ -64,6 +64,22 @@ test('checkOne rejects an exact in-workspace dependency range (PUB-H3)', () => {
   );
 });
 
+test('checkOne rejects an exact peerDependencies range (PUB-M6)', () => {
+  const manifest = {
+    ...GOOD_MANIFEST,
+    dependencies: undefined,
+    peerDependencies: { '@rathnasgala2/adapter-protocol': '0.2.0' },
+  };
+  const diagnostics = checkOne('example', manifest, WORKSPACE_NAMES);
+  assert.ok(
+    diagnostics.some(
+      (d) =>
+        d.includes('peerDependencies') && d.includes('must be a caret range'),
+    ),
+    diagnostics.join('\n'),
+  );
+});
+
 test('checkOne exempts @rathnasgala2/schemas from the caret-range rule', () => {
   const names = new Set([...WORKSPACE_NAMES, '@rathnasgala2/schemas']);
   const manifest = {

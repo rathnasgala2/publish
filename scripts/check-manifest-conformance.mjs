@@ -54,18 +54,23 @@ export function checkOne(name, manifest, workspacePackageNames) {
     );
   }
 
-  // PUB-H3
-  const dependencies = /** @type {Record<string, string> | undefined} */ (
-    manifest.dependencies
-  );
-  for (const [depName, range] of Object.entries(dependencies ?? {})) {
-    if (!workspacePackageNames.has(depName) || depName === SCHEMAS_PACKAGE) {
-      continue;
-    }
-    if (!range.startsWith('^')) {
-      diagnostics.push(
-        `${manifestPath}: dependencies["${depName}"] must be a caret range ("^${range}"), got ${JSON.stringify(range)}.`,
-      );
+  // PUB-H3 (and PUB-M6: the same rule applies to peerDependencies)
+  for (const field of /** @type {const} */ ([
+    'dependencies',
+    'peerDependencies',
+  ])) {
+    const dependencies = /** @type {Record<string, string> | undefined} */ (
+      manifest[field]
+    );
+    for (const [depName, range] of Object.entries(dependencies ?? {})) {
+      if (!workspacePackageNames.has(depName) || depName === SCHEMAS_PACKAGE) {
+        continue;
+      }
+      if (!range.startsWith('^')) {
+        diagnostics.push(
+          `${manifestPath}: ${field}["${depName}"] must be a caret range ("^${range}"), got ${JSON.stringify(range)}.`,
+        );
+      }
     }
   }
 
