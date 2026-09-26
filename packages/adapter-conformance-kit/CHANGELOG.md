@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-22
+
 ### Changed
 
 - The stale-expectation activation case fences with a well-formed UUIDv7 that is

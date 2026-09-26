@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-22
+
 ### Changed
 
 - **PUBLISH-S4-6a — `ADAPTER_VERSION` is the installed package version.**

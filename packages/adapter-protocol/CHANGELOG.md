@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-22
+
 ### Changed
 
 - **`requireGenerationFence` is no looser than the wire (PUBLISH-S4-5).** The

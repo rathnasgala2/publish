@@ -51,7 +51,8 @@
     "license:check": "node scripts/check-license-files.mjs",
     "provenance:check": "node scripts/check-provenance-config.mjs",
     "manifest:check": "node scripts/check-manifest-conformance.mjs",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run architecture && npm run duplication && npm test && npm run sbom:check && npm run audit && npm run workflows:check && npm run workflows:drift && npm run pins:check && npm run schema-pin:check && npm run license:check && npm run provenance:check && npm run declarations:check && npm run manifest:check",
+    "changelog:check": "node scripts/check-changelog-versions.mjs",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run architecture && npm run duplication && npm test && npm run sbom:check && npm run audit && npm run workflows:check && npm run workflows:drift && npm run pins:check && npm run schema-pin:check && npm run license:check && npm run provenance:check && npm run declarations:check && npm run manifest:check && npm run changelog:check",
     "test:repo": "node --test 'test/*.test.mjs'",
     "test:repo:unit": "node --test $(ls test/*.test.mjs | grep -v '/sandbox.test.mjs$')",
     "pins:check": "node scripts/check-pins.mjs"

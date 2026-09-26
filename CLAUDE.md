@@ -30,6 +30,7 @@ npm run license:check
 npm run provenance:check
 npm run declarations:check
 npm run manifest:check
+npm run changelog:check
 npm run verify        # runs everything above, in order
 ```
 

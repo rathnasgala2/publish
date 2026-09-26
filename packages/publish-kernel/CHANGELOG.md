@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-22
+
 ### Changed
 
 - **Breaking (LOCAL-47, adapter protocol `2.1.0`):** duty 6's
