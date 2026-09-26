@@ -10,17 +10,18 @@
   },
   "exports": {
     ".": {
-      "types": "./src/index.d.ts",
+      "types": "./types/index.d.ts",
       "import": "./src/index.js"
     },
     "./package.json": "./package.json"
   },
-  "types": "./src/index.d.ts",
+  "types": "./types/index.d.ts",
   "bin": {
     "publish-action": "./src/bin/cli.js"
   },
   "files": [
     "src/",
+    "types/",
     "action.yml",
     "README.md",
     "CHANGELOG.md",
@@ -28,7 +29,9 @@
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --test"
+    "test": "node --test",
+    "declarations:generate": "tsc -p tsconfig.declarations.json",
+    "declarations:check": "node ../../scripts/check-declarations.mjs publish-action"
   },
   "dependencies": {
     "@rathnasgala2/adapter-local-directory": "0.1.0",

@@ -27,6 +27,7 @@ export { assertImplementedAdapter } from './adapter-select.js';
 export { runAction } from './action/run.js';
 export { buildResultEnvelope, classifyFindings, EXIT_CODES } from './result.js';
 export { SchemaValidationError } from './schema.js';
+export * from './types.js';
 
 /** Package readiness marker. */
 export const PACKAGE_STATUS = Object.freeze({

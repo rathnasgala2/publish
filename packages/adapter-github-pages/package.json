@@ -10,21 +10,24 @@
   },
   "exports": {
     ".": {
-      "types": "./src/index.d.ts",
+      "types": "./types/index.d.ts",
       "import": "./src/index.js"
     },
     "./package.json": "./package.json"
   },
-  "types": "./src/index.d.ts",
+  "types": "./types/index.d.ts",
   "files": [
     "src/",
+    "types/",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --test"
+    "test": "node --test",
+    "declarations:generate": "tsc -p tsconfig.declarations.json",
+    "declarations:check": "node ../../scripts/check-declarations.mjs adapter-github-pages"
   },
   "publishConfig": {
     "access": "public",

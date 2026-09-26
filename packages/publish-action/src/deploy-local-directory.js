@@ -53,7 +53,7 @@ import {
  *   artifactDigest: string,
  *   byteCount: string,
  *   routeCount: number,
- *   findings: readonly import('./index.d.ts').PublishActionFinding[]
+ *   findings: readonly import('./types.js').PublishActionFinding[]
  * }>} the deploy outcome
  */
 export async function deployToLocalDirectory({
@@ -210,7 +210,7 @@ export async function deployToLocalDirectory({
     await cleanupStaged({ destination, stageToken: staged.stageToken });
   }
 
-  /** @type {import('./index.d.ts').PublishActionFinding[]} */
+  /** @type {import('./types.js').PublishActionFinding[]} */
   const findings = [];
   if (!observed.verified) {
     findings.push(
@@ -232,8 +232,8 @@ export async function deployToLocalDirectory({
 }
 
 /**
- * @param {readonly import('./index.d.ts').PublishActionFinding[]} findings the blocking findings
- * @returns {{decision: 'reconcile', generationId: string, artifactId: string, artifactDigest: string, byteCount: string, routeCount: number, findings: readonly import('./index.d.ts').PublishActionFinding[]}}
+ * @param {readonly import('./types.js').PublishActionFinding[]} findings the blocking findings
+ * @returns {{decision: 'reconcile', generationId: string, artifactId: string, artifactDigest: string, byteCount: string, routeCount: number, findings: readonly import('./types.js').PublishActionFinding[]}}
  *   a failed/reconciled deploy result
  */
 function failed(findings) {
@@ -251,7 +251,7 @@ function failed(findings) {
 /**
  * @param {string} code stable finding code
  * @param {string} detail human-readable detail
- * @returns {import('./index.d.ts').PublishActionFinding} one typed `TARGET_CONSTRAINT_ERROR` finding
+ * @returns {import('./types.js').PublishActionFinding} one typed `TARGET_CONSTRAINT_ERROR` finding
  */
 function sourceConstraintFinding(code, detail) {
   return {

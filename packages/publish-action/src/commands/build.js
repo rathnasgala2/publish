@@ -33,7 +33,7 @@ import { readManifestFileBytes } from '../artifact-files.js';
  *   workDirectory: string,
  *   routeNormalizationProfile?: 'directory-index' | 'explicit-file'
  * }} options the build's input/output directories
- * @returns {Promise<import('../index.d.ts').ResultEnvelope & {outputDirectory?: string, manifest?: Record<string, unknown>}>}
+ * @returns {Promise<import('../types.js').ResultEnvelope & {outputDirectory?: string, manifest?: Record<string, unknown>}>}
  *   the closed result envelope, plus (only on success, for an in-process
  *   caller such as `preview`) the rendered `outputDirectory` and `manifest`
  */

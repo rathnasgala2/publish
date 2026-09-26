@@ -14,7 +14,7 @@ import { buildResultEnvelope, classifyFindings } from '../result.js';
 
 /**
  * @param {{repositoryDirectory: string}} options the repository to validate
- * @returns {Promise<import('../index.d.ts').ResultEnvelope>} the closed result envelope
+ * @returns {Promise<import('../types.js').ResultEnvelope>} the closed result envelope
  */
 export async function runValidate({ repositoryDirectory }) {
   try {

@@ -105,7 +105,7 @@ const SCHEMA = Object.freeze({
 export class RepositoryIntakeError extends Error {
   /**
    * @param {string} message human-readable summary
-   * @param {readonly import('../index.d.ts').PublishActionFinding[]} findings typed findings
+   * @param {readonly import('../types.js').PublishActionFinding[]} findings typed findings
    */
   constructor(message, findings = []) {
     super(message);
@@ -118,7 +118,7 @@ export class RepositoryIntakeError extends Error {
  * @param {string} code stable finding code
  * @param {string} detail human-readable detail
  * @param {Record<string, unknown>} [evidence] optional evidence
- * @returns {import('../index.d.ts').PublishActionFinding} one typed
+ * @returns {import('../types.js').PublishActionFinding} one typed
  *   finding, matching this package's shared finding shape (see `result.js`)
  */
 function sourceFinding(code, detail, evidence) {

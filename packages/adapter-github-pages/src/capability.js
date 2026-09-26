@@ -48,6 +48,8 @@ import {
  * (2.8.1). The inventory is typed as an open record, so the profile is
  * required here once, by name, and its absence is a refusal rather than an
  * `undefined` digest.
+ *
+ * @type {NonNullable<(typeof ACTIVE_DIGEST_PROFILES)['providerCallClassBinding']>}
  */
 export const CALL_CLASS_BINDING_PROFILE = (() => {
   const profile = ACTIVE_DIGEST_PROFILES.providerCallClassBinding;
