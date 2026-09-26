@@ -86,3 +86,36 @@ test('red when reverted: excluding a real test file drops measured coverage belo
     renameSync(hidden, testFile);
   }
 });
+
+test("PUB-M9 follow-up: adapter-local-directory's measured coverage is stable across repeated runs, given the WORKSPACE_ROOT sibling checkout CI always provides", () => {
+  if (!process.env.WORKSPACE_ROOT || process.env.WORKSPACE_ROOT.length === 0) {
+    // Not a skip in CI (WORKSPACE_ROOT is always set there per ci.yml/
+    // nightly.yml/release.yaml); locally, without it this package's own
+    // e2e-kernel-template.test.js falls back to whatever v2/template
+    // happens to be checked out to, so two runs are only guaranteed to
+    // agree with each other, not with the CI-pinned measurement this
+    // asserts. See test/coverage-ratchet.test.mjs's module comment.
+    return;
+  }
+  const packageDir = path.join(ROOT, 'packages', 'adapter-local-directory');
+  const childEnv = { ...process.env };
+  delete childEnv.NODE_TEST_CONTEXT;
+  const runs = [1, 2].map(() => {
+    const result = spawnSync(
+      process.execPath,
+      ['--test', '--experimental-test-coverage'],
+      { cwd: packageDir, encoding: 'utf8', env: childEnv },
+    );
+    assert.equal(result.status, 0, 'expected the full suite to pass');
+    const measured = parseAllFilesRow(
+      `${result.stdout ?? ''}${result.stderr ?? ''}`,
+    );
+    assert.ok(measured, 'expected a parseable coverage summary');
+    return measured;
+  });
+  assert.deepEqual(
+    runs[0],
+    runs[1],
+    'adapter-local-directory coverage must be byte-identical across two consecutive runs in the WORKSPACE_ROOT-pinned environment CI uses; a difference means a filesystem-ordering, timing or race-dependent branch has crept back in',
+  );
+});

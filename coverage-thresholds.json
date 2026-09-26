@@ -3,7 +3,7 @@
   "@rathnasgala2/adapter-protocol": { "line": 98.7, "branch": 96.5 },
   "@rathnasgala2/publish-kernel": { "line": 82.7, "branch": 94.9 },
   "@rathnasgala2/adapter-conformance-kit": { "line": 78.6, "branch": 74.3 },
-  "@rathnasgala2/adapter-local-directory": { "line": 78.4, "branch": 68.6 },
+  "@rathnasgala2/adapter-local-directory": { "line": 79.0, "branch": 68.7 },
   "@rathnasgala2/adapter-github-pages": { "line": 88.9, "branch": 80.5 },
   "@rathnasgala2/adapter-do-spaces": { "line": 90.2, "branch": 81.2 },
   "@rathnasgala2/publish-action": { "line": 78.9, "branch": 69.8 }
