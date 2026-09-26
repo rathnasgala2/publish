@@ -10,12 +10,18 @@ and this project adheres to
 
 ### Added
 
-- **PUB-M1:** `.github/workflows/ci.yml` gains a `full-verify` job that runs
-  the complete `npm run verify` (including `architecture`, `duplication`,
+- **PUB-M5:** `test/artifact-digest-agreement.test.mjs` proves
+  `adapter-local-directory`, `adapter-github-pages` and `adapter-do-spaces`
+  still agree byte-for-byte on the `computeArtifactDigest` formula over a shared
+  fixture set (empty files, unicode paths, nested directories, the reserved
+  generation-marker coordinate), now that all three delegate to
+  `@rathnasgala2/adapter-protocol`'s single implementation.
+- **PUB-M1:** `.github/workflows/ci.yml` gains a `full-verify` job that runs the
+  complete `npm run verify` (including `architecture`, `duplication`,
   `sbom:check`, `pins:check`, `schema-pin:check` and the Docker build-sandbox
-  proof) on every push and pull request, not only nightly. A merge can no
-  longer land an adapter-isolation, SBOM or pin-ledger violation that sits on
-  `main` for up to 24h before nightly.yml catches it.
+  proof) on every push and pull request, not only nightly. A merge can no longer
+  land an adapter-isolation, SBOM or pin-ledger violation that sits on `main`
+  for up to 24h before nightly.yml catches it.
 
 ### Changed
 

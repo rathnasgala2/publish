@@ -250,6 +250,10 @@ export function rollback(input: {
  * conformance kit) can compute the correct `artifactDigest` to pass into
  * `stage` for a given file set, without duplicating the digest formula.
  *
+ * PUB-M5: this is `@rathnasgala2/adapter-protocol`'s
+ * `computeArtifactDigest`, the single implementation of the formula every
+ * S2 destination adapter verifies against — this package restates nothing.
+ *
  * @param {readonly StagedFile[]} files the complete file set
  * @returns {string} the `GALA-ARTIFACT-V2 ` artifact digest
  */

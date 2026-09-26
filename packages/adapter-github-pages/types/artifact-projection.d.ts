@@ -29,6 +29,11 @@ export function digestEntries(entries: readonly ArtifactEntry[]): string;
  * composition root, or a conformance fixture) can pass `stage` a truthful
  * `artifactDigest` without restating the projection.
  *
+ * PUB-M5: excluding the marker is this package's own contribution; the
+ * digest formula itself delegates to `@rathnasgala2/adapter-protocol`'s
+ * `computeArtifactDigest`, the single implementation every S2 destination
+ * adapter verifies against.
+ *
  * @param {readonly Readonly<{path: string, bytes: Buffer}>[]} files the file set
  * @returns {string} the artifact digest
  */

@@ -8,38 +8,24 @@
  * @module
  */
 
-import { domainDigest, sha256Hex } from '@rathnasgala2/adapter-protocol';
+import { computeArtifactDigest as computeArtifactDigestFromFiles } from '@rathnasgala2/adapter-protocol';
 
-import { DOMAIN_ARTIFACT, GENERATION_MARKER_KEY } from './constants.js';
-
-/**
- * @typedef {Readonly<{path: string, byteLength: string, sha256: string}>} ArtifactEntry
- */
+import { GENERATION_MARKER_KEY } from './constants.js';
 
 /**
  * Digest a `{path, bytes}` collection, excluding the marker coordinate.
+ *
+ * PUB-M5: excluding the marker is this package's own contribution; the
+ * digest formula itself delegates to `@rathnasgala2/adapter-protocol`'s
+ * `computeArtifactDigest`, the single implementation every S2 destination
+ * adapter verifies against.
  *
  * @param {readonly Readonly<{path: string, bytes: Buffer}>[]} objects the
  *   artifact objects, in any order
  * @returns {string} the `GALA-ARTIFACT-V2 ` artifact digest
  */
 export function computeArtifactDigest(objects) {
-  /** @type {ArtifactEntry[]} */
-  const entries = [];
-  for (const object of objects) {
-    if (object.path === GENERATION_MARKER_KEY) {
-      continue;
-    }
-    entries.push(
-      Object.freeze({
-        path: object.path,
-        byteLength: String(object.bytes.byteLength),
-        sha256: sha256Hex(object.bytes),
-      }),
-    );
-  }
-  entries.sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+  return computeArtifactDigestFromFiles(
+    objects.filter((object) => object.path !== GENERATION_MARKER_KEY),
   );
-  return domainDigest(DOMAIN_ARTIFACT, entries);
 }

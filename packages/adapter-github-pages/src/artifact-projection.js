@@ -15,7 +15,11 @@
  * @module
  */
 
-import { domainDigest, sha256Hex } from '@rathnasgala2/adapter-protocol';
+import {
+  computeArtifactDigest as computeArtifactDigestFromFiles,
+  domainDigest,
+  sha256Hex,
+} from '@rathnasgala2/adapter-protocol';
 
 import { DOMAIN_ARTIFACT, GENERATION_MARKER_PATH } from './constants.js';
 
@@ -66,13 +70,16 @@ export function digestEntries(entries) {
  * composition root, or a conformance fixture) can pass `stage` a truthful
  * `artifactDigest` without restating the projection.
  *
+ * PUB-M5: excluding the marker is this package's own contribution; the
+ * digest formula itself delegates to `@rathnasgala2/adapter-protocol`'s
+ * `computeArtifactDigest`, the single implementation every S2 destination
+ * adapter verifies against.
+ *
  * @param {readonly Readonly<{path: string, bytes: Buffer}>[]} files the file set
  * @returns {string} the artifact digest
  */
 export function computeArtifactDigest(files) {
-  return digestEntries(
-    files
-      .filter((file) => file.path !== GENERATION_MARKER_PATH)
-      .map((file) => projectEntry(file.path, file.bytes)),
+  return computeArtifactDigestFromFiles(
+    files.filter((file) => file.path !== GENERATION_MARKER_PATH),
   );
 }

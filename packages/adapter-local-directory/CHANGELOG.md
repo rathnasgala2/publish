@@ -8,6 +8,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- **PUB-M5:** `computeArtifactDigest` now delegates to
+  `@rathnasgala2/adapter-protocol`'s implementation of the same name instead of
+  restating the `GALA-ARTIFACT-V2 ` formula locally, closing the gap a new
+  repository-level test (`test/artifact-digest-agreement.test.mjs`) proves
+  against `adapter-github-pages` and `adapter-do-spaces`.
+
 ## [0.1.0] - 2026-09-22
 
 ### Changed

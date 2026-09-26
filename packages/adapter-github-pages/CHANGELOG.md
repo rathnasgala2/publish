@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M5:** `computeArtifactDigest` (marker-coordinate exclusion aside) now
+  delegates to `@rathnasgala2/adapter-protocol`'s implementation of the same
+  name instead of restating the `GALA-ARTIFACT-V2 ` formula locally.
 - **PUB-H6:** every refusal this package raises is now a typed
   `PagesAdapterError` (`src/errors.js`, exported from the package root) carrying
   a stable `code` property (e.g.

@@ -2,11 +2,43 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  ARTIFACT_DIGEST_DOMAIN,
   canonicalizeJson,
+  computeArtifactDigest,
   domainDigest,
   isDigestString,
+  projectArtifactEntry,
   sha256Hex,
 } from '../src/digest.js';
+
+test('computeArtifactDigest matches domainDigest over the manually projected, path-sorted entry list', () => {
+  const bBytes = Buffer.from('two', 'utf8');
+  const aBytes = Buffer.from('one', 'utf8');
+  const files = [
+    { path: 'b.txt', bytes: bBytes },
+    { path: 'a.txt', bytes: aBytes },
+  ];
+  const expected = domainDigest(ARTIFACT_DIGEST_DOMAIN, [
+    projectArtifactEntry('a.txt', aBytes),
+    projectArtifactEntry('b.txt', bBytes),
+  ]);
+  assert.equal(computeArtifactDigest(files), expected);
+});
+
+test('computeArtifactDigest is independent of input file order', () => {
+  const files = [
+    { path: 'a.txt', bytes: Buffer.from('one', 'utf8') },
+    { path: 'b.txt', bytes: Buffer.from('two', 'utf8') },
+  ];
+  assert.equal(
+    computeArtifactDigest(files),
+    computeArtifactDigest([...files].reverse()),
+  );
+});
+
+test('computeArtifactDigest of an empty file set is stable and non-empty', () => {
+  assert.ok(isDigestString(computeArtifactDigest([])));
+});
 
 test('canonicalizeJson sorts object keys by UTF-16 code unit', () => {
   assert.equal(canonicalizeJson({ b: 1, a: 2, c: 3 }), '{"a":2,"b":1,"c":3}');

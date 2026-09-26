@@ -8,6 +8,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- **PUB-M5:** `computeArtifactDigest`, `projectArtifactEntry` and
+  `ARTIFACT_DIGEST_DOMAIN` are now exported. This is the single implementation
+  of the DEC-097 section 8 `GALA-ARTIFACT-V2 ` artifact digest;
+  `adapter-local-directory`, `adapter-github-pages` and `adapter-do-spaces` each
+  delegate to it instead of restating the path-sort-and-hash formula
+  independently.
+
 ## [0.2.0] - 2026-09-22
 
 ### Changed

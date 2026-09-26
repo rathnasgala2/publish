@@ -4,7 +4,7 @@ export { AdapterProtocolError, finding } from "./errors.js";
 export { ADAPTER_CAPABILITY_ROWS, ACTIVATION, CACHE_INVALIDATION, CONCURRENCY, CONFIGURATION_KEYS, DESTINATION_KINDS, IDEMPOTENCY_CLASS, OPERATIONS, PROVIDER_INVENTORY_ASSURANCE, ROLLBACK, STAGING, TRANSPORTS, VERIFICATION, getCapabilityRow, isSameSet } from "./capability-vocabulary.js";
 export { ADAPTER_CAPABILITY_SCHEMA_ID, assertValidCapabilityDeclaration, checkExactRow, validateCapabilityDeclaration } from "./capability.js";
 export { isFilesystemProviderLimits, isHttpProviderLimits } from "./limits.js";
-export { canonicalizeJson, domainDigest, isDigestString, sha256Hex } from "./digest.js";
+export { ARTIFACT_DIGEST_DOMAIN, canonicalizeJson, computeArtifactDigest, domainDigest, isDigestString, projectArtifactEntry, sha256Hex } from "./digest.js";
 export { FRAME_CEILING_BYTES, FRAME_LENGTH_PREFIX_BYTES, decodeFrame, decodeFrames, encodeFrame } from "./frame.js";
 export { ADAPTER_PROTOCOL_VERSION, EXPECT_NOTHING_SERVED, fenceDisagrees, fenceFor, requireGenerationFence, GENERATION_ID_PATTERN } from "./generation-fence.js";
 export { LIFECYCLE_OPERATIONS, defineAdapter } from "./lifecycle.js";

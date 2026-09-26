@@ -19,6 +19,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 import {
+  computeArtifactDigest as computeArtifactDigestFromFiles,
   domainDigest,
   fenceDisagrees,
   fenceFor,
@@ -745,18 +746,15 @@ export { ADAPTER_VERSION } from './capability.js';
  * conformance kit) can compute the correct `artifactDigest` to pass into
  * `stage` for a given file set, without duplicating the digest formula.
  *
+ * PUB-M5: this is `@rathnasgala2/adapter-protocol`'s
+ * `computeArtifactDigest`, the single implementation of the formula every
+ * S2 destination adapter verifies against — this package restates nothing.
+ *
  * @param {readonly StagedFile[]} files the complete file set
  * @returns {string} the `GALA-ARTIFACT-V2 ` artifact digest
  */
 export function computeArtifactDigest(files) {
-  const entries = files
-    .map((file) => ({
-      path: file.path,
-      byteLength: String(file.bytes.byteLength),
-      sha256: sha256Hex(file.bytes),
-    }))
-    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  return domainDigest(DOMAIN_ARTIFACT, entries);
+  return computeArtifactDigestFromFiles(files);
 }
 
 export const PACKAGE_STATUS = Object.freeze({
