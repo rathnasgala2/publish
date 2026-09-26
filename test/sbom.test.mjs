@@ -53,7 +53,7 @@ function lockWithDependencies() {
       },
     ];
     lock.dependencyDag = [
-      { from: '@rathnasgala2/template@2.0.0', to: 'left-pad@1.3.0' },
+      { from: '@rathnasgala2/template@2.1.0', to: 'left-pad@1.3.0' },
       { from: 'left-pad@1.3.0', to: 'right-pad@2.0.0' },
       { from: '@rathnasgala2/publish-action@0.1.0', to: 'left-pad@1.3.0' },
     ];
@@ -252,7 +252,7 @@ test('the official SPDX 2.3 schema accepts the exact bytes, and a reserialized o
 test('a DAG edge naming a package the lock does not carry, and an empty file set, are refused', () => {
   const lock = fixtureLock(undefined, (document) => {
     document.dependencyDag = [
-      { from: '@rathnasgala2/template@2.0.0', to: 'ghost@1.0.0' },
+      { from: '@rathnasgala2/template@2.1.0', to: 'ghost@1.0.0' },
     ];
   });
   const manifest = manifestFor(FILES, { lock });

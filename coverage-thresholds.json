@@ -1,10 +1,10 @@
 {
-  "$schema": "PUB-M9: a coverage ratchet. Each package's line/branch percentage must never fall below the value recorded here (a small tolerance absorbs floating-point rounding). Raise a value only when coverage has genuinely improved and stays there -- never lower one to make a regression pass.",
+  "$schema": "PUB-M9: a coverage ratchet. Each package's line/branch percentage must never fall below the value recorded here (a small tolerance absorbs floating-point rounding). Raise a value only when coverage has genuinely improved and stays there -- never lower one to make a regression pass. PUB-H5 rescoped measurement to each package's own src/ tree (--test-coverage-include=src/**/*.js, see check-coverage.mjs), which raised every floor below: the prior numbers included whatever workspace-sibling or v2/template/theme-default sibling-repository code a package's tests happened to load, not just its own source.",
   "@rathnasgala2/adapter-protocol": { "line": 98.7, "branch": 96.5 },
-  "@rathnasgala2/publish-kernel": { "line": 82.7, "branch": 94.9 },
-  "@rathnasgala2/adapter-conformance-kit": { "line": 78.6, "branch": 74.3 },
-  "@rathnasgala2/adapter-local-directory": { "line": 79.0, "branch": 69.4 },
-  "@rathnasgala2/adapter-github-pages": { "line": 88.9, "branch": 80.5 },
-  "@rathnasgala2/adapter-do-spaces": { "line": 90.2, "branch": 81.2 },
-  "@rathnasgala2/publish-action": { "line": 78.9, "branch": 70.3 }
+  "@rathnasgala2/publish-kernel": { "line": 99.7, "branch": 99.4 },
+  "@rathnasgala2/adapter-conformance-kit": { "line": 99.9, "branch": 99.9 },
+  "@rathnasgala2/adapter-local-directory": { "line": 93.4, "branch": 75.5 },
+  "@rathnasgala2/adapter-github-pages": { "line": 92.8, "branch": 81.5 },
+  "@rathnasgala2/adapter-do-spaces": { "line": 95.1, "branch": 82.0 },
+  "@rathnasgala2/publish-action": { "line": 92.3, "branch": 81.5 }
 }

@@ -16,13 +16,10 @@
  * caller (the `npx` subcommands and the GitHub Action entry) shares one
  * resolution path instead of re-deriving `TEMPLATE_ROOT`.
  *
- * `renderPublication`'s public entry point does not expose a way to compute
- * the current render-policy identity a build-input's content records must
- * carry (only the internal renderer does, via
- * `internal/content-security.js`'s `computeRenderPolicyIdentity`). This
- * bridge reaches that one internal module the same documented way the S2-T17
- * e2e test does; if a future `template` release publishes this as a public
- * helper, this bridge should switch to the package's public entry point.
+ * `template@2.1.0` publishes `computeRenderPolicyIdentity` from its public
+ * entry point (`src/core/index.js`), so this bridge no longer reaches into
+ * `internal/content-security.js` (PUB-H5's deferred half, closed once
+ * `template` shipped the public helper).
  *
  * `TEMPLATE_ROOT`'s resolution (fixed relative sibling, or the
  * `WORKSPACE_ROOT` override) is shared with `theme-bridge.js` via
@@ -96,19 +93,18 @@ export function importTemplatePublicEntry() {
 
 /**
  * The current published render-policy identity
- * (`{name, version, digest}`), reached through the one internal module that
- * computes it (see module documentation above for why).
+ * (`{name, version, digest}`), reached through `template`'s public entry
+ * point (see module documentation above for why this no longer reaches into
+ * `internal/`).
  *
  * @returns {Promise<{name: string, version: string, digest: string}>}
  *   the current renderPolicyIdentity
  */
 export async function currentRenderPolicyIdentity() {
-  const contentSecurity = await importTemplateModule(
-    'src/core/internal/content-security.js',
-  );
+  const publicEntry = await importTemplateModule('src/core/index.js');
   const compute =
     /** @type {() => Promise<{name: string, version: string, digest: string}>} */ (
-      contentSecurity.computeRenderPolicyIdentity
+      publicEntry.computeRenderPolicyIdentity
     );
   return compute();
 }

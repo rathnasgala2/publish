@@ -10,6 +10,36 @@ and this project adheres to
 
 ### Added
 
+### Changed
+
+- **PUB-H5:** the `rathnasgala2/template` and `rathnasgala2/theme-default`
+  sibling pins (`.github/workflows/{ci,nightly,release}.yaml`'s `ref:` values)
+  are bumped from the 2.0.0-era commits to the published 2.1.0 releases
+  (`template@20f8fdefe822f264f9d7fdd787d0d58431930a0b`,
+  `theme-default@b8015f166ef62c73e3096dab9bb74648a701d85e`); every fixture that
+  pinned the 2.0.0 contract
+  (`packages/publish-action/test/fixtures/minimal-repository/gala.lock.json`,
+  `test/sbom.test.mjs`'s synthetic dependency-DAG rows) is bumped to match.
+  `template-bridge.js`'s `currentRenderPolicyIdentity` (and the
+  `adapter-local-directory` S2-T17 e2e test) now import
+  `computeRenderPolicyIdentity`/`computeBodyDigest` from `template`'s public
+  entry point (`src/core/index.js`) instead of reaching into
+  `src/core/internal/content-security.js`, closing PUB-H5's deferred half now
+  that `template@2.1.0` publishes the helper publicly.
+  `packages/publish-action/test/e2e-npx-and-action.test.js`'s theme `<link>`
+  assertion now tolerates the `integrity`/`crossorigin` attributes
+  `template@2.1.0` (TPL-M1) adds to every theme stylesheet link, instead of
+  matching the pre-TPL-M1 exact tag text.
+- **PUB-H5:** `scripts/check-coverage.mjs` now runs each package's coverage with
+  `--test-coverage-include=src/**/*.js`, scoping the measured percentage to that
+  package's own source instead of every module its test process happens to load
+  (a workspace sibling for `publish-kernel`, or the real `v2/template` sibling
+  repository for `adapter-local-directory` and `publish-action`). The 2.1.0 pin
+  bump changed how much of `template`'s own code those tests exercise, which
+  moved the unscoped aggregate even though every package's own `src/` coverage
+  was unchanged byte-for-byte; `coverage-thresholds.json`'s floors are
+  recalculated (raised, never lowered) against the newly-scoped measurement.
+
 - **PUB-M12 (follow-up):** `rathnasgala2/publish` resolved on GitHub 2026-09-25.
   Every self-reference is re-pinned to a real commit SHA (`pins/ledger.json`'s
   `selfReferences[0]`, `docs/callers/gala-publish-v2.yml`'s `uses:` pin) instead

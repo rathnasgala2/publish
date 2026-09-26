@@ -8,6 +8,24 @@
  * (a small tolerance absorbs floating-point rounding). It never lowers a
  * floor itself -- raising one after a genuine improvement is a deliberate,
  * reviewed edit to that file.
+ *
+ * `--test-coverage-include=src/**\/*.js` (PUB-H5) scopes the measured
+ * percentage to each package's own `src/` tree. Without it, Node's
+ * `--experimental-test-coverage` instruments every module the test process
+ * actually loads, including a workspace-sibling package
+ * (`adapter-protocol` from `publish-kernel`'s own tests) and, for
+ * `adapter-local-directory`/`publish-action`, the real `v2/template`
+ * sibling repository reached by absolute path (`template-bridge.js`) -- so
+ * a template/theme-default release that changes how much of *their* code a
+ * test exercises silently moves *this* package's recorded percentage
+ * without a single line here changing. Pinning `template`/`theme-default`
+ * to 2.1.0 (PUB-H5) surfaced exactly that: `adapter-local-directory`'s and
+ * `publish-action`'s own `src/` coverage were unchanged byte-for-byte
+ * (confirmed line-for-line against the pre-bump run), but the unscoped
+ * aggregate moved because `template`'s own file set and branch shape
+ * changed between 2.0.0 and 2.1.0. Scoping to `src/**\/*.js` makes every
+ * floor in `coverage-thresholds.json` measure only what its own name says
+ * it measures.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -83,7 +101,11 @@ function main() {
 
     const result = spawnSync(
       process.execPath,
-      ['--test', '--experimental-test-coverage'],
+      [
+        '--test',
+        '--experimental-test-coverage',
+        '--test-coverage-include=src/**/*.js',
+      ],
       { cwd: path.join(ROOT, workspace), encoding: 'utf8' },
     );
     const combined = `${result.stdout ?? ''}${result.stderr ?? ''}`;

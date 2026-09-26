@@ -8,6 +8,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- **PUB-H5:** `template-bridge.js`'s `currentRenderPolicyIdentity` now imports
+  `computeRenderPolicyIdentity` from `template`'s public entry point
+  (`src/core/index.js`) instead of `src/core/internal/content-security.js`, now
+  that the pinned `template@2.1.0` publishes it publicly. The `gala.lock.json`
+  test fixture and `theme-bridge.test.js`'s `REAL_THEME` now pin
+  `template`/`theme-default` at `2.1.0` to match the sibling checkouts CI
+  provides.
+
 ### Added
 
 - **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can

@@ -235,13 +235,25 @@ test("build: every generated page <head> links the resolved theme package's styl
     const themeContract = JSON.parse(
       await readFile(path.join(THEME_DEFAULT_DIRECTORY, 'theme.json'), 'utf8'),
     );
-    const expectedLinks = /** @type {string[]} */ (
+    // `template@2.1.0` (TPL-M1) adds `integrity="sha256-…"` and
+    // `crossorigin="anonymous"` to every theme stylesheet `<link>`, derived
+    // from the served bytes, so this match tolerates whatever attributes
+    // sit between `href="..."` and the tag's close rather than asserting
+    // the exact historical (pre-TPL-M1) attribute set.
+    const expectedLinkPatterns = /** @type {string[]} */ (
       themeContract.stylesheets
-    ).map((stylesheet) =>
-      stylesheet === 'print.css'
-        ? `<link rel="stylesheet" href="/assets/theme/${stylesheet}" media="print">`
-        : `<link rel="stylesheet" href="/assets/theme/${stylesheet}">`,
-    );
+    ).map((stylesheet) => {
+      const escapedHref = `/assets/theme/${stylesheet}`.replace(
+        /[.*+?^${}()|[\]\\]/gu,
+        '\\$&',
+      );
+      return stylesheet === 'print.css'
+        ? new RegExp(
+            `<link rel="stylesheet" href="${escapedHref}"[^>]*media="print">`,
+            'u',
+          )
+        : new RegExp(`<link rel="stylesheet" href="${escapedHref}"[^>]*>`, 'u');
+    });
 
     const html = await readFile(
       path.join(
@@ -252,13 +264,15 @@ test("build: every generated page <head> links the resolved theme package's styl
     );
 
     let searchFrom = 0;
-    for (const expectedLink of expectedLinks) {
-      const foundAt = html.indexOf(expectedLink, searchFrom);
+    for (const pattern of expectedLinkPatterns) {
+      pattern.lastIndex = 0;
+      const match = pattern.exec(html.slice(searchFrom));
       assert.ok(
-        foundAt >= 0,
-        `expected ${expectedLink} in <head>, in cssLayers order, after offset ${searchFrom}`,
+        match,
+        `expected ${pattern} in <head>, in cssLayers order, after offset ${searchFrom}`,
       );
-      searchFrom = foundAt + expectedLink.length;
+      const foundAt = searchFrom + /** @type {RegExpExecArray} */ (match).index;
+      searchFrom = foundAt + /** @type {RegExpExecArray} */ (match)[0].length;
     }
   } finally {
     await cleanup();

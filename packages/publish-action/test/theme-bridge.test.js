@@ -30,7 +30,7 @@ const FIXTURE_REPOSITORY = path.resolve(
 
 const REAL_THEME = Object.freeze({
   package: '@rathnasgala2/theme-default',
-  version: '2.0.0',
+  version: '2.1.0',
   integrity:
     'sha256:0000000000000000000000000000000000000000000000000000000000000004',
   registry: 'https://local-development.invalid/rathnasgala2/',
@@ -344,7 +344,7 @@ test('runBuild: fails closed with a SOURCE_ERROR finding (UNSAFE_INPUT, exit 5) 
     await cp(FIXTURE_REPOSITORY, repositoryCopy, { recursive: true });
     const lockPath = path.join(repositoryCopy, 'gala.lock.json');
     const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-    // The real theme-default sibling checkout is version 2.0.0; pinning a
+    // The real theme-default sibling checkout is version 2.1.0; pinning a
     // version it does not carry makes every resolution step either not
     // exist or fail identity verification.
     lock.theme.version = '9.9.9';

@@ -19,20 +19,20 @@
   },
   "template": {
     "package": "@rathnasgala2/template",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "integrity": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
     "registry": "https://local-development.invalid/rathnasgala2/",
-    "contractVersion": "2.0.0",
-    "compatibleWith": "^2.0.0",
+    "contractVersion": "2.1.0",
+    "compatibleWith": "^2.1.0",
     "templateModules": []
   },
   "theme": {
     "package": "@rathnasgala2/theme-default",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "integrity": "sha256:0000000000000000000000000000000000000000000000000000000000000004",
     "registry": "https://local-development.invalid/rathnasgala2/",
-    "contractVersion": "2.0.0",
-    "compatibleWith": "^2.0.0"
+    "contractVersion": "2.1.0",
+    "compatibleWith": "^2.1.0"
   },
   "publisher": [
     {

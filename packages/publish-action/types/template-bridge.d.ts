@@ -8,8 +8,9 @@
 export function importTemplatePublicEntry(): Promise<Record<string, unknown>>;
 /**
  * The current published render-policy identity
- * (`{name, version, digest}`), reached through the one internal module that
- * computes it (see module documentation above for why).
+ * (`{name, version, digest}`), reached through `template`'s public entry
+ * point (see module documentation above for why this no longer reaches into
+ * `internal/`).
  *
  * @returns {Promise<{name: string, version: string, digest: string}>}
  *   the current renderPolicyIdentity
