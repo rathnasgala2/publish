@@ -11,19 +11,19 @@ name: CI
 # review): a vulnerable dependency or a leaked secret must not sit on main
 # for up to 24h.
 #
-# The build sandbox (test/sandbox.test.mjs, scripts/sandbox-build.sh) stays
-# out of this fast gate on purpose: each of its cases pulls/builds a
-# container image and runs it under `--network none` with dropped
-# capabilities, which is inherently a tens-of-seconds-per-case operation,
-# not a per-push budget item, even though it proves a core security
-# property (S4-T07 — untrusted author build code cannot see the network,
-# mutate the source tree or escape its resource limits). It still runs
-# every night in nightly.yml as part of the complete `npm run verify`.
-#
-# Everything else that was in the single "Quality and supply chain" job --
-# architecture (dependency-cruiser), duplication (jscpd), the full test
-# suite including the sandbox and sbom:check -- also moved to nightly.yml,
-# unchanged in substance.
+# PUB-M1: the fast jobs above are a strict subset of `npm run verify`, so a
+# merged PR could violate the dependency-cruiser adapter-isolation gate, the
+# pin ledger, the SBOM or any other gate that only ran nightly and sit on
+# `main` for up to 24h. The `full-verify` job below runs the complete,
+# unabridged `npm run verify` (every one of the twelve gates the workspace
+# root README enumerates, plus the license/provenance/declarations/manifest/
+# changelog gates added since) on every push and pull request too, so a
+# merge can no longer land in a state nightly.yml would have caught first.
+# It is slower than the fast jobs above (it includes the Docker build-sandbox
+# proof); that is an accepted per-push cost for closing the gap. nightly.yml
+# is kept as a scheduled catch for drift that lands with no push to this
+# repository (e.g. a transitive advisory published against an already-merged
+# lockfile) and for the gitleaks full-history scan.
 on:
   push:
     branches:
@@ -211,3 +211,47 @@ jobs:
         run: >-
           "${RUNNER_TEMP}/gitleaks/gitleaks" git --redact --no-banner
           --log-opts="--all" .
+
+  full-verify:
+    name: Full verify (PUB-M1)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      WORKSPACE_ROOT: ${{ github.workspace }}/.siblings
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Check out the template sibling repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/template
+          ref: 15142f8baebaff5e174ac07d784073d2d2163b88
+          path: .siblings/template
+          persist-credentials: false
+
+      - name: Check out the theme-default sibling repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/theme-default
+          ref: 50957da66db16bb3b735eb2cd0b6a7f78e29b739
+          path: .siblings/theme-default
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install the template sibling's own dependencies
+        working-directory: .siblings/template
+        run: npm ci --ignore-scripts
+
+      - name: Run the complete repository gate
+        run: npm run verify

@@ -8,6 +8,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- **PUB-M1:** `.github/workflows/ci.yml` gains a `full-verify` job that runs
+  the complete `npm run verify` (including `architecture`, `duplication`,
+  `sbom:check`, `pins:check`, `schema-pin:check` and the Docker build-sandbox
+  proof) on every push and pull request, not only nightly. A merge can no
+  longer land an adapter-isolation, SBOM or pin-ledger violation that sits on
+  `main` for up to 24h before nightly.yml catches it.
+
 ### Changed
 
 - **Contract re-pin: `@rathnasgala2/schemas` moved from the LOCAL-1/LOCAL-43
