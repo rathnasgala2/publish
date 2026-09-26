@@ -10,6 +10,11 @@ and this project adheres to
 
 ### Added
 
+- **PUB-L8:** `release.yaml`'s push path filter now also covers `scripts/**`,
+  `pins/**` and `.github/workflows/release.yaml` itself, not only
+  `packages/**`/`package.json`/`package-lock.json`. A fix to the release gate
+  (or a pin-ledger change `npm run verify` depends on) is now exercised on the
+  next push instead of waiting for an unrelated package change.
 - **PUB-L7:** `CLAUDE.md`'s "Commands" section now lists every gate
   `npm run verify` actually runs (`coverage:check`, `sbom:check`,
   `workflows:check`, `workflows:drift`, `schema-pin:check`, `placeholder:check`

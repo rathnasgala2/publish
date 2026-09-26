@@ -8,6 +8,9 @@ on:
       - packages/**
       - package.json
       - package-lock.json
+      - scripts/**
+      - pins/**
+      - .github/workflows/release.yaml
   workflow_dispatch: {}
 
 permissions:

@@ -93,6 +93,25 @@ for (const file of [RELEASE_PATH, CI_PATH, NIGHTLY_PATH]) {
   });
 }
 
+test('release.yaml: the push path filter covers everything verify runs, not only packages/ (PUB-L8)', () => {
+  const { doc } = loadWorkflow(RELEASE_PATH);
+  const on = /** @type {{push?: {paths?: readonly string[]}}} */ (doc.on);
+  const paths = on.push?.paths ?? [];
+  for (const expected of [
+    'packages/**',
+    'package.json',
+    'package-lock.json',
+    'scripts/**',
+    'pins/**',
+    '.github/workflows/release.yaml',
+  ]) {
+    assert.ok(
+      paths.includes(expected),
+      `release.yaml's push.paths must include ${JSON.stringify(expected)}`,
+    );
+  }
+});
+
 test('release.yaml: the publish job needs the verify job', () => {
   const { doc } = loadWorkflow(RELEASE_PATH);
   const jobs = /** @type {Record<string, {needs?: unknown}>} */ (doc.jobs);
