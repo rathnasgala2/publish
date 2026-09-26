@@ -65,7 +65,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/theme-default
-          ref: b8015f166ef62c73e3096dab9bb74648a701d85e
+          ref: d64aac777ce79ab1270d407b571d2fb0e89d548f
           path: .siblings/theme-default
           persist-credentials: false
 
