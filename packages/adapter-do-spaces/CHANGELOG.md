@@ -13,6 +13,15 @@ and this project adheres to
 - **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
   tree-shake an unused re-export from this package's barrel entry point instead
   of conservatively retaining the whole thing.
+- **PUB-M7:** `signRequest` now enforces the header filter it documents: only
+  `host`, `content-type`, `cache-control` and the `x-amz-*` family may be passed
+  through `request.headers`; anything else (for example a provider-returned
+  conditional guard) throws `SpacesAdapterError` with code
+  `SPACES_UNSIGNABLE_HEADER` instead of being silently signed. The JSDoc
+  previously claimed `cache-control` was deliberately never signed, which
+  contradicted `s3.js`'s own `SIGNED_HEADER_NAMES` (which does sign it, as
+  adapter-chosen object metadata) — the JSDoc and the allowlist now match what
+  `s3.js` actually sends.
 - **PUB-M5:** `computeArtifactDigest` (marker-coordinate exclusion aside) now
   delegates to `@rathnasgala2/adapter-protocol`'s implementation of the same
   name instead of restating the `GALA-ARTIFACT-V2 ` formula locally.

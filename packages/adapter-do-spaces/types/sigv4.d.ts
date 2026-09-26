@@ -97,13 +97,14 @@ export function computeSignature(request: {
  * Sign one request, returning exactly the headers that must be sent
  * verbatim.
  *
- * Only headers this signer controls end-to-end are signed: `host`, the
- * `x-amz-*` family and `content-type`. A conditional or cache header is
- * deliberately *not* signed and is sent by the caller as an unsigned
- * header, because an HTTP client is entitled to add or rewrite those (Node
- * adds `pragma: no-cache` and rewrites `cache-control` the moment a
- * conditional header is present), and S3 honours an unsigned header
- * perfectly well.
+ * Only headers this signer controls end-to-end are signed: `host`,
+ * `content-type`, `cache-control` and the `x-amz-*` family (PUB-M7; see
+ * {@link SIGNABLE_HEADER_PATTERN}). A provider-returned conditional guard
+ * (`if-match`/`if-none-match`) is sent unsigned by the caller and never
+ * reaches this function at all -- it is a provider-returned ETag, not a
+ * value this adapter chose, so it is not eligible to be signed in the first
+ * place. Any header outside the signable set is refused rather than
+ * silently signed.
  *
  * @param {{
  *   method: string,
