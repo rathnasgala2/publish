@@ -10,6 +10,19 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M12:** `npm run placeholder:check`
+  (`scripts/check-placeholder-markers.mjs`) fails if the literal
+  `PLACEHOLDER (W0-01)` marker text appears anywhere in the scanned files
+  (workflows, `docs/callers/`, the pin ledger, the two scripts that document the
+  self-reference) without a matching entry in the script's
+  `TRACKED_PLACEHOLDERS` inventory. It also checks, on every run, whether
+  `rathnasgala2/publish` now resolves on GitHub while `pins/ledger.json` still
+  records the all-zero self-reference placeholder, and prints a loud warning
+  (not a failure — the reconciliation itself is a deliberate, separate change)
+  if so. At this commit, 10 of the 13 markers the 2026-09-25 review found were
+  already resolved by the earlier PUB-H5 SHA pin; the remaining 3 are the
+  inherently unresolvable-until-publish self-reference, now tracked explicitly.
+  Wired into `npm run verify`.
 - **PUB-M10:** `.github/workflows/nightly.yml` gains a
   `spaces-minio-conformance` job that starts the digest-pinned throwaway MinIO
   container and runs `adapter-do-spaces`'s real-server conformance suite every
