@@ -10,6 +10,14 @@ and this project adheres to
 
 ### Added
 
+- **PUB-L6:** deleted the dead `verifyPackageTarballs` local-tarball-pin
+  machinery from `scripts/check-pins.mjs` (and the matching `packages` loop in
+  `comparePins`, the `packages` field in `pins/ledger.json`, and the fixture
+  tarball `test/fixtures/local-packages/rathnasgala2-schemas-2.10.0.tgz`).
+  `scripts/check-no-local-schema-pin.mjs` now forbids the LOCAL-1 local-tarball
+  convention outright for every package, so a `ledger.packages` entry of this
+  shape can never legitimately exist again; keeping the path permanently
+  exercised only by synthetic test rows was dead weight.
 - **PUB-L3:** the root README's "Working from a git worktree" section no longer
   claims `publish-action` resolves `schema`, `api` and `infra` as siblings; only
   `template` and `theme-<slug>` are ever resolved this way

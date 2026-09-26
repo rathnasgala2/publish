@@ -6,25 +6,10 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 
-import { comparePins, verifyPackageTarballs } from '../scripts/check-pins.mjs';
-
-/**
- * Search roots for `verifyPackageTarballs`'s own unit tests below. These
- * tests exercise the function directly (not through the real ledger, which
- * no longer carries a LOCAL-1 package pin) so they need a real file on disk
- * to hash. `test/fixtures/local-packages` holds a small tarball built once
- * and committed as bytes precisely so this does not depend on ambient
- * developer state: a GitHub Actions runner, like a bare clone, has no
- * sibling `local-packages`
- * checkout, and even where one exists its tarball's bytes are not
- * reproducible from run to run (tar/gzip metadata varies by OS and tool).
- * A fixture checked into git is read back byte-for-byte on every platform.
- */
-const LOCAL_PACKAGES = [resolve('test', 'fixtures', 'local-packages')];
+import { comparePins } from '../scripts/check-pins.mjs';
 
 const LEDGER = JSON.parse(readFileSync('pins/ledger.json', 'utf8'));
 
@@ -60,7 +45,7 @@ test('the real repository state has no pin drift', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(
     result.stdout,
-    /Verified 6 action pin\(s\), 2 image digest\(s\), 2 binary checksum\(s\)/u,
+    /Verified 6 action pin\(s\), 2 image digest\(s\) and 2 binary checksum\(s\)/u,
   );
 });
 
@@ -181,15 +166,14 @@ test('every ledger action pin is a full 40-character lowercase commit SHA', () =
   }
 });
 
-test('the LOCAL-1/LOCAL-43 local-tarball schemas pin is retired from the ledger', () => {
+test('PUB-L6: the ledger no longer carries a packages field at all', () => {
   // @rathnasgala2/schemas publishes to the registry as of the 2026-09-22
-  // contract re-pin; the ledger no longer records a local-tarball pin for
-  // it, and no manifest in this workspace should declare a `file:` schemas
-  // dependency (schema-pin:check enforces the latter independently).
-  const schemas = LEDGER.packages.find(
-    (/** @type {any} */ entry) => entry.name === '@rathnasgala2/schemas',
-  );
-  assert.equal(schemas, undefined);
+  // contract re-pin, and schema-pin:check now forbids the LOCAL-1
+  // local-tarball convention outright for every package, not only schemas
+  // -- so no ledger entry of this shape can ever legitimately exist again.
+  // The field itself (and the verifyPackageTarballs/comparePins machinery
+  // that read it) was removed rather than kept permanently empty.
+  assert.equal(LEDGER.packages, undefined);
 });
 
 test('every workspace package declares exactly the registry-pinned schemas version', () => {
@@ -210,55 +194,4 @@ test('every workspace package declares exactly the registry-pinned schemas versi
       `${name} must consume exactly the registry-pinned schemas version`,
     );
   }
-});
-
-test('a package pin whose tarball hashes differently is drift', async () => {
-  const diagnostics = await verifyPackageTarballs(
-    [
-      {
-        name: '@rathnasgala2/schemas',
-        version: '2.10.0',
-        source: 'file:../../local-packages/rathnasgala2-schemas-2.10.0.tgz',
-        sha256: '0'.repeat(64),
-      },
-    ],
-    LOCAL_PACKAGES,
-  );
-  assert.equal(diagnostics.length, 1);
-  assert.match(String(diagnostics[0]), /sha256 is b9133cff/u);
-});
-
-test('a package pin whose tarball is missing fails closed rather than passing', async () => {
-  const diagnostics = await verifyPackageTarballs(
-    [
-      {
-        name: '@rathnasgala2/schemas',
-        version: '9.9.9',
-        source: 'file:../../local-packages/rathnasgala2-schemas-9.9.9.tgz',
-        sha256: '0'.repeat(64),
-      },
-    ],
-    LOCAL_PACKAGES,
-  );
-  assert.equal(diagnostics.length, 1);
-  assert.match(String(diagnostics[0]), /was not found/u);
-});
-
-test('a ledger package entry no manifest or lockfile declares is refused', () => {
-  const ledger = {
-    ...LEDGER,
-    packages: [
-      {
-        name: '@rathnasgala2/unused',
-        version: '1.0.0',
-        source: 'file:../../local-packages/rathnasgala2-unused-1.0.0.tgz',
-        sha256: '0'.repeat(64),
-      },
-    ],
-  };
-  const diagnostics = comparePins(ledger, yaml(''), supportingFiles());
-  assert.ok(
-    diagnostics.some((entry) => entry.includes('@rathnasgala2/unused')),
-    'an unused package pin must be reported',
-  );
 });
