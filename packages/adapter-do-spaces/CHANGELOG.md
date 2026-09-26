@@ -13,6 +13,10 @@ and this project adheres to
 - **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
   tree-shake an unused re-export from this package's barrel entry point instead
   of conservatively retaining the whole thing.
+- **PUB-M10:** README documents that `.github/workflows/nightly.yml`'s new
+  `spaces-minio-conformance` job now runs this package's real-server MinIO
+  conformance suite every night, so it is no longer generated only when run by
+  hand.
 - **PUB-M7:** `signRequest` now enforces the header filter it documents: only
   `host`, `content-type`, `cache-control` and the `x-amz-*` family may be passed
   through `request.headers`; anything else (for example a provider-returned

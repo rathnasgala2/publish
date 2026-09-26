@@ -168,6 +168,10 @@ The conditional guard is likewise sent unsigned.
   scripts/minio-spaces.sh down
   ```
 
+  PUB-M10: `.github/workflows/nightly.yml`'s `spaces-minio-conformance` job runs
+  this every night, so the strongest local evidence for this adapter is no
+  longer generated only when someone runs it by hand.
+
 What none of that proves is DigitalOcean Spaces itself — the website
 configuration, the control-key `AccessDenied` check and the real static origin.
 That is backlog W4-16.

@@ -10,6 +10,12 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M10:** `.github/workflows/nightly.yml` gains a
+  `spaces-minio-conformance` job that starts the digest-pinned throwaway MinIO
+  container and runs `adapter-do-spaces`'s real-server conformance suite every
+  night. Previously that suite ran only when a maintainer invoked
+  `scripts/minio-spaces.sh` by hand, so CI only ever proved the adapter against
+  a fake S3 server written by the same authors.
 - **PUB-M13:** `release.yaml`'s publish loop now captures `npm view --json` and
   branches on `error.code === 'E404'` specifically instead of treating any
   non-zero exit as "not published". A registry 5xx, timeout, auth failure or

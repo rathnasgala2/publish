@@ -5,9 +5,13 @@ name: Nightly
 # `npm run verify` (format, lint, typecheck, architecture, duplication, the
 # full test suite including the Docker build-sandbox proof, sbom:check,
 # audit), the workflow-pin check and the gitleaks-fragment drift check, and
-# the gitleaks secret scan itself. ci.yml now runs only the fast subset
-# (format, lint, typecheck, unit tests minus the sandbox proof, workflow
-# pins, drift) on every push and pull request.
+# the gitleaks secret scan itself. ci.yml now also runs the complete
+# `npm run verify` on every push and pull request (PUB-M1's full-verify job),
+# so this workflow's `quality` job is now belt-and-braces for drift with no
+# push to this repository. A separate `spaces-minio-conformance` job
+# (PUB-M10) runs adapter-do-spaces's real-server conformance suite against a
+# throwaway, digest-pinned MinIO container -- CI otherwise only ever proves
+# that adapter against a fake S3 server written by the same authors.
 on:
   schedule:
     # 03:47 UTC: staggered ~30 minutes after infra's nightly run (03:17 UTC)
@@ -109,3 +113,40 @@ jobs:
         run: >-
           "${RUNNER_TEMP}/gitleaks/gitleaks" git --redact --no-banner
           --log-opts="--all" .
+
+  spaces-minio-conformance:
+    name: adapter-do-spaces MinIO conformance (PUB-M10)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned Node.js distribution
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      # Without this job, adapter-do-spaces is validated in CI only against
+      # test/fake-s3-server.js, a fake written by the same authors as the
+      # adapter -- any shared misunderstanding of S3 semantics (conditional
+      # PUT behaviour, ETag quoting, error codes, SigV4 canonicalisation
+      # edge cases) is invisible. This runs the identical conformance
+      # fixture against a real, throwaway, digest-pinned MinIO server.
+      - name: Start the throwaway MinIO server
+        run: |
+          endpoint_assignment="$(scripts/minio-spaces.sh up)"
+          echo "${endpoint_assignment}" >> "${GITHUB_ENV}"
+
+      - name: Run adapter-do-spaces against real MinIO
+        run: npm test --workspace packages/adapter-do-spaces
+
+      - name: Remove the throwaway MinIO server
+        if: always()
+        run: scripts/minio-spaces.sh down
