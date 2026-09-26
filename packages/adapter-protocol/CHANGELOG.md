@@ -10,6 +10,16 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M4:** the property tests in `test/digest.test.js`,
+  `test/capability-vocabulary.test.js` and `test/frame.test.js` now draw from a
+  seeded PRNG (`test/helpers/seeded-random.js`) instead of bare `Math.random()`,
+  printing the seed as a test diagnostic so a CI failure can be replayed with
+  `TEST_SEED=<seed>`. The two key-order/set-equality properties that used
+  `array.toSorted(() => Math.random() - 0.5)` — a comparator-as-shuffle that is
+  non-uniform and, for small arrays, often returns the input order unchanged —
+  now use an unbiased Fisher-Yates shuffle, plus a new deterministic
+  reverse-order case that proves the property at least once independent of any
+  PRNG outcome.
 - **PUB-M5:** `computeArtifactDigest`, `projectArtifactEntry` and
   `ARTIFACT_DIGEST_DOMAIN` are now exported. This is the single implementation
   of the DEC-097 section 8 `GALA-ARTIFACT-V2 ` artifact digest;

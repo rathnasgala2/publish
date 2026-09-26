@@ -15,6 +15,11 @@ import {
   VERIFICATION,
   isSameSet,
 } from '../src/capability-vocabulary.js';
+import {
+  createSeededRandom,
+  fisherYatesShuffle,
+  pickSeed,
+} from './helpers/seeded-random.js';
 
 test('the destination-kind vocabulary is exactly the three admitted adapters', () => {
   assert.deepEqual([...DESTINATION_KINDS].sort(), [
@@ -85,28 +90,47 @@ test('isSameSet rejects a different membership at equal length', () => {
   assert.equal(isSameSet(['a', 'b'], ['a', 'c']), false);
 });
 
-test('property: isSameSet(x, shuffle(x)) is always true', () => {
+test('property: isSameSet(x, shuffle(x)) is always true', (t) => {
+  const seed = pickSeed();
+  t.diagnostic(`seed=${seed} (rerun with TEST_SEED=${seed} to replay)`);
+  const random = createSeededRandom(seed);
+  const base = [
+    'inspect',
+    'stage',
+    'activate',
+    'observe',
+    'cleanup-staged',
+    'rollback',
+  ];
   for (let trial = 0; trial < 100; trial += 1) {
-    const base = [
-      'inspect',
-      'stage',
-      'activate',
-      'observe',
-      'cleanup-staged',
-      'rollback',
-    ];
-    const shuffled = base.toSorted(() => Math.random() - 0.5);
+    const shuffled = fisherYatesShuffle(base, random);
     assert.equal(isSameSet(base, shuffled), true);
   }
 });
 
-test('property: isSameSet is false whenever one member is swapped out', () => {
+test('property: isSameSet(x, reverse(x)) is true for a known permutation', () => {
+  // A deterministic case alongside the random one above, so the property is
+  // proven at least once without relying on any PRNG outcome.
+  const base = [
+    'inspect',
+    'stage',
+    'activate',
+    'observe',
+    'cleanup-staged',
+    'rollback',
+  ];
+  assert.equal(isSameSet(base, [...base].reverse()), true);
+});
+
+test('property: isSameSet is false whenever one member is swapped out', (t) => {
+  const seed = pickSeed();
+  t.diagnostic(`seed=${seed} (rerun with TEST_SEED=${seed} to replay)`);
+  const random = createSeededRandom(seed);
   const alphabet = ['p', 'q', 'r', 's', 't', 'u', 'v'];
   for (let trial = 0; trial < 100; trial += 1) {
     const base = OPERATIONS.slice(0, 4);
-    const replaceIndex = Math.floor(Math.random() * base.length);
-    const replacement =
-      alphabet[Math.floor(Math.random() * alphabet.length)] ?? 'p';
+    const replaceIndex = Math.floor(random() * base.length);
+    const replacement = alphabet[Math.floor(random() * alphabet.length)] ?? 'p';
     const mutated = base.map((value, index) =>
       index === replaceIndex ? replacement : value,
     );

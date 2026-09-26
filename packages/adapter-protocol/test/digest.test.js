@@ -10,6 +10,11 @@ import {
   projectArtifactEntry,
   sha256Hex,
 } from '../src/digest.js';
+import {
+  createSeededRandom,
+  fisherYatesShuffle,
+  pickSeed,
+} from './helpers/seeded-random.js';
 
 test('computeArtifactDigest matches domainDigest over the manually projected, path-sorted entry list', () => {
   const bBytes = Buffer.from('two', 'utf8');
@@ -136,52 +141,71 @@ test('isDigestString accepts only sha256:<64 lowercase hex>', () => {
   assert.equal(isDigestString(42), false);
 });
 
-test('property: canonicalizeJson round-trips through JSON.parse to an equal value', () => {
+test('property: canonicalizeJson round-trips through JSON.parse to an equal value', (t) => {
+  const seed = pickSeed();
+  t.diagnostic(`seed=${seed} (rerun with TEST_SEED=${seed} to replay)`);
+  const random = createSeededRandom(seed);
   for (let i = 0; i < 200; i += 1) {
-    const value = randomJsonValue(3);
+    const value = randomJsonValue(3, random);
     const canonical = canonicalizeJson(value);
     assert.deepEqual(JSON.parse(canonical), stripUndefined(value));
   }
 });
 
-test('property: canonicalizeJson is invariant under key permutation', () => {
+test('property: canonicalizeJson is invariant under key permutation', (t) => {
+  const seed = pickSeed();
+  t.diagnostic(`seed=${seed} (rerun with TEST_SEED=${seed} to replay)`);
+  const random = createSeededRandom(seed);
   for (let i = 0; i < 200; i += 1) {
-    const object = randomFlatObject();
-    const shuffled = shuffleEntries(object);
+    const object = randomFlatObject(random);
+    const shuffled = shuffleEntries(object, random);
     assert.equal(canonicalizeJson(object), canonicalizeJson(shuffled));
   }
 });
 
+test('property: canonicalizeJson is invariant under a known reverse key permutation', () => {
+  // A deterministic case alongside the random one above, so the
+  // order-independence property is proven at least once without relying on
+  // any PRNG outcome.
+  const object = { alpha: 1, beta: 2, gamma: 3, delta: 4, epsilon: 5 };
+  const reversed = Object.fromEntries(Object.entries(object).reverse());
+  assert.equal(canonicalizeJson(object), canonicalizeJson(reversed));
+});
+
 /**
  * @param {number} depth remaining recursion depth
+ * @param {() => number} random a `Math.random`-shaped generator
  * @returns {unknown} a random JSON-compatible value
  */
-function randomJsonValue(depth) {
-  const choice = Math.floor(Math.random() * (depth > 0 ? 5 : 3));
+function randomJsonValue(depth, random) {
+  const choice = Math.floor(random() * (depth > 0 ? 5 : 3));
   switch (choice) {
     case 0:
-      return Math.floor(Math.random() * 1000) - 500;
+      return Math.floor(random() * 1000) - 500;
     case 1:
-      return Math.random().toString(36).slice(2, 8);
+      return random().toString(36).slice(2, 8);
     case 2:
-      return Math.random() > 0.5;
+      return random() > 0.5;
     case 3:
-      return Array.from({ length: 3 }, () => randomJsonValue(depth - 1));
+      return Array.from({ length: 3 }, () =>
+        randomJsonValue(depth - 1, random),
+      );
     default:
-      return randomFlatObject();
+      return randomFlatObject(random);
   }
 }
 
 /**
+ * @param {() => number} random a `Math.random`-shaped generator
  * @returns {Record<string, number>} a small random flat object
  */
-function randomFlatObject() {
+function randomFlatObject(random) {
   /** @type {Record<string, number>} */
   const object = {};
   const keys = ['alpha', 'beta', 'gamma', 'delta', 'epsilon'];
   for (const key of keys) {
-    if (Math.random() > 0.3) {
-      object[key] = Math.floor(Math.random() * 100);
+    if (random() > 0.3) {
+      object[key] = Math.floor(random() * 100);
     }
   }
   return object;
@@ -189,11 +213,12 @@ function randomFlatObject() {
 
 /**
  * @param {Record<string, number>} object object to shuffle
+ * @param {() => number} random a `Math.random`-shaped generator
  * @returns {Record<string, number>} a new object with the same entries in a
  *   randomized insertion order
  */
-function shuffleEntries(object) {
-  const entries = Object.entries(object).toSorted(() => Math.random() - 0.5);
+function shuffleEntries(object, random) {
+  const entries = fisherYatesShuffle(Object.entries(object), random);
   return Object.fromEntries(entries);
 }
 
