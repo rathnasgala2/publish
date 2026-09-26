@@ -83,6 +83,27 @@ test('canonicalizeJson rejects a value with no JSON representation', () => {
   assert.throws(() => canonicalizeJson(undefined), TypeError);
 });
 
+test('canonicalizeJson rejects non-plain objects (PUB-M3)', () => {
+  // A Date, Map, Set or class instance canonicalizes as "{}" with
+  // Object.keys, silently discarding its actual value -- reject it instead
+  // of computing a well-formed but wrong digest.
+  assert.throws(() => canonicalizeJson({ d: new Date(0) }), TypeError);
+  assert.throws(() => canonicalizeJson({ m: new Map([['a', 1]]) }), TypeError);
+  assert.throws(() => canonicalizeJson({ s: new Set([1, 2]) }), TypeError);
+  class Point {
+    constructor() {
+      this.x = 1;
+    }
+  }
+  assert.throws(() => canonicalizeJson({ p: new Point() }), TypeError);
+});
+
+test('canonicalizeJson still accepts a plain object with a null prototype', () => {
+  const plain = Object.create(null);
+  plain.a = 1;
+  assert.equal(canonicalizeJson(plain), '{"a":1}');
+});
+
 test('canonicalizeJson recurses through nested arrays and objects', () => {
   assert.equal(
     canonicalizeJson({ list: [{ b: 1, a: 2 }, 'x'] }),

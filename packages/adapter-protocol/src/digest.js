@@ -59,6 +59,13 @@ function canonicalizeValue(value) {
     return `[${value.map((entry) => canonicalizeValue(entry)).join(',')}]`;
   }
   if (typeof value === 'object') {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new TypeError(
+        'Canonical JSON rejects a non-plain object (e.g. Date, Map, Set or ' +
+          'a class instance); pass a plain object or array literal instead',
+      );
+    }
     const record = /** @type {Record<string, unknown>} */ (value);
     const keys = Object.keys(record)
       .filter((key) => record[key] !== undefined)

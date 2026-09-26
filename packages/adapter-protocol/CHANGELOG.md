@@ -10,6 +10,13 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M3:** `canonicalizeJson` now throws a `TypeError` for a value whose
+  prototype is neither `Object.prototype` nor `null` (a `Date`, `Map`, `Set` or
+  class instance), instead of silently canonicalizing it as `{}` via
+  `Object.keys`. Every DEC-097 contract digest in this repository is built from
+  this primitive, so a `Date`-bearing record (the most likely mistake, given how
+  many records carry timestamps) previously produced a well-formed, stable,
+  wrong digest with no diagnostic.
 - **PUB-M4:** the property tests in `test/digest.test.js`,
   `test/capability-vocabulary.test.js` and `test/frame.test.js` now draw from a
   seeded PRNG (`test/helpers/seeded-random.js`) instead of bare `Math.random()`,
