@@ -10,6 +10,13 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M13:** `release.yaml`'s publish loop now captures `npm view --json` and
+  branches on `error.code === 'E404'` specifically instead of treating any
+  non-zero exit as "not published". A registry 5xx, timeout, auth failure or
+  rate limit now fails the release job instead of falling through to an
+  attempted republish that fails with `EPUBLISHCONFLICT` partway through the
+  dependency-ordered loop. `test/release-npm-view.test.mjs` proves the embedded
+  extractor actually discriminates E404 from other failures.
 - **PUB-M8:** `test/loader-admits-adapters.test.mjs` proves
   `@rathnasgala2/adapter-protocol`'s new `loadAdapterModule` specifier allowlist
   actually admits and loads the three real published adapters
