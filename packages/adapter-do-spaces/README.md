@@ -178,9 +178,8 @@ Every refusal this package raises is a `SpacesAdapterError` (`src/errors.js`,
 exported from the package root), never a bare `Error`: it carries a stable,
 machine-readable `code` property alongside the ordinary `Error` message, so a
 caller can write `error.code === 'SPACES_PROVIDER_STATUS_UNEXPECTED'` instead of
-parsing `.message`. `.message` stays `${code}: ${detail}`, unchanged from before
-this class existed, so nothing that already matched a code inside the message
-breaks. The code vocabulary is closed and stable:
+parsing `.message`. `.message` is `${code}: ${detail}`, so a caller matching a
+code inside the message still works. The code vocabulary is closed and stable:
 `grep -rn "new SpacesAdapterError(" src` lists every code this package can
 raise, grouped by the module that raises it (SigV4 signing, the request catalog,
 staging, the control plane, capability declaration). A new code is an additive

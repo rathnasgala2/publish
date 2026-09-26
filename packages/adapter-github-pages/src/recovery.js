@@ -536,8 +536,9 @@ export function validateReconciliationRecovery(recovery, binding) {
  */
 export function assertRecoveryModePermitted(mode) {
   if (mode !== RECOVERY_MODE) {
-    throw new Error(
-      `PAGES_RECOVERY_CALL_FORBIDDEN: the recovery-prior call plan is admitted only in ${RECOVERY_MODE} mode, not ${JSON.stringify(mode)}`,
+    refuse(
+      'PAGES_RECOVERY_CALL_FORBIDDEN',
+      `the recovery-prior call plan is admitted only in ${RECOVERY_MODE} mode, not ${JSON.stringify(mode)}`,
     );
   }
 }
