@@ -10,6 +10,11 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M8:** `test/loader-admits-adapters.test.mjs` proves
+  `@rathnasgala2/adapter-protocol`'s new `loadAdapterModule` specifier allowlist
+  actually admits and loads the three real published adapters
+  (`adapter-local-directory`, `adapter-github-pages`, `adapter-do-spaces`), from
+  the repository level since `adapter-protocol` itself stays dependency-free.
 - **PUB-M11:** every package manifest declares `"sideEffects": false`, and
   `scripts/check-manifest-conformance.mjs` (`npm run manifest:check`) now fails
   if a package is missing it. These are side-effect-free barrel entry points; a

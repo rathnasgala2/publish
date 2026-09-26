@@ -16,6 +16,15 @@ and this project adheres to
   `test/protocol-version.test.js` and `protocol-version-history.json` assert the
   enforced rule: a change to `ADAPTER_PROTOCOL_VERSION` requires at least a
   minor bump of the package version.
+- **PUB-M8:** `loadAdapterModule` now refuses any specifier that is not one of
+  the three admitted adapter package specifiers
+  (`@rathnasgala2/adapter-local-directory`,
+  `@rathnasgala2/adapter-github-pages`, `@rathnasgala2/adapter-do-spaces`) or a
+  `file:` URL, throwing `AdapterProtocolError` with finding code
+  `ADAPTER_SPECIFIER_NOT_ADMITTED` before attempting the `import()`. The
+  protocol's own admission table already closes the `adapterId` vocabulary to
+  these three, so this allowlist closes the gap between "three admitted
+  adapters" and "any module specifier a caller can construct".
 - **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
   tree-shake an unused re-export from this package's barrel entry point instead
   of conservatively retaining the whole thing.
