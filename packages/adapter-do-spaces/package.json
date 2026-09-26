@@ -4,6 +4,7 @@
   "description": "Managed DigitalOcean Spaces deployment adapter: two-bucket website binding, exact SigV4 request catalog, private generation-prefixed staging, replace-in-place activation with a marker-last pointer write, and credential-free public verification.",
   "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": false,
   "engines": {
     "node": ">=24.0.0"
   },

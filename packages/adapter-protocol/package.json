@@ -4,6 +4,7 @@
   "description": "In-process deployment adapter lifecycle interface, closed capability vocabulary, provider limit profiles, negotiation and frame/message contract for Galascribe v2.",
   "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": false,
   "engines": {
     "node": ">=24.0.0"
   },

@@ -4,6 +4,7 @@
   "description": "Managed GitHub Pages deployment adapter: deterministic gzip/ustar Pages carrier, raw Pages deployment REST catalog, bounded status polling and credential-free public verification.",
   "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": false,
   "engines": {
     "node": ">=24.0.0"
   },

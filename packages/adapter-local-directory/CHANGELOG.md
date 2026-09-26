@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Changed
 
+- **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
+  tree-shake an unused re-export from this package's barrel entry point instead
+  of conservatively retaining the whole thing.
 - **PUB-M5:** `computeArtifactDigest` now delegates to
   `@rathnasgala2/adapter-protocol`'s implementation of the same name instead of
   restating the `GALA-ARTIFACT-V2 ` formula locally, closing the gap a new

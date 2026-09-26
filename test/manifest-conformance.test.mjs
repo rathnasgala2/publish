@@ -22,6 +22,7 @@ const GOOD_MANIFEST = {
     'https://github.com/rathnasgala2/publish/tree/main/packages/example#readme',
   bugs: { url: 'https://github.com/rathnasgala2/publish/issues' },
   keywords: ['gala'],
+  sideEffects: false,
 };
 
 const WORKSPACE_NAMES = new Set(['@rathnasgala2/adapter-protocol']);
@@ -89,6 +90,24 @@ test('checkOne rejects a repository.directory mismatch (PUB-H7)', () => {
   const diagnostics = checkOne('example', manifest, WORKSPACE_NAMES);
   assert.ok(
     diagnostics.some((d) => d.includes('repository must be')),
+    diagnostics.join('\n'),
+  );
+});
+
+test('checkOne rejects a missing sideEffects: false (PUB-M11)', () => {
+  const manifest = { ...GOOD_MANIFEST, sideEffects: undefined };
+  const diagnostics = checkOne('example', manifest, WORKSPACE_NAMES);
+  assert.ok(
+    diagnostics.some((d) => d.includes('sideEffects must be exactly false')),
+    diagnostics.join('\n'),
+  );
+});
+
+test('checkOne rejects sideEffects: true (PUB-M11)', () => {
+  const manifest = { ...GOOD_MANIFEST, sideEffects: true };
+  const diagnostics = checkOne('example', manifest, WORKSPACE_NAMES);
+  assert.ok(
+    diagnostics.some((d) => d.includes('sideEffects must be exactly false')),
     diagnostics.join('\n'),
   );
 });

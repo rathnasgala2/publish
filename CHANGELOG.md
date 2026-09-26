@@ -10,6 +10,11 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M11:** every package manifest declares `"sideEffects": false`, and
+  `scripts/check-manifest-conformance.mjs` (`npm run manifest:check`) now fails
+  if a package is missing it. These are side-effect-free barrel entry points; a
+  bundler can now tree-shake an unused re-export instead of conservatively
+  retaining the whole package.
 - **PUB-M9:** `npm run coverage:check` (`scripts/check-coverage.mjs`) runs
   `node --test --experimental-test-coverage` per workspace package and fails if
   a package's line or branch percentage drops below the floor recorded in

@@ -14,6 +14,9 @@
  *   contract source).
  * - PUB-H7: `repository`, `homepage`, `bugs` and `keywords` are present,
  *   and `repository.directory` matches the package's own path.
+ * - PUB-M11: `sideEffects` is exactly `false`, so a bundler can tree-shake
+ *   these side-effect-free barrel entry points instead of conservatively
+ *   retaining the whole package.
  */
 import { readFile, readdir } from 'node:fs/promises';
 
@@ -95,6 +98,13 @@ export function checkOne(name, manifest, workspacePackageNames) {
     diagnostics.push(`${manifestPath}: keywords must be a non-empty array.`);
   }
 
+  // PUB-M11
+  if (manifest.sideEffects !== false) {
+    diagnostics.push(
+      `${manifestPath}: sideEffects must be exactly false, got ${JSON.stringify(manifest.sideEffects)}.`,
+    );
+  }
+
   return diagnostics;
 }
 
@@ -127,7 +137,7 @@ async function main() {
     throw new Error(diagnostics.join('\n'));
   }
   console.log(
-    `manifest:check: ${manifestsByDir.size} package(s) conform (engines floor, caret in-workspace ranges, repository/homepage/bugs/keywords).`,
+    `manifest:check: ${manifestsByDir.size} package(s) conform (engines floor, caret in-workspace ranges, repository/homepage/bugs/keywords, sideEffects: false).`,
   );
 }
 

@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
+  tree-shake an unused re-export from this package's barrel entry point instead
+  of conservatively retaining the whole thing.
 - **PUB-H8:** `package.json` sets `"private": true`, so `npm publish` refuses
   this package structurally instead of relying only on `release.yaml`'s
   exclusion list. `@rathnasgala2/template` is now declared as an optional

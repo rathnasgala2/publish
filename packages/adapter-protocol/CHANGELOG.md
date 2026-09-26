@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
+  tree-shake an unused re-export from this package's barrel entry point instead
+  of conservatively retaining the whole thing.
 - **PUB-M3:** `canonicalizeJson` now throws a `TypeError` for a value whose
   prototype is neither `Object.prototype` nor `null` (a `Date`, `Map`, `Set` or
   class instance), instead of silently canonicalizing it as `{}` via
