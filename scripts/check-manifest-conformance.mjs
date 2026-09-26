@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
- * CI guard (PUB-H1, PUB-H3, PUB-H7, 2026-09-25): one manifest-shape gate for
- * every published package, instead of seven hand edits with nothing
- * enforcing them afterwards. Asserts:
+ * CI guard (PUB-H1, PUB-H3, PUB-H7, 2026-09-25): one manifest-shape gate
+ * that every published package's manifest must pass. Asserts:
  *
  * - PUB-H1: `engines.node` states a compatibility floor (`>=`), never an
  *   exact build-time toolchain version, and no package declares
@@ -31,7 +30,7 @@ const REPO_URL = 'git+https://github.com/rathnasgala2/publish.git';
  *   package's published name
  * @returns {string[]} diagnostics for this one manifest
  */
-function checkOne(name, manifest, workspacePackageNames) {
+export function checkOne(name, manifest, workspacePackageNames) {
   /** @type {string[]} */
   const diagnostics = [];
   const manifestPath = `packages/${name}/package.json`;

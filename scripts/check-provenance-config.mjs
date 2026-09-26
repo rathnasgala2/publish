@@ -16,6 +16,21 @@ import { readFile, readdir } from 'node:fs/promises';
 import { runIfMain } from './run-if-main.mjs';
 
 /**
+ * @param {string} manifestPath diagnostic path for this package's manifest
+ * @param {{publishConfig?: Record<string, unknown>}} manifest parsed package.json
+ * @returns {string[]} zero or one diagnostic
+ */
+export function provenanceDiagnostics(manifestPath, manifest) {
+  if (manifest.publishConfig?.provenance !== true) {
+    return [
+      `${manifestPath}: publishConfig.provenance must be true so ` +
+        'npm publish structurally refuses to ship an unattested version.',
+    ];
+  }
+  return [];
+}
+
+/**
  * @returns {Promise<void>} resolves when every package manifest declares
  *   publishConfig.provenance === true
  */
@@ -26,12 +41,7 @@ async function main() {
   for (const name of packageNames) {
     const manifestPath = `packages/${name}/package.json`;
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-    if (manifest.publishConfig?.provenance !== true) {
-      diagnostics.push(
-        `${manifestPath}: publishConfig.provenance must be true so ` +
-          'npm publish structurally refuses to ship an unattested version.',
-      );
-    }
+    diagnostics.push(...provenanceDiagnostics(manifestPath, manifest));
   }
   if (diagnostics.length > 0) {
     throw new Error(diagnostics.join('\n'));

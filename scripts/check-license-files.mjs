@@ -20,7 +20,7 @@ import { runIfMain } from './run-if-main.mjs';
  * @param {string} workspace the workspace package directory name
  * @returns {Promise<string[]>} every file path `npm pack` would include
  */
-function packedFiles(workspace) {
+export function packedFiles(workspace) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       'npm',
@@ -58,6 +58,21 @@ function packedFiles(workspace) {
 }
 
 /**
+ * @param {string} name workspace package directory name
+ * @param {string[]} files every file path `npm pack` would include for it
+ * @returns {string[]} zero or one diagnostic for this package
+ */
+export function missingLicenseDiagnostics(name, files) {
+  if (files.includes('LICENSE')) {
+    return [];
+  }
+  return [
+    `packages/${name}: npm pack --dry-run would not include LICENSE ` +
+      `in the tarball (files: ${files.join(', ')}).`,
+  ];
+}
+
+/**
  * @returns {Promise<void>} resolves when every package's tarball would
  *   include LICENSE
  */
@@ -67,12 +82,7 @@ async function main() {
   const diagnostics = [];
   for (const name of packageNames) {
     const files = await packedFiles(name);
-    if (!files.includes('LICENSE')) {
-      diagnostics.push(
-        `packages/${name}: npm pack --dry-run would not include LICENSE ` +
-          `in the tarball (files: ${files.join(', ')}).`,
-      );
-    }
+    diagnostics.push(...missingLicenseDiagnostics(name, files));
   }
   if (diagnostics.length > 0) {
     throw new Error(diagnostics.join('\n'));

@@ -18,6 +18,29 @@ import { runIfMain } from './run-if-main.mjs';
 const HEADING_PATTERN = /^## \[([^\]]+)\]/gm;
 
 /**
+ * @param {string} changelogPath diagnostic path for this package's CHANGELOG
+ * @param {string} changelog CHANGELOG.md contents
+ * @param {string} version the package's current `package.json` version
+ * @returns {string[]} zero or one diagnostic
+ */
+export function changelogDiagnostics(changelogPath, changelog, version) {
+  const headings = [...changelog.matchAll(HEADING_PATTERN)].map(
+    (match) => match[1],
+  );
+  const releasedHeadings = headings.filter((h) => h !== 'Unreleased');
+  if (releasedHeadings.length === 0) {
+    // Never published: nothing to check yet.
+    return [];
+  }
+  if (!releasedHeadings.includes(version)) {
+    return [
+      `${changelogPath}: no "## [${version}]" heading for the current package.json version (found: ${releasedHeadings.join(', ') || 'none'}).`,
+    ];
+  }
+  return [];
+}
+
+/**
  * @returns {Promise<void>} resolves when every package's CHANGELOG carries a
  *   heading for its current `package.json` version
  */
@@ -32,19 +55,9 @@ async function main() {
     );
     const changelogPath = `packages/${dir}/CHANGELOG.md`;
     const changelog = await readFile(changelogPath, 'utf8');
-    const headings = [...changelog.matchAll(HEADING_PATTERN)].map(
-      (match) => match[1],
+    diagnostics.push(
+      ...changelogDiagnostics(changelogPath, changelog, manifest.version),
     );
-    const releasedHeadings = headings.filter((h) => h !== 'Unreleased');
-    if (releasedHeadings.length === 0) {
-      // Never published: nothing to check yet.
-      continue;
-    }
-    if (!releasedHeadings.includes(manifest.version)) {
-      diagnostics.push(
-        `${changelogPath}: no "## [${manifest.version}]" heading for the current package.json version (found: ${releasedHeadings.join(', ') || 'none'}).`,
-      );
-    }
   }
 
   if (diagnostics.length > 0) {
