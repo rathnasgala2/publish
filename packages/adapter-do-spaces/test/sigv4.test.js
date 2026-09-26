@@ -162,6 +162,35 @@ test('signRequest accepts content-type, cache-control and x-amz-* headers passed
   assert.match(String(headers.authorization), /x-amz-meta-example/u);
 });
 
+test('canonical header values collapse internal whitespace runs to one space (PUB-L4)', () => {
+  const base = /** @type {const} */ ({
+    method: 'PUT',
+    host: 'served.nyc3.digitaloceanspaces.com',
+    key: 'index.html',
+    payloadSha256: EMPTY_PAYLOAD_SHA256,
+    instant: new Date('2026-09-17T00:00:00.000Z'),
+  });
+  const credentials = {
+    accessKeyId: 'AKIDEXAMPLE',
+    secretAccessKey: SUITE_SECRET,
+    region: 'nyc3',
+  };
+
+  const singleSpace = signRequest(
+    { ...base, headers: { 'x-amz-meta-example': 'a b' } },
+    credentials,
+  );
+  const multipleSpaces = signRequest(
+    { ...base, headers: { 'x-amz-meta-example': 'a    b' } },
+    credentials,
+  );
+
+  // AWS SigV4 requires sequential internal spaces in a signed header value
+  // to be collapsed to one before signing; a value differing only in run
+  // length must therefore sign identically.
+  assert.equal(multipleSpaces.authorization, singleSpace.authorization);
+});
+
 test('a session token is signed, not merely sent', () => {
   const headers = signRequest(
     {

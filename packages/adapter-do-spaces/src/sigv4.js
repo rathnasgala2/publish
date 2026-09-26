@@ -172,7 +172,12 @@ export function deriveSigningKey(
 export function computeSignature(request, credentials) {
   const service = request.service ?? SERVICE;
   const canonicalHeaders = request.signedHeaderNames
-    .map((name) => `${name}:${String(request.headers[name] ?? '').trim()}\n`)
+    .map(
+      (name) =>
+        `${name}:${String(request.headers[name] ?? '')
+          .trim()
+          .replace(/\s+/gu, ' ')}\n`,
+    )
     .join('');
   const signedHeaders = request.signedHeaderNames.join(';');
   const canonicalRequest = [

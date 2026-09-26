@@ -13,6 +13,11 @@ and this project adheres to
 - **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
   tree-shake an unused re-export from this package's barrel entry point instead
   of conservatively retaining the whole thing.
+- **PUB-L4:** canonical header values now collapse sequential internal
+  whitespace to a single space before signing (AWS SigV4's requirement), not
+  only trim leading/trailing whitespace. Unreachable today (no header this
+  adapter sends carries internal runs of spaces), but closes a latent
+  `SignatureDoesNotMatch` the moment one does.
 - **PUB-M10:** README documents that `.github/workflows/nightly.yml`'s new
   `spaces-minio-conformance` job now runs this package's real-server MinIO
   conformance suite every night, so it is no longer generated only when run by
