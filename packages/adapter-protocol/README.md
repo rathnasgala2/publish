@@ -57,6 +57,32 @@ process transport.
   so every adapter and the conformance kit generate identities the same way
   instead of duplicating the algorithm.
 
+## Version numbers (PUB-M2)
+
+Three unrelated version numbers can appear on the same artifact; this is the one
+place their relationship is stated:
+
+- **The npm package version** (`package.json` `version`, currently `0.2.0`) is
+  this published artifact's own semver, governed by ordinary npm compatibility
+  rules and this package's `CHANGELOG.md`.
+- **`ADAPTER_PROTOCOL_VERSION`** (`generation-fence.js`, currently `2.1.0`) is
+  the wire-protocol version DEC-097 assigns to the in-process adapter lifecycle
+  contract itself (capability vocabulary, admission table, fence semantics). It
+  changes only when the _protocol_ — not this package's implementation of it —
+  changes, so it moves independently of, and slower than, the package version.
+- **Schema/profile versions** (`adapter-capability:2.0.0`,
+  `theme-contract:2.0.0`, `public-generation-marker:2.0.0`, and the
+  `@rathnasgala2/schemas` package version, e.g. `2.11.0`) are the published
+  wire-schema versions this package validates payloads against; they are
+  `@rathnasgala2/schemas`' own version numbers, not this package's.
+
+The enforced rule: a change to `ADAPTER_PROTOCOL_VERSION` requires at least a
+minor bump of this package's own `version` (a protocol change is never a patch
+release of the implementation). `test/protocol-version.test.js` asserts this by
+construction — it does not assert a _specific_ pair of numbers, so it cannot rot
+as either one changes, only that the historical pairing this package has
+actually shipped never regresses.
+
 ## Negotiation decision vs. the kernel's capability decision
 
 This package's `negotiateCapability` produces its own record

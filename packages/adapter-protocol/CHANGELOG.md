@@ -10,6 +10,12 @@ and this project adheres to
 
 ### Added
 
+- **PUB-M2:** the README's new "Version numbers" section documents the
+  relationship between the npm package version, `ADAPTER_PROTOCOL_VERSION` and
+  the schema/profile versions this package consumes.
+  `test/protocol-version.test.js` and `protocol-version-history.json` assert the
+  enforced rule: a change to `ADAPTER_PROTOCOL_VERSION` requires at least a
+  minor bump of the package version.
 - **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
   tree-shake an unused re-export from this package's barrel entry point instead
   of conservatively retaining the whole thing.
