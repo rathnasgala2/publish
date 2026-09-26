@@ -48,13 +48,16 @@ full `verify` is one with both present.
 Packet worktrees live under `.worktrees/<name>/` (git-ignored). Two things
 resolve relative to the checkout and need a hand from a worktree:
 
-- **Sibling checkouts.** `publish-action`'s bridges resolve `template`,
-  `theme-default`, `schema`, `api` and `infra` as siblings four levels above
-  `packages/publish-action/src/`, which from a worktree is `.worktrees/`. The
-  workspace keeps git-ignored symlinks there
-  (`.worktrees/template -> ../../template` and so on, LOCAL-38) so the default
-  resolution works; setting `WORKSPACE_ROOT=/path/to/v2` overrides it instead
-  when the symlinks are absent (CI has no siblings at all).
+- **Sibling checkouts.** `publish-action`'s bridges resolve exactly two kinds of
+  sibling as directories four levels above `packages/publish-action/src/`, which
+  from a worktree is `.worktrees/`: `template` (`template-bridge.js`'s
+  `TEMPLATE_ROOT`) and `theme-<slug>` for each theme it needs
+  (`theme-bridge.js`'s LOCAL-only fallback). No other repository (`schema`,
+  `api`, `infra`) is resolved this way by any code here. The workspace keeps
+  git-ignored symlinks there (`.worktrees/template -> ../../template` and so on,
+  LOCAL-38) so the default resolution works; setting
+  `WORKSPACE_ROOT=/path/to/v2` overrides it instead when the symlinks are absent
+  (CI has no siblings at all).
 - **Schema pin.** Every manifest pins `@rathnasgala2/schemas` to an exact
   registry version (`2.11.0`), resolved from `registry.npmjs.org`. The LOCAL-1
   local-tarball convention (`file:../../local-packages/<tarball>`) is retired

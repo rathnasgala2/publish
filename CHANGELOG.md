@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Added
 
+- **PUB-L3:** the root README's "Working from a git worktree" section no longer
+  claims `publish-action` resolves `schema`, `api` and `infra` as siblings; only
+  `template` and `theme-<slug>` are ever resolved this way
+  (`workspace-siblings.js` is called with nothing else).
 - **PUB-L1:** `test/redaction-sentinel-agreement.test.mjs` proves
   `publish-kernel` and `adapter-github-pages` use the same redaction sentinel
   now that both import `@rathnasgala2/adapter-protocol`'s
