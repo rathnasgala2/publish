@@ -88,6 +88,15 @@ command in this repository; a schema change lands upstream in `schema` first.
 `npm ci` at the workspace root installs every package. `npm test` runs the Node
 native test runner (`node --test`) per package. `adapter-protocol` has no
 external service dependency; its tests are pure unit and property tests.
+`packages/publish-action`'s build/theme tests (`test/theme-bridge.test.js`,
+`test/e2e-npx-and-action.test.js`) resolve a real `rathnasgala2/template` and
+`rathnasgala2/theme-default` checkout as siblings (`WORKSPACE_ROOT`, DEC-015;
+`../../../../` from `packages/publish-action/src/` by default) and fail in a
+checkout of this repository alone: `ci.yml`/`nightly.yml`/`release.yaml` provide
+both siblings, pinned by commit SHA, as a checkout step before `npm test` runs.
+There is no local no-sibling fallback today (PUB-H5); running just `npm test`
+from a bare clone of this repository fails those two files until
+`WORKSPACE_ROOT` points at real `template`/`theme-default` checkouts.
 
 ## Review checklist
 

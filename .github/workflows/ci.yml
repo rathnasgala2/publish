@@ -119,28 +119,29 @@ jobs:
         with:
           persist-credentials: false
 
-      # PLACEHOLDER (W0-01): ref is provisional until the template
-      # repository exists on GitHub with a frozen contract revision to
-      # pin to. packages/publish-action's template-bridge.js (TEMPLATE_ROOT)
-      # needs this checkout by path, and its own dependencies installed,
-      # for the S2-T20/S2-T20b build/publish tests `npm test` runs.
+      # packages/publish-action's template-bridge.js (TEMPLATE_ROOT) needs
+      # this checkout by path, and its own dependencies installed, for the
+      # S2-T20/S2-T20b build/publish tests `npm test` runs. Pinned to the
+      # commit the themes use for 2.0.0 (S6-T01 schema re-pin to registry
+      # 2.11.0) rather than a mutable `main`, so a push to the sibling
+      # repository cannot silently change what this job tests against.
       - name: Check out the template sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/template
-          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          ref: 15142f8baebaff5e174ac07d784073d2d2163b88
           path: .siblings/template
           persist-credentials: false
 
-      # PLACEHOLDER (W0-01): ref is provisional until the theme-default
-      # repository exists on GitHub with a frozen release to pin to.
       # packages/publish-action's theme-bridge.js (LOCAL-only sibling
       # fallback step) needs this checkout by path for the same tests.
+      # Pinned to the commit reviewed in the 2026-09-25 code-discipline
+      # review (rathnasgala2/theme-default), rather than a mutable `main`.
       - name: Check out the theme-default sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/theme-default
-          ref: main # PLACEHOLDER (W0-01): pin to a frozen release tag
+          ref: 50957da66db16bb3b735eb2cd0b6a7f78e29b739
           path: .siblings/theme-default
           persist-credentials: false
 
