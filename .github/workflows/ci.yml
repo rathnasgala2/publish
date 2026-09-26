@@ -198,7 +198,7 @@ jobs:
         shell: bash
         run: |
           install -d "${RUNNER_TEMP}/gitleaks"
-          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location --retry 3 \
             'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz' \
             --output "${RUNNER_TEMP}/gitleaks/gitleaks.tar.gz"
           cd "${RUNNER_TEMP}/gitleaks"
