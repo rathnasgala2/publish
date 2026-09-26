@@ -157,35 +157,41 @@ jobs:
             # limit. Treating every non-zero exit as "not published" turns a
             # transient blip into an attempted republish, which fails with
             # EPUBLISHCONFLICT partway through this dependency-ordered loop.
-            # Capture --json and branch on error.code === 'E404'
-            # specifically; anything else is fatal.
+            # scripts/release/npm-view-status.mjs captures npm view's
+            # stdout and stderr as two separate streams (merging them with
+            # `2>&1` used to put stderr's human-readable "npm error" prose
+            # ahead of the --json document on stdout, which broke the
+            # JSON.parse this discrimination depends on) and classifies the
+            # outcome as published/unpublished/error; see
+            # test/release-npm-view.test.mjs for the regression this fixes.
             set +e
-            view_output="$(npm view "${package_name}@${package_version}" --json 2>&1)"
-            view_status=$?
+            status_json="$(node scripts/release/npm-view-status.mjs "${package_name}" "${package_version}")"
+            status_exit=$?
             set -e
 
-            if [ "${view_status}" -eq 0 ]; then
-              echo "${package_name}@${package_version} is already published, skipping."
-              continue
-            fi
-
-            view_error_code="$(node --input-type=module -e "
-              let code = '';
-              try {
-                const parsed = JSON.parse(process.argv[1]);
-                code = parsed?.error?.code ?? '';
-              } catch {
-                code = '';
-              }
-              process.stdout.write(code);
-            " -- "${view_output}")"
-
-            if [ "${view_error_code}" != "E404" ]; then
-              echo "npm view ${package_name}@${package_version} failed with a non-404 error (code: ${view_error_code:-none}); treating as fatal, not as unpublished." >&2
-              echo "${view_output}" >&2
+            if [ "${status_exit}" -ne 0 ]; then
+              echo "npm-view-status.mjs failed for ${package_name}@${package_version}:" >&2
+              echo "${status_json}" >&2
               exit 1
             fi
 
-            echo "${package_name}@${package_version} is not yet published (npm view: E404); publishing."
-            npm publish -w "${package_name}" --access public --provenance
+            status="$(node --input-type=module -e "
+              const parsed = JSON.parse(process.argv[1]);
+              process.stdout.write(parsed.status);
+            " -- "${status_json}")"
+
+            case "${status}" in
+              published)
+                echo "${package_name}@${package_version} is already published, skipping."
+                continue
+                ;;
+              unpublished)
+                echo "${package_name}@${package_version} is not yet published; publishing."
+                npm publish -w "${package_name}" --access public --provenance
+                ;;
+              *)
+                echo "scripts/release/npm-view-status.mjs reported an unexpected status '${status}' for ${package_name}@${package_version}." >&2
+                exit 1
+                ;;
+            esac
           done
