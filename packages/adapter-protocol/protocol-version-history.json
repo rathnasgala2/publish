@@ -1,6 +1,6 @@
 [
   {
-    "packageVersion": "0.2.0",
+    "packageVersion": "0.2.1",
     "protocolVersion": "2.1.0",
     "note": "LOCAL-47: requireGenerationFence tightened to the exact schema activation fence."
   }

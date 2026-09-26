@@ -1,6 +1,6 @@
 {
   "name": "@rathnasgala2/adapter-github-pages",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Managed GitHub Pages deployment adapter: deterministic gzip/ustar Pages carrier, raw Pages deployment REST catalog, bounded status polling and credential-free public verification.",
   "license": "Apache-2.0",
   "type": "module",
@@ -34,11 +34,11 @@
     "provenance": true
   },
   "dependencies": {
-    "@rathnasgala2/adapter-protocol": "^0.2.0",
+    "@rathnasgala2/adapter-protocol": "^0.2.1",
     "@rathnasgala2/schemas": "2.11.0"
   },
   "devDependencies": {
-    "@rathnasgala2/adapter-conformance-kit": "0.1.0"
+    "@rathnasgala2/adapter-conformance-kit": "0.1.1"
   },
   "repository": {
     "type": "git",

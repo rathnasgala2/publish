@@ -1,6 +1,6 @@
 {
   "name": "@rathnasgala2/publish-kernel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Provider-neutral, non-disableable publish safety kernel: the ten kernel duties over explicit inputs (DEC-016).",
   "license": "Apache-2.0",
   "type": "module",
@@ -31,7 +31,7 @@
     "declarations:check": "node ../../scripts/check-declarations.mjs publish-kernel"
   },
   "dependencies": {
-    "@rathnasgala2/adapter-protocol": "^0.2.0",
+    "@rathnasgala2/adapter-protocol": "^0.2.1",
     "@rathnasgala2/schemas": "2.11.0"
   },
   "publishConfig": {

@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-26
+
 ### Changed
 
 - **PUB-M6:** `@rathnasgala2/adapter-protocol` moved from `dependencies` to

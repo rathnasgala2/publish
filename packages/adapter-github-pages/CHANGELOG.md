@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-26
+
 ### Added
 
 - **PUB-L1:** `REDACTION_PLACEHOLDER` now comes from

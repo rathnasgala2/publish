@@ -1,6 +1,6 @@
 {
   "name": "@rathnasgala2/adapter-conformance-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reusable node:test conformance suite every @rathnasgala2 deployment adapter must pass: lifecycle shape, capability truthfulness, staging privacy, activation atomicity, observe/verify, cleanup, rollback, idempotent re-run, crash injection and tamper detection.",
   "license": "Apache-2.0",
   "type": "module",
@@ -30,10 +30,10 @@
     "declarations:check": "node ../../scripts/check-declarations.mjs adapter-conformance-kit"
   },
   "peerDependencies": {
-    "@rathnasgala2/adapter-protocol": "^0.2.0"
+    "@rathnasgala2/adapter-protocol": "^0.2.1"
   },
   "devDependencies": {
-    "@rathnasgala2/adapter-protocol": "^0.2.0"
+    "@rathnasgala2/adapter-protocol": "^0.2.1"
   },
   "publishConfig": {
     "access": "public",

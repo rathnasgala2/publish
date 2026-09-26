@@ -214,8 +214,8 @@
       "type": "library",
       "name": "adapter-conformance-kit",
       "group": "@rathnasgala2",
-      "version": "0.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.0",
+      "version": "0.1.1",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
       "licenses": [
         {
           "license": {
@@ -224,7 +224,7 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/adapter-conformance-kit@0.1.0",
+      "purl": "pkg:npm/%40rathnasgala2/adapter-conformance-kit@0.1.1",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -236,8 +236,8 @@
       "type": "library",
       "name": "adapter-do-spaces",
       "group": "@rathnasgala2",
-      "version": "0.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-do-spaces@0.1.0",
+      "version": "0.1.1",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-do-spaces@0.1.1",
       "licenses": [
         {
           "license": {
@@ -246,7 +246,7 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/adapter-do-spaces@0.1.0",
+      "purl": "pkg:npm/%40rathnasgala2/adapter-do-spaces@0.1.1",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -258,8 +258,8 @@
       "type": "library",
       "name": "adapter-github-pages",
       "group": "@rathnasgala2",
-      "version": "0.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.0",
+      "version": "0.1.1",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.1",
       "licenses": [
         {
           "license": {
@@ -268,7 +268,7 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/adapter-github-pages@0.1.0",
+      "purl": "pkg:npm/%40rathnasgala2/adapter-github-pages@0.1.1",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -280,8 +280,8 @@
       "type": "library",
       "name": "adapter-local-directory",
       "group": "@rathnasgala2",
-      "version": "0.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.0",
+      "version": "0.1.1",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.1",
       "licenses": [
         {
           "license": {
@@ -290,7 +290,7 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/adapter-local-directory@0.1.0",
+      "purl": "pkg:npm/%40rathnasgala2/adapter-local-directory@0.1.1",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -302,8 +302,8 @@
       "type": "library",
       "name": "adapter-protocol",
       "group": "@rathnasgala2",
-      "version": "0.2.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.0",
+      "version": "0.2.1",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
       "licenses": [
         {
           "license": {
@@ -312,7 +312,7 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/adapter-protocol@0.2.0",
+      "purl": "pkg:npm/%40rathnasgala2/adapter-protocol@0.2.1",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -346,8 +346,8 @@
       "type": "library",
       "name": "publish-kernel",
       "group": "@rathnasgala2",
-      "version": "0.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.0",
+      "version": "0.1.1",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
       "licenses": [
         {
           "license": {
@@ -356,7 +356,7 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/publish-kernel@0.1.0",
+      "purl": "pkg:npm/%40rathnasgala2/publish-kernel@0.1.1",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -12681,13 +12681,13 @@
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@cyclonedx/cyclonedx-npm@6.0.1",
         "@rathnasgala2/publish-workspace@0.0.0|@eslint/js@10.0.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-do-spaces@0.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-do-spaces@0.1.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@types/node@24.13.4",
         "@rathnasgala2/publish-workspace@0.0.0|ajv@8.20.0",
         "@rathnasgala2/publish-workspace@0.0.0|dependency-cruiser@18.2.0",
@@ -12723,38 +12723,38 @@
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1"
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-do-spaces@0.1.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-do-spaces@0.1.1",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0"
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.1",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0"
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.1",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0"
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0"
       ]
@@ -12762,17 +12762,17 @@
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0",
         "@rathnasgala2/publish-workspace@0.0.0|yaml@2.9.0"
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0"
       ]
     },

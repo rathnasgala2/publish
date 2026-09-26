@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-26
+
 ### Changed
 
 - **PUB-L2:** `checkPathContainment`'s doc comment no longer claims a

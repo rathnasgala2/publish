@@ -35,9 +35,9 @@
     "declarations:check": "node ../../scripts/check-declarations.mjs publish-action"
   },
   "dependencies": {
-    "@rathnasgala2/adapter-local-directory": "^0.1.0",
-    "@rathnasgala2/adapter-protocol": "^0.2.0",
-    "@rathnasgala2/publish-kernel": "^0.1.0",
+    "@rathnasgala2/adapter-local-directory": "^0.1.1",
+    "@rathnasgala2/adapter-protocol": "^0.2.1",
+    "@rathnasgala2/publish-kernel": "^0.1.1",
     "@rathnasgala2/schemas": "2.11.0",
     "yaml": "2.9.0"
   },

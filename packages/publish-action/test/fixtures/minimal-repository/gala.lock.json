@@ -61,7 +61,7 @@
     },
     {
       "package": "@rathnasgala2/adapter-local-directory",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "integrity": "sha256:0000000000000000000000000000000000000000000000000000000000000007",
       "registry": "https://local-development.invalid/rathnasgala2/",
       "contractVersion": "2.0.0",

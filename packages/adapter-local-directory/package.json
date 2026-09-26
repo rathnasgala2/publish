@@ -1,6 +1,6 @@
 {
   "name": "@rathnasgala2/adapter-local-directory",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reference POSIX local-directory deployment adapter and gala-local-directory-filesystem-v2 conformance oracle.",
   "license": "Apache-2.0",
   "type": "module",
@@ -30,12 +30,12 @@
     "declarations:check": "node ../../scripts/check-declarations.mjs adapter-local-directory"
   },
   "dependencies": {
-    "@rathnasgala2/adapter-protocol": "^0.2.0",
+    "@rathnasgala2/adapter-protocol": "^0.2.1",
     "@rathnasgala2/schemas": "2.11.0"
   },
   "devDependencies": {
-    "@rathnasgala2/adapter-conformance-kit": "0.1.0",
-    "@rathnasgala2/publish-kernel": "0.1.0"
+    "@rathnasgala2/adapter-conformance-kit": "0.1.1",
+    "@rathnasgala2/publish-kernel": "0.1.1"
   },
   "publishConfig": {
     "access": "public",
