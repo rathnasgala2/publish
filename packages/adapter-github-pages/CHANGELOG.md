@@ -18,6 +18,14 @@ and this project adheres to
 - **PUB-M11:** the manifest declares `"sideEffects": false`, so a bundler can
   tree-shake an unused re-export from this package's barrel entry point instead
   of conservatively retaining the whole thing.
+- **PUB-L5:** `verifyPagesOidcToken` now checks the token's `exp`, `iat` and
+  (when present) `nbf` claims, each within a new `PAGES_OIDC_CLOCK_SKEW_SECONDS`
+  (300s) tolerance, raising `PAGES_OIDC_TOKEN_EXPIRED` or
+  `PAGES_OIDC_TOKEN_NOT_YET_VALID`. This is a belt-and-braces check: GitHub
+  Pages remains the authoritative relying party for token staleness (this
+  module's own trust-boundary documentation is unchanged), but failing here
+  first costs nothing and produces a far clearer diagnostic than a Pages-side
+  rejection.
 - **PUB-M5:** `computeArtifactDigest` (marker-coordinate exclusion aside) now
   delegates to `@rathnasgala2/adapter-protocol`'s implementation of the same
   name instead of restating the `GALA-ARTIFACT-V2 ` formula locally.

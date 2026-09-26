@@ -52,8 +52,13 @@ export const FAKE_EXPECTATION = Object.freeze({
  *
  * @param {{
  *   subjectForm?: 'name' | 'identifier',
- *   identity?: Readonly<Record<string, string>>
- * }} [options] which subject form to emit and which identity to bind to
+ *   identity?: Readonly<Record<string, string>>,
+ *   exp?: number,
+ *   iat?: number,
+ *   nbf?: number | null
+ * }} [options] which subject form to emit, which identity to bind to, and
+ *   (PUB-L5) temporal claim overrides for negative fixtures -- `nbf: null`
+ *   omits the claim entirely, since RFC 7519 makes it optional
  * @returns {Record<string, unknown>} the payload claims
  */
 export function buildClaims(options = {}) {
@@ -62,6 +67,10 @@ export function buildClaims(options = {}) {
     options.subjectForm === 'identifier'
       ? `repo:${identity.owner}@${identity.repositoryOwnerId}/${identity.repository}@${identity.repositoryId}:environment:github-pages`
       : `repo:${identity.owner}/${identity.repository}:environment:github-pages`;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const issuedAt = options.iat ?? nowSeconds - 30;
+  const notBefore =
+    options.nbf === null ? undefined : (options.nbf ?? issuedAt);
   return {
     iss: 'https://token.actions.githubusercontent.com',
     aud: `https://github.com/${identity.owner}`,
@@ -77,6 +86,9 @@ export function buildClaims(options = {}) {
     run_attempt: identity.runAttempt,
     job_workflow_ref: identity.jobWorkflowRef,
     job_workflow_sha: identity.jobWorkflowSha,
+    iat: issuedAt,
+    exp: options.exp ?? issuedAt + 900,
+    ...(notBefore === undefined ? {} : { nbf: notBefore }),
   };
 }
 

@@ -88,6 +88,79 @@ test('a token that is not three canonical unpadded-base64url segments is refused
   );
 });
 
+test('an expired token is refused, even beyond the skew tolerance (PUB-L5)', () => {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  assert.throws(
+    () =>
+      verifyPagesOidcToken(
+        mintFakeToken(buildClaims({ exp: nowSeconds - 1000 })),
+        FAKE_EXPECTATION,
+      ),
+    /PAGES_OIDC_TOKEN_EXPIRED/u,
+  );
+});
+
+test('a token expired only within the skew tolerance is still accepted (PUB-L5)', () => {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  assert.doesNotThrow(() =>
+    verifyPagesOidcToken(
+      mintFakeToken(buildClaims({ exp: nowSeconds - 60 })),
+      FAKE_EXPECTATION,
+    ),
+  );
+});
+
+test('a token issued in the future beyond the skew tolerance is refused (PUB-L5)', () => {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  assert.throws(
+    () =>
+      verifyPagesOidcToken(
+        mintFakeToken(
+          buildClaims({ iat: nowSeconds + 1000, exp: nowSeconds + 2000 }),
+        ),
+        FAKE_EXPECTATION,
+      ),
+    /PAGES_OIDC_TOKEN_NOT_YET_VALID/u,
+  );
+});
+
+test('a not-before claim in the future beyond the skew tolerance is refused (PUB-L5)', () => {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  assert.throws(
+    () =>
+      verifyPagesOidcToken(
+        mintFakeToken(buildClaims({ nbf: nowSeconds + 1000 })),
+        FAKE_EXPECTATION,
+      ),
+    /PAGES_OIDC_TOKEN_NOT_YET_VALID/u,
+  );
+});
+
+test('a token with no nbf claim at all is accepted (nbf is optional) (PUB-L5)', () => {
+  assert.doesNotThrow(() =>
+    verifyPagesOidcToken(
+      mintFakeToken(buildClaims({ nbf: null })),
+      FAKE_EXPECTATION,
+    ),
+  );
+});
+
+test('a missing exp or iat claim is refused as malformed (PUB-L5)', () => {
+  const withoutExp = { ...buildClaims({}) };
+  delete withoutExp.exp;
+  assert.throws(
+    () => verifyPagesOidcToken(mintFakeToken(withoutExp), FAKE_EXPECTATION),
+    /PAGES_OIDC_CLAIM_MISSING/u,
+  );
+
+  const withoutIat = { ...buildClaims({}) };
+  delete withoutIat.iat;
+  assert.throws(
+    () => verifyPagesOidcToken(mintFakeToken(withoutIat), FAKE_EXPECTATION),
+    /PAGES_OIDC_CLAIM_MISSING/u,
+  );
+});
+
 test('a duplicate member name in the header or payload is refused', () => {
   const claims = buildClaims({});
   const raw = JSON.stringify(claims);
@@ -396,5 +469,88 @@ test('the GitHub token can never reach the body, and the OIDC token reaches noth
         'a header',
       ),
     /PAGES_SECRET_LEAK_DETECTED/u,
+  );
+});
+
+test('design check: the clock is injectable, and exp exactly at the 300s skew boundary is accepted (PUB-L5)', () => {
+  const fixedNowSeconds = 1_800_000_000;
+  const now = () => fixedNowSeconds * 1000;
+  assert.doesNotThrow(() =>
+    verifyPagesOidcToken(
+      mintFakeToken(
+        buildClaims({ iat: fixedNowSeconds - 30, exp: fixedNowSeconds - 300 }),
+      ),
+      FAKE_EXPECTATION,
+      now,
+    ),
+  );
+});
+
+test('design check: exp one second past the 300s skew boundary is refused (PUB-L5)', () => {
+  const fixedNowSeconds = 1_800_000_000;
+  const now = () => fixedNowSeconds * 1000;
+  assert.throws(
+    () =>
+      verifyPagesOidcToken(
+        mintFakeToken(
+          buildClaims({
+            iat: fixedNowSeconds - 30,
+            exp: fixedNowSeconds - 301,
+          }),
+        ),
+        FAKE_EXPECTATION,
+        now,
+      ),
+    /PAGES_OIDC_TOKEN_EXPIRED/u,
+  );
+});
+
+test('design check: nbf exactly at the 300s skew boundary in the future is accepted (PUB-L5)', () => {
+  const fixedNowSeconds = 1_800_000_000;
+  const now = () => fixedNowSeconds * 1000;
+  assert.doesNotThrow(() =>
+    verifyPagesOidcToken(
+      mintFakeToken(
+        buildClaims({
+          iat: fixedNowSeconds - 30,
+          exp: fixedNowSeconds + 900,
+          nbf: fixedNowSeconds + 300,
+        }),
+      ),
+      FAKE_EXPECTATION,
+      now,
+    ),
+  );
+});
+
+test('design check: nbf one second past the 300s skew boundary in the future is refused (PUB-L5)', () => {
+  const fixedNowSeconds = 1_800_000_000;
+  const now = () => fixedNowSeconds * 1000;
+  assert.throws(
+    () =>
+      verifyPagesOidcToken(
+        mintFakeToken(
+          buildClaims({
+            iat: fixedNowSeconds - 30,
+            exp: fixedNowSeconds + 900,
+            nbf: fixedNowSeconds + 301,
+          }),
+        ),
+        FAKE_EXPECTATION,
+        now,
+      ),
+    /PAGES_OIDC_TOKEN_NOT_YET_VALID/u,
+  );
+});
+
+test('design check: default clock source is Date.now when none is injected', () => {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  // No explicit `now` argument: must fall back to the real wall clock, so a
+  // freshly minted token (exp far in the future, iat/nbf now) is accepted.
+  assert.doesNotThrow(() =>
+    verifyPagesOidcToken(
+      mintFakeToken(buildClaims({ exp: nowSeconds + 3600, iat: nowSeconds })),
+      FAKE_EXPECTATION,
+    ),
   );
 });

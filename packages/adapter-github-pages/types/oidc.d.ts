@@ -47,6 +47,10 @@ export function buildSubjectForms(identity: {
  *
  * @param {unknown} token the caller-supplied compact JWT
  * @param {PagesOidcExpectation} expected the expected bindings
+ * @param {() => number} [now] the clock source used for the `exp`/`iat`/`nbf`
+ *   checks, in epoch milliseconds. Defaults to `Date.now`; a test supplies a
+ *   fixed function to check the {@link PAGES_OIDC_CLOCK_SKEW_SECONDS}
+ *   boundary deterministically instead of racing the real clock.
  * @returns {Readonly<{
  *   profile: string,
  *   subjectForm: 'name' | 'identifier',
@@ -54,7 +58,7 @@ export function buildSubjectForms(identity: {
  *   tokenByteCount: number
  * }>} non-secret evidence about the accepted token
  */
-export function verifyPagesOidcToken(token: unknown, expected: PagesOidcExpectation): Readonly<{
+export function verifyPagesOidcToken(token: unknown, expected: PagesOidcExpectation, now?: () => number): Readonly<{
     profile: string;
     subjectForm: "name" | "identifier";
     issuerSignatureVerified: false;
@@ -77,6 +81,16 @@ export const PAGES_OIDC_ENVIRONMENT: "github-pages";
 export const PAGES_OIDC_MINIMUM_BYTES: 1;
 /** Inclusive upper byte bound on the compact JWT. */
 export const PAGES_OIDC_MAXIMUM_BYTES: 8000;
+/**
+ * PUB-L5: clock-skew tolerance, in seconds, for the belt-and-braces
+ * `exp`/`iat`/`nbf` checks below. GitHub Pages is the relying party that
+ * authoritatively rejects a stale or not-yet-valid token (this module's own
+ * header explains why that is the real trust boundary); this check exists
+ * only to fail closed earlier, with a clearer diagnostic, when it costs
+ * nothing to do so. 300 seconds is generous enough to absorb ordinary
+ * runner/host clock drift without weakening the check.
+ */
+export const PAGES_OIDC_CLOCK_SKEW_SECONDS: 300;
 export type PagesOidcExpectation = Readonly<{
     owner: string;
     repository: string;
