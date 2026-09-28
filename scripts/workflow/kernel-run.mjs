@@ -438,7 +438,14 @@ export async function runKernelDeployment(run) {
   });
   journal.appendObservation({
     stageAttemptId: stagingAttemptId,
-    observationClass: 'request-accepted',
+    // The contract admits `request-accepted` only paired with
+    // `outcome-unknown-reconciling` (both schemas' staging matrix; the API's
+    // `deployment_observation_matrix_ck` restates the same rule). Staging
+    // here already ran to completion and the provider's own state confirms
+    // it, so the journal must say so as a definite `provider-state`
+    // `succeeded` observation, never round a known success down to
+    // "unknown".
+    observationClass: 'provider-state',
     outcome: 'succeeded',
     destinationChanged: 'no',
     evidence: { idempotent: staged.idempotent === true },
@@ -495,6 +502,11 @@ export async function runKernelDeployment(run) {
       failureCode: 'OUTCOME_UNKNOWN_RECONCILING',
       input: { generationId },
       evidence: { failureName: nameOf(failure) },
+      // The API's `operation_attempt_lifecycle_ck` requires a result digest
+      // on every terminal (`succeeded`/`failed`/`unknown`) attempt, `unknown`
+      // included: the honest result here is that nothing was confirmed, not
+      // an absent field.
+      result: { established: false },
       startedAt: activateStartedAt,
     });
     journal.appendObservation({
@@ -590,6 +602,10 @@ export async function runKernelDeployment(run) {
       retryable: false,
       input: { stageToken: typeof staged.stageToken === 'string' },
       evidence: { removed: cleaned.removed === true },
+      // The API's `operation_attempt_lifecycle_ck` requires a result digest
+      // on every `succeeded` attempt; cleanup's own result is whether the
+      // staged coordinate was actually removed.
+      result: { removed: cleaned.removed === true },
       startedAt: cleanupStartedAt,
     });
   }
