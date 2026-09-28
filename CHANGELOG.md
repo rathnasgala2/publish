@@ -12,6 +12,13 @@ and this project adheres to
 
 ### Changed
 
+- Re-pin the documented caller example (`docs/callers/gala-publish-v2.yml`'s
+  `uses:` line and `pins/ledger.json`'s `selfReferences` entry) from
+  `88865c099e3638c20ca6665d4a9626feefc5277f` to
+  `d0a1975a3702bb566f4f77237dee927b52b7c444`, `rathnasgala2/publish`'s `main`
+  HEAD as of 2026-09-28, carrying the fix to the workflow's publish report to
+  the API, which the API previously refused on every publish.
+
 - **PUB-H5:** the `rathnasgala2/template` and `rathnasgala2/theme-default`
   sibling pins (`.github/workflows/{ci,nightly,release}.yaml`'s `ref:` values)
   are bumped from the 2.0.0-era commits to the published 2.1.0 releases
