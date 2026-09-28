@@ -246,6 +246,7 @@ function assertJournalIsSubmittable(outcome, intent) {
  * @returns {Record<string, any>} the full document
  */
 function toFullObservation(observation, intent, standalone) {
+  /** @type {Record<string, any>} */
   const doc = {
     ...(standalone
       ? {
@@ -293,6 +294,7 @@ function toFullObservation(observation, intent, standalone) {
  * @returns {Record<string, any>} the full attempt document
  */
 function toFullAttempt(attempt, intent) {
+  /** @type {Record<string, any>} */
   const doc = {
     attemptId: intent.attemptId,
     stageAttemptId: attempt.stageAttemptId,
@@ -546,6 +548,103 @@ test('the kernel run drives local-directory, the oracle with no provider binding
       ['staging', 'activation', 'cleanup'],
     );
     assertJournalIsSubmittable(outcome, intent);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('a refused activation (the adapter itself losing the fence race) is journaled as unknown, never a clean failure', async () => {
+  // A thin wrapper over the real local-directory lifecycle: staging,
+  // activation and observation all run for real — the staged bytes really
+  // are promoted and the served pointer really is (or is not) moved — but
+  // the *reported* decision is forced to `reconcile`, the shape every
+  // adapter returns when it discovers, at activation time, that the
+  // destination no longer matches the fence it staged against (DEC-097;
+  // `packages/adapter-local-directory`'s own LOCAL-47 test proves the real
+  // adapter returns exactly this shape). This is deliberately not the
+  // pre-staging fence refusal this file already covers elsewhere (that one
+  // never reaches `activate` at all, let alone a real mutation): this
+  // exercises what the kernel journals once the adapter's own activation
+  // call comes back refused — including the case this test forces, where
+  // the underlying mutation genuinely happened (`observed.verified` is
+  // `true`) but the decision the kernel was handed says it did not, which is
+  // exactly the ambiguity `do-spaces`'s own `reconcile` can carry after
+  // losing a pointer race with served-root writes already made.
+  const root = await mkdtemp(path.join(tmpdir(), 'gala-kernel-reconcile-'));
+  try {
+    const envelope = envelopeFor('@rathnasgala2/adapter-local-directory');
+    const intent = intentFor({
+      adapterId: 'local-directory',
+      artifactDigest: localDirectory.computeArtifactDigest(envelope.files),
+      baseUrl: 'https://example.test/',
+      seed: 'reconcile',
+      envelope,
+    });
+    const refusingActivate = {
+      ...localDirectory,
+      /**
+       * @param {Record<string, unknown>} input the real activate input
+       * @returns {Promise<Record<string, unknown>>} the real activation,
+       *   with its decision forced to the refused shape
+       */
+      activate: async (input) => {
+        const real = await localDirectory.activate(/** @type {any} */ (input));
+        return { ...real, decision: 'reconcile' };
+      },
+    };
+    const outcome = await runKernelDeployment({
+      adapterModule: refusingActivate,
+      destination: { root },
+      destinationIdentity: intent.destination,
+      intent,
+      files: envelope.files,
+    });
+
+    assert.equal(outcome.decision, 'reconcile');
+    // The underlying mutation really happened (the real `activate` ran and
+    // the served bytes really do match), so `observed.verified` is `true` —
+    // exactly the ambiguity this test exists to prove the journal never
+    // rounds off: what actually got served and what the kernel was told
+    // about the activation decision can disagree.
+    assert.equal(outcome.verified, true);
+    const [stagingAttempt, activationAttempt] = outcome.journal.attempts;
+    assert.equal(stagingAttempt?.outcome, 'succeeded');
+    const activationObservation = outcome.journal.observations.find(
+      (observation) =>
+        observation.stageAttemptId === activationAttempt?.stageAttemptId,
+    );
+    // The two facts this test exists to pin: a refused activation is
+    // `unknown`, never `failed` (the contract only pairs `stage: activation`
+    // + `outcome: failed` with `destinationChanged: 'no'`, which the kernel
+    // cannot vouch for here), and its observation is
+    // `outcome-unknown-reconciling`, never a clean `rejected` (the contract
+    // only pairs `provider-state`/`rejected` with `destinationChanged: 'no'`
+    // too).
+    assert.equal(activationAttempt?.outcome, 'unknown');
+    assert.equal(activationAttempt?.destinationChanged, 'unknown');
+    assert.equal(activationAttempt?.failureCode, 'OUTCOME_UNKNOWN_RECONCILING');
+    assert.ok(
+      activationAttempt?.resultDigest,
+      'a terminal attempt (unknown included) always carries a result digest',
+    );
+    assert.equal(activationObservation?.outcome, 'outcome-unknown-reconciling');
+    assert.equal(activationObservation?.destinationChanged, 'unknown');
+    // The real validator, not a hand check: every observation this refused
+    // run produced must be one the contract accepts on its own — the
+    // per-observation half of `assertJournalSatisfiesContract` (the
+    // receipt-embedding half assumes a terminal `succeeded` run, which this
+    // one, by construction, is not).
+    for (const observation of outcome.journal.observations) {
+      const verdict = validateGalaDocument(
+        'urn:gala:schema:deployment-observation:2.0.0',
+        toFullObservation(observation, intent, true),
+      );
+      assert.ok(
+        verdict.valid,
+        `observation ${observation.kernelSequence} (${observation.observationClass}/${observation.outcome}) ` +
+          `is not a valid deployment-observation:2.0.0 document — ${JSON.stringify(verdict.diagnostics)}`,
+      );
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }

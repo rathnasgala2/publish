@@ -522,7 +522,15 @@ export async function runKernelDeployment(run) {
   const activated = activation.decision === 'activate';
   const activationAttemptId = journal.appendAttempt({
     stage: 'activation',
-    outcome: activated ? 'succeeded' : 'failed',
+    // The contract only pairs `stage: activation` + `outcome: failed` with
+    // a `REJECTED`-family failureCode and `destinationChanged: 'no'` — never
+    // with `OUTCOME_UNKNOWN_RECONCILING`, which it pairs only with
+    // `outcome: unknown`. A refused activation (the adapter's own
+    // `decision: 'reconcile'`) is exactly that: the kernel does not know,
+    // adapter-generically, whether the destination was left untouched or
+    // partially mutated before the refusal, so it is `unknown`, not a clean
+    // `failed`.
+    outcome: activated ? 'succeeded' : 'unknown',
     destinationChanged: activated ? 'yes' : 'unknown',
     retryable: false,
     ...(activated ? {} : { failureCode: 'OUTCOME_UNKNOWN_RECONCILING' }),
@@ -554,10 +562,22 @@ export async function runKernelDeployment(run) {
       artifactDigest: observed.observedArtifactDigest,
     },
   });
+  // The contract's `provider-state`/`rejected` pair only admits
+  // `destinationChanged: 'no'` — never `'yes'` or `'unknown'` — so a
+  // definite `rejected` can only be reported when the kernel is certain
+  // nothing changed, which it never is here: when `activated` is `true` the
+  // destination is confirmed changed (`'yes'`) but may not be serving what
+  // was expected, and when it is `false` a refused activation may still have
+  // left an adapter-specific partial mutation (DEC-097's adapters are not
+  // required to be transactional across the whole destination). Both are
+  // `provider-state`/`outcome-unknown-reconciling`, the pair the contract
+  // provides for "changed, but not confirmed to be what was intended" —
+  // never rounded down to a clean `rejected` the kernel cannot vouch for.
+  const activationConfirmed = activated && observed.verified === true;
   journal.appendObservation({
     stageAttemptId: activationAttemptId,
     observationClass: 'provider-state',
-    outcome: observed.verified === true ? 'succeeded' : 'rejected',
+    outcome: activationConfirmed ? 'succeeded' : 'outcome-unknown-reconciling',
     destinationChanged: activated ? 'yes' : 'unknown',
     evidence: {
       verified: observed.verified === true,
