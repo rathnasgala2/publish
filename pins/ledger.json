@@ -78,9 +78,9 @@
   "selfReferences": [
     {
       "reference": "rathnasgala2/publish/.github/workflows/publish-v2.yml",
-      "sha": "d0a1975a3702bb566f4f77237dee927b52b7c444",
+      "sha": "55232fa33bc84cfdfa397bd78f4820a3085bf599",
       "status": "author-replaced-example",
-      "reason": "The fixed caller in docs/callers/ pins the exact rathnasgala2/publish commit the author is told to use. W0-01 has published this repository (verified 2026-09-25), so the documented example now carries a real commit SHA -- rathnasgala2/publish's main HEAD at reconciliation time -- instead of the all-zero placeholder it could only carry before this repository existed. The author still replaces it with whatever commit Gala tells them to pin; S3 admits a caller only when this pin is a real full commit SHA. Re-pinned to main HEAD as of 2026-09-28 to carry the fix to the workflow's API publish report (previously refused by the API on every publish)."
+      "reason": "The fixed caller in docs/callers/ pins the exact rathnasgala2/publish commit the author is told to use. W0-01 has published this repository (verified 2026-09-25), so the documented example carries a real commit SHA instead of an all-zero placeholder. Re-pinned to main HEAD as of 2026-09-29 so generated repositories call the current reusable workflow and provide its required gala_api_origin input."
     }
   ]
 }

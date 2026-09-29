@@ -282,6 +282,7 @@ test('the fixed caller declares only create and workflow_dispatch and the exact 
     CALLER.jobs.publish.uses,
     /^rathnasgala2\/publish\/\.github\/workflows\/publish-v2\.yml@[0-9a-f]{40}$/u,
   );
+  assert.equal(CALLER.jobs.publish.with.gala_api_origin, 'https://api.galascribe.com');
 });
 
 test("the fixed caller's guard is byte-equal to the DEC-097 coarse guard", () => {
