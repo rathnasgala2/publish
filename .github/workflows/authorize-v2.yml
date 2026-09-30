@@ -19,6 +19,9 @@ on:
       gala_api_origin:
         required: true
         type: string
+      publish_toolchain_ref:
+        required: true
+        type: string
       authorization_input_id:
         required: true
         type: string
@@ -71,7 +74,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/publish
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.publish_toolchain_ref }}
           path: publish-toolchain
           persist-credentials: false
 

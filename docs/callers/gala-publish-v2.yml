@@ -11,7 +11,7 @@
 # Replace only the two marked values: the full commit SHA of the
 # `rathnasgala2/publish` revision you are pinning, and the signed
 # service-origin catalog URL Gala gives you. Change nothing else.
-name: Gala publish
+name: Gala preview and publish
 
 on:
   create:
@@ -51,6 +51,7 @@ jobs:
       service_origin_catalog_url: https://api.galascribe.com/v2/service-origins
       # REPLACE with the Gala API origin used for publish authorization and reporting.
       gala_api_origin: https://api.galascribe.com
+      publish_toolchain_ref: 55232fa33bc84cfdfa397bd78f4820a3085bf599
       artifact_retention_days: 7
       require_github_attestation: false
     # The sole caller secret map. `secrets: inherit` is never used, and no

@@ -32,6 +32,14 @@ on:
           control plane and unusable by a self-hosted one.
         required: true
         type: string
+      publish_toolchain_ref:
+        description: >-
+          The exact rathnasgala2/publish commit used by the caller's
+          reusable-workflow pin. Called workflows inherit the caller's context,
+          so its workflow commit is deliberately not used as the toolchain
+          revision.
+        required: true
+        type: string
       artifact_retention_days:
         description: Frozen-envelope retention in days (1..7).
         required: false
@@ -128,7 +136,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/publish
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.publish_toolchain_ref }}
           path: publish-toolchain
           persist-credentials: false
 
@@ -202,7 +210,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/publish
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.publish_toolchain_ref }}
           path: publish-toolchain
           persist-credentials: false
 
@@ -305,7 +313,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/publish
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.publish_toolchain_ref }}
           path: publish-toolchain
           persist-credentials: false
 
@@ -467,7 +475,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/publish
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.publish_toolchain_ref }}
           path: publish-toolchain
           persist-credentials: false
 
@@ -531,6 +539,7 @@ jobs:
     with:
       service_origin_catalog_url: ${{ inputs.service_origin_catalog_url }}
       gala_api_origin: ${{ inputs.gala_api_origin }}
+      publish_toolchain_ref: ${{ inputs.publish_toolchain_ref }}
       authorization_input_id: ${{ needs.freeze.outputs.authorization_input_id }}
       authorization_input_digest:
         ${{ needs.freeze.outputs.authorization_input_digest }}
@@ -561,7 +570,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/publish
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.publish_toolchain_ref }}
           path: publish-toolchain
           persist-credentials: false
 
@@ -649,7 +658,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/publish
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.publish_toolchain_ref }}
           path: publish-toolchain
           persist-credentials: false
 
@@ -740,7 +749,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/publish
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.publish_toolchain_ref }}
           path: publish-toolchain
           persist-credentials: false
 
@@ -788,7 +797,7 @@ jobs:
           # The exact reusable-workflow identity the acquired Pages OIDC
           # token's `job_workflow_ref`/`job_workflow_sha` claims must bind
           # to. It is not a default runner variable, so it is mapped here.
-          GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          GITHUB_WORKFLOW_SHA: ${{ inputs.publish_toolchain_ref }}
         run: |
           set -euo pipefail
           node publish-toolchain/scripts/workflow/deploy.mjs \
@@ -844,6 +853,7 @@ jobs:
     with:
       service_origin_catalog_url: ${{ inputs.service_origin_catalog_url }}
       gala_api_origin: ${{ inputs.gala_api_origin }}
+      publish_toolchain_ref: ${{ inputs.publish_toolchain_ref }}
       report_challenge_id: ${{ needs.authorize.outputs.report_challenge_id }}
       report_challenge_digest:
         ${{ needs.authorize.outputs.report_challenge_digest }}

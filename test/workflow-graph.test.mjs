@@ -238,7 +238,7 @@ test('the build job performs no checkout of author source and no repository cont
   assert.equal(PUBLISH.jobs.build.permissions.contents, undefined);
 });
 
-test('the only permitted caller inputs are the two Gala locations and the two author tunables', () => {
+test('the caller pins the toolchain ref explicitly because reusable workflows inherit the caller github context', () => {
   // The Gala API origin is an input, not a constant: a hard-coded origin
   // would make the workflow untestable against a staging control plane and
   // unusable by a self-hosted one. It is still a *closed* set of inputs --
@@ -246,11 +246,20 @@ test('the only permitted caller inputs are the two Gala locations and the two au
   assert.deepEqual(Object.keys(PUBLISH.on.workflow_call.inputs), [
     'service_origin_catalog_url',
     'gala_api_origin',
+    'publish_toolchain_ref',
     'artifact_retention_days',
     'require_github_attestation',
   ]);
   assert.equal(PUBLISH.on.workflow_call.inputs.gala_api_origin.required, true);
   assert.equal(PUBLISH.on.workflow_call.inputs.gala_api_origin.type, 'string');
+  assert.equal(
+    PUBLISH.on.workflow_call.inputs.publish_toolchain_ref.required,
+    true,
+  );
+  assert.equal(
+    PUBLISH.on.workflow_call.inputs.publish_toolchain_ref.type,
+    'string',
+  );
   assert.equal(
     PUBLISH.on.workflow_call.inputs.artifact_retention_days.default,
     7,
@@ -282,7 +291,26 @@ test('the fixed caller declares only create and workflow_dispatch and the exact 
     CALLER.jobs.publish.uses,
     /^rathnasgala2\/publish\/\.github\/workflows\/publish-v2\.yml@[0-9a-f]{40}$/u,
   );
-  assert.equal(CALLER.jobs.publish.with.gala_api_origin, 'https://api.galascribe.com');
+  const toolchainRef = CALLER.jobs.publish.uses.split('@').at(-1);
+  assert.equal(CALLER.jobs.publish.with.publish_toolchain_ref, toolchainRef);
+  assert.equal(
+    CALLER.jobs.publish.with.gala_api_origin,
+    'https://api.galascribe.com',
+  );
+});
+
+test('every publish-toolchain checkout and authorization fact uses the explicit pin, never the caller workflow sha', () => {
+  const workflows = [PUBLISH, AUTHORIZE, REPORT];
+  for (const workflow of workflows) {
+    for (const job of Object.values(workflow.jobs)) {
+      for (const step of job.steps ?? []) {
+        if (step.with?.repository === 'rathnasgala2/publish') {
+          assert.equal(step.with.ref, '${{ inputs.publish_toolchain_ref }}');
+        }
+      }
+    }
+  }
+  assert.doesNotMatch(JSON.stringify(workflows), /github\.workflow_sha/u);
 });
 
 test("the fixed caller's guard is byte-equal to the DEC-097 coarse guard", () => {
