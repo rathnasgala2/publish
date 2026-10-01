@@ -8,9 +8,9 @@
 # publication state you fix by updating this file — never permission for Gala
 # to generate or patch one.
 #
-# Replace only the two marked values: the full commit SHA of the
-# `rathnasgala2/publish` revision you are pinning, and the signed
-# service-origin catalog URL Gala gives you. Change nothing else.
+# Replace only the marked values: the same full `rathnasgala2/publish` commit
+# SHA in both pin fields, and the signed service-origin catalog URL Gala gives
+# you. Change nothing else.
 name: Gala preview and publish
 
 on:
