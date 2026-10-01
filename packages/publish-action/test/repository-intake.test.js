@@ -21,7 +21,10 @@ import {
   resolveRepositoryIdentity,
 } from '../src/normalize/repository-intake.js';
 import { ADAPTER_PACKAGES } from '../src/normalize/destination-capabilities.js';
-import { resolveSourceRevision } from '../src/normalize/source-revision.js';
+import {
+  resolveBuildEpoch,
+  resolveSourceRevision,
+} from '../src/normalize/source-revision.js';
 import { SchemaValidationError } from '../src/schema.js';
 
 const FIXTURE_REPOSITORY = path.resolve(
@@ -362,6 +365,24 @@ test('resolveSourceRevision: falls back to a deterministic local stand-in outsid
     const second = await resolveSourceRevision(dir);
     assert.equal(first, second);
     assert.match(first, /^sha256:[0-9a-f]{64}$/u);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('managed build identity uses the exact verified GitHub commit and commit epoch without a .git directory', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const env = {
+      GITHUB_ACTIONS: 'true',
+      GITHUB_SHA: '0123456789abcdef0123456789abcdef01234567',
+      GALA_BUILD_EPOCH: '2026-09-30T17:31:50.000Z',
+    };
+    assert.equal(
+      await resolveSourceRevision(dir, env),
+      'sha1:0123456789abcdef0123456789abcdef01234567',
+    );
+    assert.equal(await resolveBuildEpoch(dir, env), '2026-09-30T17:31:50.000Z');
   } finally {
     await cleanup();
   }

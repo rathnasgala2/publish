@@ -412,7 +412,7 @@ function requireEnvelopeIntentAgreement(intent, envelope) {
 /**
  * The installed adapter must be the adapter release the intent authorizes.
  * The intent names `adapter.adapterVersion`; the toolchain checkout is
- * pinned by `github.workflow_sha`, so a disagreement means this workflow
+ * pinned by `publish_toolchain_ref`, so a disagreement means this workflow
  * revision is not the one the operation was authorized against.
  *
  * @param {unknown} installed the installed adapter's `ADAPTER_VERSION`

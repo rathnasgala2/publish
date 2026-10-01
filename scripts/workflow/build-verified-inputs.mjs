@@ -15,7 +15,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { appendFile, writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 import {
@@ -82,6 +82,14 @@ async function main() {
     (file) => !file.path.startsWith('.git/'),
   );
   const commit = await readCommitFacts(source, process.env.GITHUB_SHA);
+  if (
+    process.env.GITHUB_ACTIONS === 'true' &&
+    (commit.sourceTree === null || commit.buildEpoch === null)
+  ) {
+    throw new Error(
+      'VERIFIED_SOURCE_COMMIT_FACTS_MISSING: the bound checkout did not expose the selected commit tree and committer instant',
+    );
+  }
   const carrier = encodeCarrier({
     purpose: 'verified-inputs',
     metadata: {
@@ -99,6 +107,12 @@ async function main() {
     })),
   });
   await writeFile(out, carrier);
+  if (process.env.GITHUB_OUTPUT) {
+    await appendFile(
+      process.env.GITHUB_OUTPUT,
+      `source_tree=${commit.sourceTree ?? ''}\nbuild_epoch=${commit.buildEpoch ?? ''}\n`,
+    );
+  }
   process.stdout.write(
     `verified-inputs carrier: ${files.length} file(s), ${carrier.byteLength} bytes, ${carrierDigest(carrier)}\n`,
   );

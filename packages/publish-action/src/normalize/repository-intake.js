@@ -217,14 +217,17 @@ function splitFrontmatterFence(text, relativePath) {
  * Build one validated `urn:gala:schema:build-input:2.0.0` document from a
  * repository directory (S2-T20 deliverable (1)).
  *
- * @param {{repositoryDirectory: string}} options the absolute repository directory
+ * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean}} options the absolute repository directory and candidate-render policy
  * @returns {Promise<Record<string, unknown>>} the validated build-input
  *   document. `buildInput.packages.theme` (sourced from `lock.json`, the
  *   sole authority for the theme selection — no separate "theme" input
  *   exists) is the theme identity provenance building and any other
  *   theme-aware caller should reuse.
  */
-export async function buildBuildInputFromRepository({ repositoryDirectory }) {
+export async function buildBuildInputFromRepository({
+  repositoryDirectory,
+  includeDraftsAsUnlisted = false,
+}) {
   if (!path.isAbsolute(repositoryDirectory)) {
     throw new RepositoryIntakeError(
       'repositoryDirectory must be an absolute path',
@@ -475,18 +478,15 @@ export async function buildBuildInputFromRepository({ repositoryDirectory }) {
         [sourceFinding('CONTENT_MEDIA_UNSUPPORTED', relativePath)],
       );
     }
+    // The author-repository contract also admits `draft` and `archived`, but
+    // build-input intentionally contains only material that may enter a
+    // generated publication. Keep those source files covered by the verified
+    // repository digest while omitting them from the render input.
     if (
-      frontmatter.status !== 'published' &&
-      frontmatter.status !== 'unlisted'
+      frontmatter.status === 'archived' ||
+      (frontmatter.status === 'draft' && !includeDraftsAsUnlisted)
     ) {
-      throw new RepositoryIntakeError(
-        `${relativePath}: status must be "published" or "unlisted" for this normalization step (the normalized schema admits no other state)`,
-        [
-          sourceFinding('CONTENT_STATUS_UNSUPPORTED', relativePath, {
-            status: frontmatter.status,
-          }),
-        ],
-      );
+      continue;
     }
     const resolvedAuthorIds = /** @type {string[]} */ (frontmatter.authors);
     for (const authorId of resolvedAuthorIds) {
@@ -514,7 +514,7 @@ export async function buildBuildInputFromRepository({ repositoryDirectory }) {
       ...(frontmatter.seriesOrder
         ? { seriesOrder: frontmatter.seriesOrder }
         : {}),
-      status: frontmatter.status,
+      status: frontmatter.status === 'draft' ? 'unlisted' : frontmatter.status,
       createdAt: frontmatter.createdAt,
       publishedAt: frontmatter.publishedAt ?? frontmatter.createdAt,
       ...(frontmatter.updatedAt ? { updatedAt: frontmatter.updatedAt } : {}),

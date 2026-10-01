@@ -1,8 +1,9 @@
 /**
  * @param {string} repositoryDirectory absolute repository directory
+ * @param {NodeJS.ProcessEnv} [env] process environment
  * @returns {Promise<string>} the resolved `sourceRevision`
  */
-export function resolveSourceRevision(repositoryDirectory: string): Promise<string>;
+export function resolveSourceRevision(repositoryDirectory: string, env?: NodeJS.ProcessEnv): Promise<string>;
 /**
  * Resolve a repository directory's `buildEpoch` (DEC-097 section 5): "the
  * selected `sourceRevision` Git commit object's committer timestamp: parse
@@ -20,6 +21,7 @@ export function resolveSourceRevision(repositoryDirectory: string): Promise<stri
  * no separate offset parsing to identify the instant.
  *
  * @param {string} repositoryDirectory absolute repository directory
+ * @param {NodeJS.ProcessEnv} [env] process environment
  * @returns {Promise<string>} the resolved `buildEpoch`
  */
-export function resolveBuildEpoch(repositoryDirectory: string): Promise<string>;
+export function resolveBuildEpoch(repositoryDirectory: string, env?: NodeJS.ProcessEnv): Promise<string>;

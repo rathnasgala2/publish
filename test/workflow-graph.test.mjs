@@ -510,3 +510,48 @@ test('the build carrier carries the manifest and freeze retains both predecessor
     }
   }
 });
+
+test('the build job runs the pinned Galascribe toolchain against the declarative publication source', () => {
+  const steps = PUBLISH.jobs.build.steps;
+  const checkoutIndex = steps.findIndex(
+    (/** @type {any} */ step) =>
+      step.name === 'Check out the pinned publish toolchain',
+  );
+  const installIndex = steps.findIndex(
+    (/** @type {any} */ step) =>
+      step.name === 'Install the integrity-locked publish toolchain',
+  );
+  const buildIndex = steps.findIndex(
+    (/** @type {any} */ step) =>
+      step.name === 'Run the Galascribe build in the isolated sandbox',
+  );
+
+  assert.ok(checkoutIndex >= 0, 'the pinned toolchain is checked out');
+  assert.ok(
+    installIndex > checkoutIndex,
+    'the toolchain dependencies are installed after checkout',
+  );
+  assert.ok(buildIndex > installIndex, 'the isolated build runs after install');
+
+  const build = steps[buildIndex];
+  assert.equal(
+    PUBLISH.jobs.prep.outputs.build_epoch,
+    '${{ steps.verified-source.outputs.build_epoch }}',
+  );
+  assert.equal(
+    build.env.GALA_BUILD_EPOCH,
+    '${{ needs.prep.outputs.build_epoch }}',
+  );
+  assert.match(
+    String(build.run),
+    /--toolchain "\$\{GITHUB_WORKSPACE\}\/publish-toolchain"/u,
+  );
+  assert.match(
+    String(build.run),
+    /node \/gala\/toolchain\/packages\/publish-action\/src\/bin\/cli\.js build --content-mode \$\{REF_KIND\}/u,
+  );
+  assert.match(String(build.run), /--repository \/gala\/source/u);
+  assert.match(String(build.run), /--output \/gala\/output\/artifact/u);
+  assert.match(String(build.run), /--work \/gala\/output\/work/u);
+  assert.doesNotMatch(String(build.run), /npm run build/u);
+});

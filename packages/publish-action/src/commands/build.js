@@ -31,6 +31,7 @@ import { readManifestFileBytes } from '../artifact-files.js';
  *   repositoryDirectory: string,
  *   outputDirectory: string,
  *   workDirectory: string,
+ *   includeDraftsAsUnlisted?: boolean,
  *   routeNormalizationProfile?: 'directory-index' | 'explicit-file'
  * }} options the build's input/output directories
  * @returns {Promise<import('../types.js').ResultEnvelope & {outputDirectory?: string, manifest?: Record<string, unknown>}>}
@@ -41,11 +42,13 @@ export async function runBuild({
   repositoryDirectory,
   outputDirectory,
   workDirectory,
+  includeDraftsAsUnlisted = false,
   routeNormalizationProfile,
 }) {
   try {
     const buildInput = await buildBuildInputFromRepository({
       repositoryDirectory,
+      includeDraftsAsUnlisted,
     });
     const packages =
       /** @type {{theme: {package: string, version: string, integrity: string, registry: string}}} */ (

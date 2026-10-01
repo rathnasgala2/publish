@@ -14,7 +14,8 @@ import path from 'node:path';
  * @returns {{
  *   repositoryDirectory: string,
  *   outputDirectory: string,
- *   workDirectory: string
+ *   workDirectory: string,
+ *   includeDraftsAsUnlisted: boolean
  * }} the parsed, defaulted, absolute-path options
  */
 export function parseCliOptions(argv, cwd) {
@@ -40,5 +41,16 @@ export function parseCliOptions(argv, cwd) {
     cwd,
     flags.work ?? path.join(repositoryDirectory, '.gala', 'work'),
   );
-  return { repositoryDirectory, outputDirectory, workDirectory };
+  const contentMode = flags['content-mode'] ?? 'publish';
+  if (contentMode !== 'candidate' && contentMode !== 'publish') {
+    throw new TypeError(
+      `CONTENT_MODE_INVALID: expected "candidate" or "publish", got ${JSON.stringify(contentMode)}`,
+    );
+  }
+  return {
+    repositoryDirectory,
+    outputDirectory,
+    workDirectory,
+    includeDraftsAsUnlisted: contentMode === 'candidate',
+  };
 }

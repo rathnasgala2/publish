@@ -26,6 +26,7 @@ set -euo pipefail
 
 SOURCE=""
 OUTPUT=""
+TOOLCHAIN=""
 IMAGE="node:24.18.0-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd"
 COMMAND="npm run build"
 TIMEOUT_SECONDS=900
@@ -39,6 +40,7 @@ usage: sandbox-build.sh --source DIR --output DIR [options]
 
   --source DIR             the author source tree; mounted read-only
   --output DIR             the only writable path; created if absent
+  --toolchain DIR          optional pinned Galascribe toolchain; mounted read-only
   --image REF              the build image, pinned by sha256 digest
   --command CMD            the build command (default: npm run build)
   --timeout-seconds N      wall-clock ceiling (default: 900)
@@ -53,6 +55,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --source) SOURCE="${2:?}"; shift 2 ;;
     --output) OUTPUT="${2:?}"; shift 2 ;;
+    --toolchain) TOOLCHAIN="${2:?}"; shift 2 ;;
     --image) IMAGE="${2:?}"; shift 2 ;;
     --command) COMMAND="${2:?}"; shift 2 ;;
     --timeout-seconds) TIMEOUT_SECONDS="${2:?}"; shift 2 ;;
@@ -70,20 +73,49 @@ done
 
 SOURCE_ABS="$(cd "${SOURCE}" && pwd)"
 mkdir -p "${OUTPUT}"
-# The container always runs as the fixed unprivileged uid:gid 65534:65534
-# (see --user below), never as whatever uid invoked this script. On a
-# rootful Linux Docker daemon (e.g. GitHub's ubuntu-24.04 runners) a bind
-# mount keeps the host file's real ownership and mode, so a directory
-# freshly created by `mkdir -p` above (owned by the invoking user, mode
-# 0755) is not writable by uid 65534 inside the container. Docker Desktop /
-# OrbStack's VM-backed bind mounts paper over this, which is why the same
-# script passes there without it. `chmod 0777` widens only this one
-# directory, which the sandbox already treats as the sole intentionally
-# writable path (`--volume ...:/gala/output:rw`); it grants no new
-# capability, does not touch the read-only source mount, and does not
-# change which user the build runs as.
-chmod 0777 "${OUTPUT}"
 OUTPUT_ABS="$(cd "${OUTPUT}" && pwd)"
+
+TOOLCHAIN_DOCKER_ARGS=()
+if [ -n "${TOOLCHAIN}" ]; then
+  [ -d "${TOOLCHAIN}" ] || { echo "SANDBOX_TOOLCHAIN_NOT_A_DIRECTORY: ${TOOLCHAIN}" >&2; exit 1; }
+  TOOLCHAIN_ABS="$(cd "${TOOLCHAIN}" && pwd)"
+  case "${OUTPUT_ABS}/" in
+    "${TOOLCHAIN_ABS}"/*)
+      echo "SANDBOX_OUTPUT_INSIDE_TOOLCHAIN: the output directory must not live inside the read-only toolchain" >&2
+      exit 1
+      ;;
+  esac
+  case "${TOOLCHAIN_ABS}/" in
+    "${OUTPUT_ABS}"/*)
+      echo "SANDBOX_TOOLCHAIN_INSIDE_OUTPUT: the read-only toolchain must not live inside the writable output directory" >&2
+      exit 1
+      ;;
+  esac
+  TOOLCHAIN_DOCKER_ARGS=(
+    --env WORKSPACE_ROOT=/gala/toolchain/node_modules/@rathnasgala2
+    --volume "${TOOLCHAIN_ABS}:/gala/toolchain:ro"
+  )
+  # Forward only the non-secret, operation-bound identity facts used by the
+  # managed renderer. No token, secret, arbitrary runner variable or complete
+  # environment enters the container.
+  for FACT_NAME in \
+    GITHUB_ACTIONS \
+    GITHUB_SHA \
+    GITHUB_REPOSITORY \
+    GITHUB_REPOSITORY_ID \
+    GITHUB_REPOSITORY_OWNER_ID \
+    GITHUB_WORKFLOW_REF \
+    GITHUB_WORKFLOW \
+    GITHUB_RUN_ID \
+    GITHUB_RUN_ATTEMPT \
+    GALA_BUILD_EPOCH
+  do
+    FACT_VALUE="$(printenv "${FACT_NAME}" 2>/dev/null || true)"
+    if [ -n "${FACT_VALUE}" ]; then
+      TOOLCHAIN_DOCKER_ARGS+=(--env "${FACT_NAME}=${FACT_VALUE}")
+    fi
+  done
+fi
 
 case "${OUTPUT_ABS}/" in
   "${SOURCE_ABS}"/*)
@@ -95,6 +127,18 @@ if [ "${OUTPUT_ABS}" = "${SOURCE_ABS}" ]; then
   echo "SANDBOX_OUTPUT_EQUALS_SOURCE" >&2
   exit 1
 fi
+
+# The container always runs as the fixed unprivileged uid:gid 65534:65534
+# (see --user below), never as whatever uid invoked this script. On a
+# rootful Linux Docker daemon (e.g. GitHub's ubuntu-24.04 runners) a bind
+# mount keeps the host file's real ownership and mode, so a directory
+# freshly created by `mkdir -p` above (owned by the invoking user, mode
+# 0755) is not writable by uid 65534 inside the container. Docker Desktop /
+# OrbStack's VM-backed bind mounts paper over this, which is why the same
+# script passes there without it. `chmod 0777` widens only this one
+# directory, after the source/toolchain overlap checks prove it does not
+# mutate either read-only input tree.
+chmod 0777 "${OUTPUT}"
 
 command -v docker >/dev/null 2>&1 || {
   echo "SANDBOX_RUNTIME_UNAVAILABLE: docker is required; the sandbox never falls back to running author code unsandboxed" >&2
@@ -130,6 +174,7 @@ docker run \
   --tmpfs /tmp:rw,noexec,nosuid,size=256m \
   --volume "${SOURCE_ABS}:/gala/source:ro" \
   --volume "${OUTPUT_ABS}:/gala/output:rw" \
+  ${TOOLCHAIN_DOCKER_ARGS[@]+"${TOOLCHAIN_DOCKER_ARGS[@]}"} \
   --workdir /gala/source \
   --entrypoint /bin/sh \
   "${IMAGE}" \

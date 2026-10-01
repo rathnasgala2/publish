@@ -2,15 +2,16 @@
  * Build one validated `urn:gala:schema:build-input:2.0.0` document from a
  * repository directory (S2-T20 deliverable (1)).
  *
- * @param {{repositoryDirectory: string}} options the absolute repository directory
+ * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean}} options the absolute repository directory and candidate-render policy
  * @returns {Promise<Record<string, unknown>>} the validated build-input
  *   document. `buildInput.packages.theme` (sourced from `lock.json`, the
  *   sole authority for the theme selection — no separate "theme" input
  *   exists) is the theme identity provenance building and any other
  *   theme-aware caller should reuse.
  */
-export function buildBuildInputFromRepository({ repositoryDirectory }: {
+export function buildBuildInputFromRepository({ repositoryDirectory, includeDraftsAsUnlisted, }: {
     repositoryDirectory: string;
+    includeDraftsAsUnlisted?: boolean;
 }): Promise<Record<string, unknown>>;
 /**
  * Derive `repositoryId`/`repositoryOwnerId` from the GitHub Actions

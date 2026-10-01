@@ -4,11 +4,13 @@
  * @returns {{
  *   repositoryDirectory: string,
  *   outputDirectory: string,
- *   workDirectory: string
+ *   workDirectory: string,
+ *   includeDraftsAsUnlisted: boolean
  * }} the parsed, defaulted, absolute-path options
  */
 export function parseCliOptions(argv: readonly string[], cwd: string): {
     repositoryDirectory: string;
     outputDirectory: string;
     workDirectory: string;
+    includeDraftsAsUnlisted: boolean;
 };

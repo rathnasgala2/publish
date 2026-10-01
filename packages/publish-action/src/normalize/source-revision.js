@@ -1,12 +1,13 @@
 /**
  * Resolve a repository directory's `sourceRevision`
  * (`gitObjectId`: `sha1:<40 hex>` or `sha256:<64 hex>`): the real `git`
- * `HEAD` object id when the repository directory is a real git working
- * tree, or a documented deterministic local stand-in — a plain SHA-256 over
- * the repository's own sorted file tree — when it is not (a fixture
- * directory with no `.git`, for example). Never fabricated as a real git
- * revision. Also resolves `buildEpoch` (DEC-097 section 5), the sibling
- * value recovered from the same selected commit.
+ * operation-bound `GITHUB_SHA` inside a managed Actions build, the real
+ * `HEAD` object id when the repository directory is a git working tree, or
+ * a documented deterministic local stand-in — a plain SHA-256 over the
+ * repository's own sorted file tree — otherwise. Never fabricates a real
+ * git revision. Also resolves `buildEpoch` (DEC-097 section 5) from the
+ * verified commit fact supplied by the managed workflow, then from git, and
+ * finally from the documented local stand-in.
  *
  * @module
  */
@@ -24,9 +25,19 @@ const execFileAsync = promisify(execFile);
 
 /**
  * @param {string} repositoryDirectory absolute repository directory
+ * @param {NodeJS.ProcessEnv} [env] process environment
  * @returns {Promise<string>} the resolved `sourceRevision`
  */
-export async function resolveSourceRevision(repositoryDirectory) {
+export async function resolveSourceRevision(
+  repositoryDirectory,
+  env = process.env,
+) {
+  if (
+    env.GITHUB_ACTIONS === 'true' &&
+    /^[0-9a-f]{40}$/u.test(env.GITHUB_SHA ?? '')
+  ) {
+    return `sha1:${env.GITHUB_SHA}`;
+  }
   try {
     const { stdout } = await execFileAsync(
       'git',
@@ -73,9 +84,21 @@ export async function resolveSourceRevision(repositoryDirectory) {
  * no separate offset parsing to identify the instant.
  *
  * @param {string} repositoryDirectory absolute repository directory
+ * @param {NodeJS.ProcessEnv} [env] process environment
  * @returns {Promise<string>} the resolved `buildEpoch`
  */
-export async function resolveBuildEpoch(repositoryDirectory) {
+export async function resolveBuildEpoch(
+  repositoryDirectory,
+  env = process.env,
+) {
+  if (
+    env.GITHUB_ACTIONS === 'true' &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/u.test(
+      env.GALA_BUILD_EPOCH ?? '',
+    )
+  ) {
+    return /** @type {string} */ (env.GALA_BUILD_EPOCH);
+  }
   try {
     const { stdout } = await execFileAsync(
       'git',

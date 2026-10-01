@@ -147,6 +147,64 @@ test(
 );
 
 test(
+  'the managed toolchain is readable but immutable inside the sandbox',
+  { skip: SKIP },
+  () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'gala-sandbox-toolchain-'));
+    const source = path.join(root, 'source');
+    const output = path.join(root, 'output');
+    const toolchain = path.join(root, 'toolchain');
+    spawnSync('mkdir', ['-p', source, output, toolchain]);
+    writeFileSync(path.join(source, 'index.html'), '<!doctype html>ok\n');
+    writeFileSync(path.join(toolchain, 'identity.txt'), 'pinned-toolchain\n');
+
+    const result = spawnSync(
+      'scripts/sandbox-build.sh',
+      [
+        '--source',
+        source,
+        '--output',
+        output,
+        '--toolchain',
+        toolchain,
+        '--command',
+        'set -e; cat /gala/toolchain/identity.txt > "$GALA_OUTPUT_DIR/identity.txt"; printenv > "$GALA_OUTPUT_DIR/env.txt"; if echo tampered > /gala/toolchain/identity.txt; then exit 19; fi',
+        '--timeout-seconds',
+        '60',
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GITHUB_ACTIONS: 'true',
+          GITHUB_SHA: '0123456789abcdef0123456789abcdef01234567',
+          GITHUB_TOKEN: 'must-not-enter-the-sandbox',
+          GALA_BUILD_EPOCH: '2026-09-30T17:31:50.000Z',
+        },
+      },
+    );
+
+    assert.equal(result.status, 0, String(result.stderr));
+    assert.equal(
+      readFileSync(path.join(output, 'identity.txt'), 'utf8'),
+      'pinned-toolchain\n',
+    );
+    assert.equal(
+      readFileSync(path.join(toolchain, 'identity.txt'), 'utf8'),
+      'pinned-toolchain\n',
+    );
+    const environment = readFileSync(path.join(output, 'env.txt'), 'utf8');
+    assert.match(environment, /^GITHUB_ACTIONS=true$/mu);
+    assert.match(
+      environment,
+      /^GITHUB_SHA=0123456789abcdef0123456789abcdef01234567$/mu,
+    );
+    assert.match(environment, /^GALA_BUILD_EPOCH=2026-09-30T17:31:50\.000Z$/mu);
+    assert.doesNotMatch(environment, /must-not-enter-the-sandbox/u);
+  },
+);
+
+test(
   'a build that tries to write outside the output directory fails',
   { skip: SKIP },
   () => {
@@ -250,6 +308,29 @@ test('an output directory inside the read-only source tree is refused before any
   );
   assert.notEqual(result.status, 0);
   assert.match(String(result.stderr), /SANDBOX_OUTPUT_INSIDE_SOURCE/u);
+});
+
+test('an output directory inside the read-only toolchain is refused before anything runs', () => {
+  const root = mkdtempSync(
+    path.join(tmpdir(), 'gala-sandbox-toolchain-nested-'),
+  );
+  const source = path.join(root, 'source');
+  const toolchain = path.join(root, 'toolchain');
+  spawnSync('mkdir', ['-p', source, path.join(toolchain, 'output')]);
+  const result = spawnSync(
+    'scripts/sandbox-build.sh',
+    [
+      '--source',
+      source,
+      '--output',
+      path.join(toolchain, 'output'),
+      '--toolchain',
+      toolchain,
+    ],
+    { encoding: 'utf8' },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(String(result.stderr), /SANDBOX_OUTPUT_INSIDE_TOOLCHAIN/u);
 });
 
 test('an unknown argument is refused rather than ignored', () => {

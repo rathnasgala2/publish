@@ -12,6 +12,13 @@ and this project adheres to
 
 ### Changed
 
+- Run publication builds with the immutable Galascribe toolchain selected by
+  `publish_toolchain_ref`, rather than requiring generated publication
+  repositories to contain `package.json` or an author-owned build script.
+  Candidate builds render draft content as unlisted previews without mutating
+  source, publish builds omit drafts, and the carrier-bound Git revision and
+  commit timestamp remain the build identity after `.git` is removed.
+
 - Re-pin the documented caller example (`docs/callers/gala-publish-v2.yml`'s
   `uses:` line and `pins/ledger.json`'s `selfReferences` entry) from
   `88865c099e3638c20ca6665d4a9626feefc5277f` to

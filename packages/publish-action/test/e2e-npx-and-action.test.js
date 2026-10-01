@@ -33,7 +33,9 @@ import { runBuild } from '../src/commands/build.js';
 import { runPreview } from '../src/commands/preview.js';
 import { deployToLocalDirectory } from '../src/deploy-local-directory.js';
 import { runAction } from '../src/action/run.js';
+import { runCli } from '../src/bin/cli.js';
 import { resolveWorkspaceSibling } from '../src/workspace-siblings.js';
+import { buildBuildInputFromRepository } from '../src/normalize/repository-intake.js';
 
 const FIXTURE_REPOSITORY = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -79,18 +81,46 @@ test('validate: read-only, deterministic, never mutates', async () => {
   assert.deepEqual(again.findings, result.findings);
 });
 
-test('validate: refuses a repository with an unsupported content status', async () => {
+test('candidate build includes a draft as unlisted without changing the source file', async () => {
   const { tmp, cleanup } = await freshTempDir();
   try {
-    const brokenRepository = path.join(tmp, 'repo');
-    await copyFixtureWithBrokenStatus(FIXTURE_REPOSITORY, brokenRepository);
-    const result = await runValidate({ repositoryDirectory: brokenRepository });
-    assert.equal(result.resultCode, 'UNSAFE_INPUT');
-    assert.equal(result.exitCode, 5);
-    assert.ok(
-      result.findings.some(
-        (finding) => finding.code === 'CONTENT_STATUS_UNSUPPORTED',
-      ),
+    const repository = path.join(tmp, 'repo');
+    await copyFixtureWithDraftStatus(FIXTURE_REPOSITORY, repository);
+    const outputDirectory = path.join(tmp, 'output');
+    const workDirectory = path.join(tmp, 'work');
+    const sourceBefore = await readFile(
+      path.join(repository, 'content/hello-world.md'),
+      'utf8',
+    );
+    const { envelope: result } = await runCli(
+      [
+        'build',
+        '--content-mode',
+        'candidate',
+        '--repository',
+        repository,
+        '--output',
+        outputDirectory,
+        '--work',
+        workDirectory,
+      ],
+      tmp,
+    );
+    assert.equal(result.resultCode, 'SUCCESS');
+    assert.equal(result.exitCode, 0);
+    assert.deepEqual(result.findings, []);
+    const buildInput = await buildBuildInputFromRepository({
+      repositoryDirectory: repository,
+      includeDraftsAsUnlisted: true,
+    });
+    const content = /** @type {{frontmatter: {status: string}}[]} */ (
+      buildInput.content
+    );
+    assert.equal(content.length, 1);
+    assert.equal(content[0]?.frontmatter.status, 'unlisted');
+    assert.equal(
+      await readFile(path.join(repository, 'content/hello-world.md'), 'utf8'),
+      sourceBefore,
     );
   } finally {
     await cleanup();
@@ -499,14 +529,16 @@ async function readdirSafe(directory) {
 
 /**
  * Copy the fixture repository into `targetDirectory`, replacing its one
- * content file's `status` with an authored-only value the normalized schema
- * never admits, so the resulting `validate` run exercises a real rejection.
+ * content file's `status` with the valid authored-only `draft` value. A
+ * candidate build renders it as unlisted without changing the source bytes;
+ * the normalized build-input schema deliberately contains only
+ * published/unlisted content.
  *
  * @param {string} sourceDirectory the fixture repository root
  * @param {string} targetDirectory an empty destination directory
  * @returns {Promise<void>} resolves once the broken copy exists
  */
-async function copyFixtureWithBrokenStatus(sourceDirectory, targetDirectory) {
+async function copyFixtureWithDraftStatus(sourceDirectory, targetDirectory) {
   const {
     cp,
     readFile: read,
@@ -515,11 +547,8 @@ async function copyFixtureWithBrokenStatus(sourceDirectory, targetDirectory) {
   await cp(sourceDirectory, targetDirectory, { recursive: true });
   const contentPath = path.join(targetDirectory, 'content/hello-world.md');
   const text = await read(contentPath, 'utf8');
-  // "draft" without "publishedAt" is schema-valid at the content-frontmatter
-  // level (the schema itself only forbids "published" without
-  // "publishedAt"); this exercises this package's own normalized-schema
-  // rejection (CONTENT_STATUS_UNSUPPORTED) rather than a schema-validation
-  // failure the schema package already catches.
+  // "draft" without "publishedAt" is schema-valid at the author-repository
+  // level; the normalized build-input schema intentionally does not carry it.
   await write(
     contentPath,
     text

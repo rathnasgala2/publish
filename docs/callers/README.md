@@ -27,22 +27,24 @@ updating the file — never permission for Gala to generate or patch one.
 - the three-entry secret map. `secrets: inherit` is never permitted, an unknown
   mapping is rejected, and a control-plane secret must never appear here.
 
-## What your build must leave in `$GALA_OUTPUT_DIR`
+## What the managed build leaves in `$GALA_OUTPUT_DIR`
 
-The managed `build` job runs your repository's `npm run build` inside the
-network-disabled sandbox with exactly one writable path, `$GALA_OUTPUT_DIR`.
-Freeze reads two things from it and nothing else:
+Publication repositories are declarative source repositories; they do not need a
+`package.json`, a dependency installation, or an author-owned build script. The
+managed `build` job runs the pinned Galascribe publish toolchain against the
+verified repository snapshot inside the network-disabled sandbox, with exactly
+one writable path, `$GALA_OUTPUT_DIR`. Freeze reads two things from it and
+nothing else:
 
 | Path                                           | What it is                                                                                |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `$GALA_OUTPUT_DIR/artifact/`                   | the artifact inventory (`publish-action build --output`)                                  |
 | `$GALA_OUTPUT_DIR/work/artifact-manifest.json` | the complete `artifact-manifest:2.0.0` the renderer wrote (`publish-action build --work`) |
 
-So the build script is
-`gala-publish build --output "$GALA_OUTPUT_DIR/artifact" --work "$GALA_OUTPUT_DIR/work"`
-(or its `npx` equivalent). The manifest is validated against the pinned schema
-and matched one-for-one against the artifact files; a file the manifest does not
-name, a missing manifest or an artifact that carries the reserved
+The workflow invokes the toolchain itself; publication authors do not copy this
+command into their repositories. The manifest is validated against the pinned
+schema and matched one-for-one against the artifact files; a file the manifest
+does not name, a missing manifest or an artifact that carries the reserved
 `.well-known/gala-generation.json` fails freeze by name. Only the manifest's
 inventory is ever staged.
 
