@@ -42,16 +42,16 @@ jobs:
     # REPLACE the 40-character lowercase hexadecimal commit SHA below with
     # the `rathnasgala2/publish` revision Gala tells you to pin. The value
     # below is rathnasgala2/publish's own main HEAD at the time this example
-    # was last reconciled (2026-09-28) -- a real, resolvable commit, not a
+    # was last reconciled (2026-09-30) -- a real, resolvable commit, not a
     # placeholder -- so replacing it exercises exactly the sha you must
     # actually type in, rather than an all-zero sentinel.
-    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@55232fa33bc84cfdfa397bd78f4820a3085bf599
+    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@ebef3f00b029f87739a645045bfbe9202c028e89
     with:
       # REPLACE with the signed Gala service-origin catalog location.
       service_origin_catalog_url: https://api.galascribe.com/v2/service-origins
       # REPLACE with the Gala API origin used for publish authorization and reporting.
       gala_api_origin: https://api.galascribe.com
-      publish_toolchain_ref: 55232fa33bc84cfdfa397bd78f4820a3085bf599
+      publish_toolchain_ref: ebef3f00b029f87739a645045bfbe9202c028e89
       artifact_retention_days: 7
       require_github_attestation: false
     # The sole caller secret map. `secrets: inherit` is never used, and no

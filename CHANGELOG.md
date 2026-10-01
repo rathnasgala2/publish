@@ -12,6 +12,10 @@ and this project adheres to
 
 ### Changed
 
+- Re-pin both immutable caller references and the self-reference ledger to
+  `ebef3f00b029f87739a645045bfbe9202c028e89`, the verified managed-toolchain
+  workflow revision.
+
 - Run publication builds with the immutable Galascribe toolchain selected by
   `publish_toolchain_ref`, rather than requiring generated publication
   repositories to contain `package.json` or an author-owned build script.

@@ -78,9 +78,9 @@
   "selfReferences": [
     {
       "reference": "rathnasgala2/publish/.github/workflows/publish-v2.yml",
-      "sha": "55232fa33bc84cfdfa397bd78f4820a3085bf599",
+      "sha": "ebef3f00b029f87739a645045bfbe9202c028e89",
       "status": "author-replaced-example",
-      "reason": "The fixed caller in docs/callers/ pins the exact rathnasgala2/publish commit the author is told to use. W0-01 has published this repository (verified 2026-09-25), so the documented example carries a real commit SHA instead of an all-zero placeholder. Re-pinned to main HEAD as of 2026-09-29 so generated repositories call the current reusable workflow and provide its required gala_api_origin input."
+      "reason": "The fixed caller in docs/callers/ pins the exact rathnasgala2/publish commit the author is told to use. W0-01 has published this repository (verified 2026-09-25), so the documented example carries a real commit SHA instead of an all-zero placeholder. Re-pinned to main HEAD as of 2026-09-30 so generated repositories call the revision that requires and consumes the matching publish_toolchain_ref instead of resolving the caller repository's github.workflow_sha."
     }
   ]
 }
