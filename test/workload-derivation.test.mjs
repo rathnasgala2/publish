@@ -1046,10 +1046,10 @@ test('the fake Gala derives with the schema package’s profiles: the sixteen di
     operationId: stableId(),
   });
   const pagesRequest = {
-    adapter: { adapterId: 'github-pages', adapterVersion: '0.1.0' },
+    adapter: { adapterId: 'github-pages', adapterVersion: '0.1.1' },
     destination: {
       adapterId: 'github-pages',
-      adapterVersion: '0.1.0',
+      adapterVersion: '0.1.1',
       baseUrl: 'https://example.site/',
     },
   };
@@ -1072,10 +1072,10 @@ test('the fake Gala derives with the schema package’s profiles: the sixteen di
   const localVector = byId.get('destination-provider-binding-local-directory');
   const localDerived = deriveDestination(
     {
-      adapter: { adapterId: 'local-directory', adapterVersion: '0.1.0' },
+      adapter: { adapterId: 'local-directory', adapterVersion: '0.1.1' },
       destination: {
         adapterId: 'local-directory',
-        adapterVersion: '0.1.0',
+        adapterVersion: '0.1.1',
         baseUrl: 'https://example.site/',
         providerBinding: {
           rootIdentityDigest: localVector.input.rootIdentityDigest,
@@ -1118,8 +1118,8 @@ test('the fake Gala derives with the schema package’s profiles: the sixteen di
   });
   const spacesDerived = deriveDestination(
     {
-      adapter: { adapterId: 'do-spaces', adapterVersion: '0.1.0' },
-      destination: { adapterId: 'do-spaces', adapterVersion: '0.1.0' },
+      adapter: { adapterId: 'do-spaces', adapterVersion: '0.1.1' },
+      destination: { adapterId: 'do-spaces', adapterVersion: '0.1.1' },
       rebuildRecord: { basePath: '/' },
     },
     spacesSeed,
@@ -1164,8 +1164,8 @@ test('the fake Gala derives with the schema package’s profiles: the sixteen di
   });
   const spacesMutationKeyDerived = deriveDestination(
     {
-      adapter: { adapterId: 'do-spaces', adapterVersion: '0.1.0' },
-      destination: { adapterId: 'do-spaces', adapterVersion: '0.1.0' },
+      adapter: { adapterId: 'do-spaces', adapterVersion: '0.1.1' },
+      destination: { adapterId: 'do-spaces', adapterVersion: '0.1.1' },
       rebuildRecord: { basePath: '/' },
     },
     spacesMutationKeySeed,
@@ -1182,8 +1182,8 @@ test('the fake Gala derives with the schema package’s profiles: the sixteen di
     () =>
       deriveDestination(
         {
-          adapter: { adapterId: 'do-spaces', adapterVersion: '0.1.0' },
-          destination: { adapterId: 'do-spaces', adapterVersion: '0.1.0' },
+          adapter: { adapterId: 'do-spaces', adapterVersion: '0.1.1' },
+          destination: { adapterId: 'do-spaces', adapterVersion: '0.1.1' },
           rebuildRecord: { basePath: '/' },
         },
         seedWithDefaults({

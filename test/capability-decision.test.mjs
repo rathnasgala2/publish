@@ -7,7 +7,7 @@
  *
  * - the mirrored admission rows digest to the literals the API seeds in
  *   release 0045 (`gala_core.adapter_capability`, superseded `2.0.0` rows)
- *   and release 0046 (`0.1.0` rows, the ones actually admitted, LOCAL-64), by
+ *   release 0046 (superseded `0.1.0`) and release 0063 (admitted `0.1.1`), by
  *   the API's own canonical admission-text convention — so the mirror is
  *   provably those rows, keyed by `(adapterId, adapterVersion)` exactly as
  *   the API selects them, and a version with no admitted row (superseded or
@@ -90,9 +90,8 @@ const SEEDED_0045 = Object.freeze({
 /**
  * The literals the API seeds in release 0046
  * (`010-adapter-capability-package-version.yaml` at api worktree
- * `api-followups-8`) at adapter_version `0.1.0` — the admitted rows
- * (LOCAL-64: the published adapter package version, not the protocol
- * version), plain hex as the table stores them.
+ * `api-followups-8`) at adapter_version `0.1.0` — retained but superseded by
+ * release 0063 — plain hex as the table stores them.
  */
 const SEEDED_0046 = Object.freeze({
   'local-directory': {
@@ -112,6 +111,28 @@ const SEEDED_0046 = Object.freeze({
       'f584f85b53cbfc3f2d004a7027c593b972cd71dd1c2ba8f87023c1025a7f4699',
     credentialEgress:
       'ca89c7b6eae56fd0577b1360fbeee2c7602c232eaf957d313cbe3f882f8e3398',
+  },
+});
+
+/** Release 0063's admitted adapter package version 0.1.1 rows. */
+const SEEDED_0063 = Object.freeze({
+  'local-directory': {
+    capability:
+      '7372d57ac02f857f9391777b8e5936f67fe4e33be7883e4529052facc3d6f7b0',
+  },
+  'github-pages': {
+    capability:
+      '076fe1da01fb4412747291cecbce1868fdd86650208e02277bf1c6943ff0f9dc',
+    credentialEgress:
+      'b2c4c1e348dc86042b25724336f6a8c8641af2397b549422fe58a19c642f1aee',
+    pagesOidc:
+      '224c20130144041c84f3c54cb12de7f2b1aed803db4ebd8e151e489ba57c4a4d',
+  },
+  'do-spaces': {
+    capability:
+      'bb6b6b55cd982885ef5d9241c3007b24e5c11c106f4766e2c5ad16405a32c93f',
+    credentialEgress:
+      '8bcd70141469a92576686450f3fbe2b01b829da69ea42b4e6183ad5a2ffc70d0',
   },
 });
 
@@ -184,7 +205,7 @@ function seededRow(adapterId, adapterVersion) {
   return /** @type {(typeof ADMISSION_ROWS)[number]} */ (row);
 }
 
-test('the mirrored admission rows are releases 0045 (superseded 2.0.0) and 0046 (admitted 0.1.0): every digest recomputes from the canonical admission text to the seeded literal', () => {
+test('the mirrored admission rows retain superseded releases 0045/0046 and admit release 0063 package version 0.1.1', () => {
   for (const [adapterId, seeded] of Object.entries(SEEDED_0045)) {
     const row = seededRow(adapterId, '2.0.0');
     assert.equal(row.supersededAt, '2026-09-18T12:00:00.000Z', adapterId);
@@ -194,9 +215,16 @@ test('the mirrored admission rows are releases 0045 (superseded 2.0.0) and 0046 
   }
   for (const [adapterId, seeded] of Object.entries(SEEDED_0046)) {
     const row = seededRow(adapterId, '0.1.0');
+    assert.equal(row.supersededAt, '2026-10-02T06:00:00.000Z', adapterId);
+    const text = admissionCanonicalText(adapterId, row);
+    const digest = `sha256:${createHash('sha256').update(text, 'utf8').digest('hex')}`;
+    assert.equal(digest, `sha256:${seeded.capability}`, `${adapterId} 0.1.0`);
+  }
+  for (const [adapterId, seeded] of Object.entries(SEEDED_0063)) {
+    const row = seededRow(adapterId, '0.1.1');
     assert.equal(row.supersededAt, null, adapterId);
-    const admitted = admissionRow(adapterId, '0.1.0');
-    assert.equal(admitted.adapterVersion, '0.1.0', adapterId);
+    const admitted = admissionRow(adapterId, '0.1.1');
+    assert.equal(admitted.adapterVersion, '0.1.1', adapterId);
     assert.equal(
       admitted.capabilityDigest,
       `sha256:${seeded.capability}`,
@@ -233,7 +261,7 @@ test('the mirrored admission rows are releases 0045 (superseded 2.0.0) and 0046 
       );
     }
   }
-  // LOCAL-64: a superseded version admits nothing, and neither does an
+  // LOCAL-64: superseded versions admit nothing, and neither does an
   // adapter version never seeded at all — both are the API's
   // 422 /adapter/adapterVersion.
   for (const adapterId of Object.keys(SEEDED_0045)) {
@@ -241,6 +269,11 @@ test('the mirrored admission rows are releases 0045 (superseded 2.0.0) and 0046 
       () => admissionRow(adapterId, '2.0.0'),
       /CAPABILITY_ADMISSION_UNKNOWN/u,
       `${adapterId}@2.0.0 is superseded, not admitted`,
+    );
+    assert.throws(
+      () => admissionRow(adapterId, '0.1.0'),
+      /CAPABILITY_ADMISSION_UNKNOWN/u,
+      `${adapterId}@0.1.0 is superseded, not admitted`,
     );
   }
   assert.throws(

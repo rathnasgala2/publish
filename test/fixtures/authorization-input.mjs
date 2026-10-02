@@ -95,7 +95,7 @@ export function retainedDestinationFor(adapterId, overrides = {}) {
   return {
     environment: adapterId,
     adapterId,
-    adapterVersion: '0.1.0',
+    adapterVersion: '0.1.1',
     targetDigest: digestOf(`destination:${adapterId}`),
     baseUrl: overrides.baseUrl ?? 'https://example.test/',
     ...(binding === undefined ? {} : { providerBinding: { ...binding } }),
@@ -120,12 +120,12 @@ export function destinationFor(adapterId, overrides = {}) {
       adapterId,
       // The adapter's published package version (PUBLISH-S4-6a single-source
       // rule; LOCAL-64: the admission row is keyed on it).
-      adapterVersion: '0.1.0',
+      adapterVersion: '0.1.1',
       adapterDigest: digestOf(`adapter:${adapterId}`),
     },
     destination: {
       adapterId,
-      adapterVersion: '0.1.0',
+      adapterVersion: '0.1.1',
       baseUrl: overrides.baseUrl ?? 'https://example.test/',
       ...(binding === undefined ? {} : { providerBinding: { ...binding } }),
     },

@@ -34,10 +34,10 @@
  * ones, so a schema repin that quietly reclassifies a member is a visible
  * test failure, not a silent behavior change.
  *
- * **The admission row is the API's.** `ADMISSION_ROWS` mirrors releases 0045
- * and 0046 (`gala_core.adapter_capability`) row for row, keyed by
+ * **The admission row is the API's.** `ADMISSION_ROWS` mirrors releases 0045,
+ * 0046 and 0063 (`gala_core.adapter_capability`) row for row, keyed by
  * `(adapterId, adapterVersion)` exactly as the API selects it (LOCAL-64): the
- * `adapterVersion` is the adapter's published *package* version (`0.1.0`,
+ * `adapterVersion` is the adapter's published *package* version (`0.1.1`,
  * the single-source rule of PUBLISH-S4-6a), never the protocol version; the
  * 0045 rows at `2.0.0` are retained as superseded and admit nothing. The
  * bounds are the numbers the three adapters declared at publish `188cb27`,
@@ -189,9 +189,10 @@ const DECLARED_LIMITS = Object.freeze({
  * The API's admission rows (`gala_core.adapter_capability`), one per
  * `(adapterId, adapterVersion)`: release 0045 seeded the three adapters at
  * `2.0.0` (the protocol version, a mistake LOCAL-64 corrects), release 0046
- * superseded those and admitted the three at their published package
- * version `0.1.0`. A row with a `supersededAt` admits nothing. Digests are
- * derived, see {@link admissionRow}.
+ * superseded those and admitted package version `0.1.0`; release 0063
+ * superseded `0.1.0` and admitted the currently shipped `0.1.1`. A row with
+ * a `supersededAt` admits nothing. Digests are derived, see
+ * {@link admissionRow}.
  *
  * @type {readonly SeededAdmissionRow[]}
  */
@@ -200,9 +201,12 @@ export const ADMISSION_ROWS = Object.freeze(
     ['local-directory', '2.0.0', '2026-09-18T12:00:00.000Z'],
     ['github-pages', '2.0.0', '2026-09-18T12:00:00.000Z'],
     ['do-spaces', '2.0.0', '2026-09-18T12:00:00.000Z'],
-    ['local-directory', '0.1.0', null],
-    ['github-pages', '0.1.0', null],
-    ['do-spaces', '0.1.0', null],
+    ['local-directory', '0.1.0', '2026-10-02T06:00:00.000Z'],
+    ['github-pages', '0.1.0', '2026-10-02T06:00:00.000Z'],
+    ['do-spaces', '0.1.0', '2026-10-02T06:00:00.000Z'],
+    ['local-directory', '0.1.1', null],
+    ['github-pages', '0.1.1', null],
+    ['do-spaces', '0.1.1', null],
   ]).map(([adapterId, adapterVersion, supersededAt]) =>
     Object.freeze({
       adapterId,

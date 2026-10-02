@@ -126,7 +126,7 @@ function intentFor(binding) {
     // constant.
     environment: binding.adapterId,
     adapterId: binding.adapterId,
-    adapterVersion: '0.1.0',
+    adapterVersion: '0.1.1',
     targetDigest: filler,
     baseUrl: binding.baseUrl,
     ...(binding.providerBinding === undefined
@@ -151,7 +151,7 @@ function intentFor(binding) {
     sbomDigest: envelope.sbomDigest,
     adapter: {
       adapterId: binding.adapterId,
-      adapterVersion: '0.1.0',
+      adapterVersion: '0.1.1',
       adapterDigest: filler,
     },
     destination,
