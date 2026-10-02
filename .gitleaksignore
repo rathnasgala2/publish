@@ -37,3 +37,16 @@ d6b82ef2c0ea5fe5eace5d875f9f8644e3856a5b:.gitleaksignore:aws-access-token:5
 de604a5d8f3a7c9d8bc132d048a8dd8808ac8a3b:packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:49
 de604a5d8f3a7c9d8bc132d048a8dd8808ac8a3b:packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:85
 de604a5d8f3a7c9d8bc132d048a8dd8808ac8a3b:packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:102
+# Workspace-source deploys scan the frozen current tree without Git metadata.
+# These are the same reviewed secret-redaction and local-MinIO fixtures above;
+# current-tree fingerprints have no commit prefix and remain path/rule/line
+# specific so any other credential-shaped source still fails closed.
+packages/publish-kernel/test/secret-redaction.test.js:aws-access-token:31
+packages/publish-kernel/test/secret-redaction.test.js:aws-access-token:32
+packages/publish-kernel/test/secret-redaction.test.js:aws-access-token:124
+packages/publish-kernel/test/secret-redaction.test.js:aws-access-token:146
+packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:9
+packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:49
+packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:85
+packages/publish-kernel/test/secret-redaction.test.js:generic-api-key:102
+scripts/minio-spaces.sh:generic-api-key:24
