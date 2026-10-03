@@ -83,7 +83,11 @@ function publishContent(repository) {
       'status: draft\n',
       "status: published\npublishedAt: '2026-09-30T17:31:26.000Z'\n",
     );
-    assert.notEqual(after, before, `${name} must be a draft or already published`);
+    assert.notEqual(
+      after,
+      before,
+      `${name} must be a draft or already published`,
+    );
     writeFileSync(contentPath, after);
   }
 }
