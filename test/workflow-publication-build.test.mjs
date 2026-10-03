@@ -70,14 +70,20 @@ function run(command, args, options = {}) {
 
 /** @param {string} repository generated publication repository */
 function publishContent(repository) {
+  // The user template's two starter pages ship published since user-template 09d33b8 (the
+  // owner's "about and welcome page published"); a template that still ships them as drafts
+  // is published here so the build has public content either way.
   for (const name of ['about.md', 'welcome-to-your-publication.md']) {
     const contentPath = path.join(repository, 'content', name);
     const before = readFileSync(contentPath, 'utf8');
+    if (before.includes('status: published\n')) {
+      continue;
+    }
     const after = before.replace(
       'status: draft\n',
       "status: published\npublishedAt: '2026-09-30T17:31:26.000Z'\n",
     );
-    assert.notEqual(after, before, `${name} must start as a draft`);
+    assert.notEqual(after, before, `${name} must be a draft or already published`);
     writeFileSync(contentPath, after);
   }
 }
