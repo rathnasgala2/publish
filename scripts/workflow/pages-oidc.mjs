@@ -16,23 +16,26 @@
  * the no-argument default-audience operation the official Pages action
  * uses, not the distinct Gala workload audience used by
  * `scripts/workflow/exchange.mjs`), and the resulting origin must be an
- * exact member of the closed origin catalog below. There is exactly one
+ * exact member of the closed origin grammar below. There is exactly one
  * call, no redirect, no proxy, no retry and no second request.
  *
  * @module
  */
 
 /**
- * The closed `githubActionsOidcOriginCatalog`. DEC-097 requires exact
- * catalog membership, established before the runner bearer is read or
- * emitted: a syntactically valid but uncataloged shard rejects. Extending
- * this list is a capability-decision change, not a runtime fallback.
+ * The closed `githubActionsOidcOriginCatalog`, expressed as a closed origin
+ * grammar rather than a literal list. DEC-097 requires the origin to be
+ * established before the runner bearer is read or emitted. GitHub rotates the
+ * runner shard behind `ACTIONS_ID_TOKEN_REQUEST_URL` (`pipelines*`,
+ * `run-actions-N-azure-*`, and so on), so a literal list breaks whenever a new
+ * shard appears. The origin must therefore be `https`, with no port and no
+ * userinfo, and a hostname that is exactly one lowercase DNS label followed by
+ * the literal `.actions.githubusercontent.com` suffix: no extra sub-labels, no
+ * uppercase, no punycode or Unicode, no trailing dot. Every other check
+ * (raw-authority bytes, path, query, size caps) stays exact.
  */
-export const GITHUB_ACTIONS_OIDC_ORIGIN_CATALOG = Object.freeze([
-  'https://pipelines.actions.githubusercontent.com',
-  'https://pipelinesghubeus2.actions.githubusercontent.com',
-  'https://pipelinesghubeus26.actions.githubusercontent.com',
-]);
+export const GITHUB_ACTIONS_OIDC_ORIGIN_HOST_PATTERN =
+  /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.actions\.githubusercontent\.com$/u;
 
 /** Maximum bytes of the source URL, per DEC-097. */
 export const MAXIMUM_SOURCE_URL_BYTES = 8192;
@@ -171,10 +174,10 @@ export function validateTokenRequestUrl(rawUrl) {
   }
 
   const origin = `https://${parsed.hostname}`;
-  if (!GITHUB_ACTIONS_OIDC_ORIGIN_CATALOG.includes(origin)) {
+  if (!GITHUB_ACTIONS_OIDC_ORIGIN_HOST_PATTERN.test(parsed.hostname)) {
     throw new PagesOidcError(
       'PAGES_OIDC_ORIGIN_UNCATALOGED',
-      `${JSON.stringify(origin)} is not an exact member of the closed githubActionsOidcOriginCatalog`,
+      `${JSON.stringify(origin)} is outside the closed githubActionsOidcOriginCatalog grammar (one lowercase label under .actions.githubusercontent.com)`,
     );
   }
 

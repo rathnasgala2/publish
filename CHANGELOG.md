@@ -12,6 +12,16 @@ and this project adheres to
 
 ### Changed
 
+- Replace the literal `GITHUB_ACTIONS_OIDC_ORIGIN_CATALOG` list in
+  `scripts/workflow/pages-oidc.mjs` with the closed origin grammar
+  `GITHUB_ACTIONS_OIDC_ORIGIN_HOST_PATTERN`: `https`, no port, no userinfo, and
+  exactly one lowercase DNS label under `.actions.githubusercontent.com`. GitHub
+  rotates the runner shard behind `ACTIONS_ID_TOKEN_REQUEST_URL` (`pipelines*`,
+  `run-actions-N-azure-*`), and the literal list failed a production Pages
+  deployment with `PAGES_OIDC_ORIGIN_UNCATALOGED` for
+  `run-actions-3-azure-eastus`. Raw-authority, path, query, size-cap,
+  no-redirect and no-retry checks are unchanged.
+
 - Re-pin both immutable caller references and the self-reference ledger to
   `ebef3f00b029f87739a645045bfbe9202c028e89`, the verified managed-toolchain
   workflow revision.

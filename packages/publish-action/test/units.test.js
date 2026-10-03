@@ -121,6 +121,27 @@ test('parseCliOptions: defaults resolve under the repository directory', () => {
   assert.equal(options.workDirectory, path.join('/work/dir', '.gala', 'work'));
 });
 
+test('parseCliOptions: content-mode candidate enables drafts-as-unlisted, publish (default) does not', () => {
+  assert.equal(parseCliOptions([], '/cwd').includeDraftsAsUnlisted, false);
+  assert.equal(
+    parseCliOptions(['--content-mode', 'publish'], '/cwd')
+      .includeDraftsAsUnlisted,
+    false,
+  );
+  assert.equal(
+    parseCliOptions(['--content-mode', 'candidate'], '/cwd')
+      .includeDraftsAsUnlisted,
+    true,
+  );
+});
+
+test('parseCliOptions: an unknown content-mode is rejected with CONTENT_MODE_INVALID', () => {
+  assert.throws(
+    () => parseCliOptions(['--content-mode', 'draft'], '/cwd'),
+    /CONTENT_MODE_INVALID/u,
+  );
+});
+
 test('parseCliOptions: explicit flags override defaults', () => {
   const options = parseCliOptions(
     ['--repository', '/repo', '--output', '/out', '--work', '/work'],

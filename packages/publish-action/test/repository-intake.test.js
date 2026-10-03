@@ -387,3 +387,115 @@ test('managed build identity uses the exact verified GitHub commit and commit ep
     await cleanup();
   }
 });
+
+/**
+ * @param {string} dir the mutable repository copy
+ * @param {string} status the frontmatter status to write
+ * @returns {Promise<void>} resolves once rewritten
+ */
+async function setHelloWorldStatus(dir, status) {
+  const contentPath = path.join(dir, 'content/hello-world.md');
+  const text = await readFile(contentPath, 'utf8');
+  await writeFile(
+    contentPath,
+    text
+      .replace('status: published', `status: ${status}`)
+      .replace(/^publishedAt: .*\n/mu, ''),
+  );
+}
+
+/**
+ * @param {string} dir the repository directory
+ * @param {boolean | undefined} includeDraftsAsUnlisted candidate-render policy
+ * @returns {Promise<Record<string, unknown>[]>} the built content entries
+ */
+async function builtContent(dir, includeDraftsAsUnlisted) {
+  const buildInput = await buildBuildInputFromRepository({
+    repositoryDirectory: dir,
+    ...(includeDraftsAsUnlisted === undefined
+      ? {}
+      : { includeDraftsAsUnlisted }),
+  });
+  return /** @type {Record<string, unknown>[]} */ (buildInput.content);
+}
+
+test('a draft is omitted from build-input in publish mode', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await setHelloWorldStatus(dir, 'draft');
+    await assert.rejects(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      SchemaValidationError,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('candidate mode admits a draft as unlisted', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await setHelloWorldStatus(dir, 'draft');
+    const content = await builtContent(dir, true);
+    assert.equal(content.length, 1);
+    const [entry] = /** @type {[{frontmatter: {status: string}}]} */ (
+      /** @type {unknown} */ (content)
+    );
+    assert.equal(entry.frontmatter.status, 'unlisted');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('an archived entry is omitted even in candidate mode', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await setHelloWorldStatus(dir, 'archived');
+    await assert.rejects(builtContent(dir, true), SchemaValidationError);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('resolveSourceRevision ignores a malformed GITHUB_SHA and non-Actions env', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    assert.match(
+      await resolveSourceRevision(dir, {
+        GITHUB_ACTIONS: 'true',
+        GITHUB_SHA: 'abc',
+      }),
+      /^sha256:/u,
+    );
+    assert.match(
+      await resolveSourceRevision(dir, {
+        GITHUB_SHA: '0123456789abcdef0123456789abcdef01234567',
+      }),
+      /^sha256:/u,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('resolveBuildEpoch ignores a malformed GALA_BUILD_EPOCH and non-Actions env', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const fallback = await resolveBuildEpoch(dir, {});
+    assert.equal(
+      await resolveBuildEpoch(dir, {
+        GITHUB_ACTIONS: 'true',
+        GALA_BUILD_EPOCH: 'yesterday',
+      }),
+      fallback,
+    );
+    assert.equal(
+      await resolveBuildEpoch(dir, {
+        GALA_BUILD_EPOCH: '2026-09-30T17:31:50.000Z',
+      }),
+      fallback,
+    );
+  } finally {
+    await cleanup();
+  }
+});

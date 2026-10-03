@@ -2,7 +2,7 @@
  * The `gala-pages-oidc-v2` acquisition gate.
  *
  * DEC-097 section 7 fixes every byte of this one request before the runner
- * bearer is read: the origin must be an exact catalog member, the path must
+ * bearer is read: the origin must match the closed origin grammar, the path must
  * match the closed grammar, the query must be exactly `api-version=2.0`
  * with no `audience` in any ASCII case, and the response must be a 200
  * `application/json` body carrying exactly one `value` string. Each of
@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  GITHUB_ACTIONS_OIDC_ORIGIN_CATALOG,
+  GITHUB_ACTIONS_OIDC_ORIGIN_HOST_PATTERN,
   MAXIMUM_OIDC_TOKEN_BYTES,
   PagesOidcError,
   acquirePagesOidcToken,
@@ -71,20 +71,27 @@ function env(overrides = {}) {
   };
 }
 
-test('the origin catalog is closed and lists the DEC-097 members', () => {
-  assert.deepEqual(
-    [...GITHUB_ACTIONS_OIDC_ORIGIN_CATALOG],
-    [
-      'https://pipelines.actions.githubusercontent.com',
-      'https://pipelinesghubeus2.actions.githubusercontent.com',
-      'https://pipelinesghubeus26.actions.githubusercontent.com',
-    ],
+test('the origin catalog is a closed grammar', () => {
+  assert.ok(
+    GITHUB_ACTIONS_OIDC_ORIGIN_HOST_PATTERN.test(
+      'pipelines.actions.githubusercontent.com',
+    ),
   );
-  assert.ok(Object.isFrozen(GITHUB_ACTIONS_OIDC_ORIGIN_CATALOG));
+  assert.ok(
+    !GITHUB_ACTIONS_OIDC_ORIGIN_HOST_PATTERN.test(
+      'a.b.actions.githubusercontent.com',
+    ),
+  );
 });
 
-test('the base host and both cataloged shards are admitted', () => {
-  for (const origin of GITHUB_ACTIONS_OIDC_ORIGIN_CATALOG) {
+test('the previous literal origins and rotated shards are admitted', () => {
+  for (const origin of [
+    'https://pipelines.actions.githubusercontent.com',
+    'https://pipelinesghubeus2.actions.githubusercontent.com',
+    'https://pipelinesghubeus26.actions.githubusercontent.com',
+    'https://run-actions-3-azure-eastus.actions.githubusercontent.com',
+    'https://pipelinesghubeus99.actions.githubusercontent.com',
+  ]) {
     const url = VALID_URL.replace(
       'https://pipelinesghubeus2.actions.githubusercontent.com',
       origin,
@@ -93,14 +100,39 @@ test('the base host and both cataloged shards are admitted', () => {
   }
 });
 
-test('an uncataloged but syntactically valid shard is refused', () => {
-  assert.throws(
-    () =>
-      validateTokenRequestUrl(
-        VALID_URL.replace('pipelinesghubeus2.', 'pipelinesghubeus99.'),
-      ),
-    /PAGES_OIDC_ORIGIN_UNCATALOGED/u,
-  );
+test('hosts outside the closed grammar are refused', () => {
+  const base = 'https://pipelinesghubeus2.actions.githubusercontent.com';
+  /** @type {Array<[string, string]>} */
+  const cases = [
+    [
+      'https://evil.actions.githubusercontent.com.attacker.example',
+      'PAGES_OIDC_ORIGIN_UNCATALOGED',
+    ],
+    ['https://actions.githubusercontent.com', 'PAGES_OIDC_ORIGIN_UNCATALOGED'],
+    [
+      'https://a.b.actions.githubusercontent.com',
+      'PAGES_OIDC_ORIGIN_UNCATALOGED',
+    ],
+    [
+      'https://Pipelines.actions.githubusercontent.com',
+      'PAGES_OIDC_SOURCE_URL_INVALID',
+    ],
+    [
+      'https://pipelines.actions.githubusercontent.com:8443',
+      'PAGES_OIDC_SOURCE_URL_INVALID',
+    ],
+    [
+      'http://pipelines.actions.githubusercontent.com',
+      'PAGES_OIDC_SOURCE_URL_INVALID',
+    ],
+  ];
+  for (const [origin, code] of cases) {
+    assert.throws(
+      () => validateTokenRequestUrl(VALID_URL.replace(base, origin)),
+      (error) => error instanceof PagesOidcError && error.code === code,
+      `${origin} must reject with ${code}`,
+    );
+  }
 });
 
 test('a foreign suffix, userinfo, a port, uppercase bytes and an empty shard label all reject', () => {
@@ -254,8 +286,8 @@ test('an uncataloged origin is rejected before the runner bearer is read', async
   const probe = new Proxy(
     env({
       ACTIONS_ID_TOKEN_REQUEST_URL: VALID_URL.replace(
-        'pipelinesghubeus2.',
-        'pipelinesghubeus99.',
+        'pipelinesghubeus2.actions.githubusercontent.com',
+        'a.b.actions.githubusercontent.com',
       ),
     }),
     {

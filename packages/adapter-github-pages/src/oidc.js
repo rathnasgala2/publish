@@ -10,8 +10,9 @@
  * environment job, which calls the GitHub-hosted runner URL from
  * `ACTIONS_ID_TOKEN_REQUEST_URL` exactly once with
  * `ACTIONS_ID_TOKEN_REQUEST_TOKEN` (that is what the job's `id-token: write`
- * permission is for), against an origin that must byte-equal one member of
- * the capability-authorized `githubActionsOidcOriginCatalog`.
+ * permission is for), against an origin that must match the closed
+ * capability-authorized `githubActionsOidcOriginCatalog` grammar (one
+ * lowercase label under `.actions.githubusercontent.com`).
  *
  * For this in-job, single-use credential the trust boundary is therefore
  * that exact catalog-authorized, DNS/TLS-authenticated runner token endpoint
