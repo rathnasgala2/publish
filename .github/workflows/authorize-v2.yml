@@ -123,6 +123,7 @@ jobs:
           path:
             ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
             github.run_attempt }}-deployment-authorization-v2.jcs
+          archive: false
           overwrite: false
           retention-days: 1
 
@@ -148,6 +149,7 @@ jobs:
           path:
             ${{ runner.temp }}/carrier/gala-r${{ github.run_id }}-a${{
             github.run_attempt }}-report-challenge-v2.jcs
+          archive: false
           overwrite: false
           retention-days: 1
 
