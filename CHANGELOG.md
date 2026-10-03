@@ -22,6 +22,15 @@ and this project adheres to
   `run-actions-3-azure-eastus`. Raw-authority, path, query, size-cap,
   no-redirect and no-retry checks are unchanged.
 
+- Admit the second request-target path form in
+  `scripts/workflow/pages-oidc.mjs`: GitHub's `run-actions-N-azure-*` shards
+  emit `/<digits>//idtoken/<uuid>/<uuid>` (a literal empty segment, then two
+  lowercase hex UUIDs) and failed a production Pages deployment with
+  `PAGES_OIDC_SOURCE_URL_INVALID` on `run-actions-1-azure-eastus`. The legacy
+  `pipelines*` path stays exactly as before and no other form is admitted; the
+  origin, raw-authority, query, size-cap, no-redirect and no-retry checks are
+  unchanged.
+
 - Re-pin both immutable caller references and the self-reference ledger to
   `ebef3f00b029f87739a645045bfbe9202c028e89`, the verified managed-toolchain
   workflow revision.

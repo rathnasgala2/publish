@@ -194,6 +194,47 @@ test('a path outside the closed grammar is refused', () => {
   }
 });
 
+const UUID_A = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+const UUID_B = 'f0e1d2c3-b4a5-4968-8776-5a4b3c2d1e0f';
+const RUN_ACTIONS_HOST =
+  'https://run-actions-1-azure-eastus.actions.githubusercontent.com';
+const RUN_ACTIONS_PATH = `/123456//idtoken/${UUID_A}/${UUID_B}`;
+const RUN_ACTIONS_URL = `${RUN_ACTIONS_HOST}${RUN_ACTIONS_PATH}?api-version=2.0`;
+
+test('the run-actions path form is admitted and sent verbatim with its double slash', async () => {
+  const target = validateTokenRequestUrl(RUN_ACTIONS_URL);
+  assert.equal(target.origin, RUN_ACTIONS_HOST);
+  assert.equal(target.requestTarget, `${RUN_ACTIONS_PATH}?api-version=2.0`);
+
+  const stub = stubFetch({});
+  const result = await acquirePagesOidcToken({
+    env: env({ ACTIONS_ID_TOKEN_REQUEST_URL: RUN_ACTIONS_URL }),
+    fetch: stub.fetch,
+  });
+  assert.equal(result.token, FAKE_TOKEN);
+  assert.equal(stub.calls.length, 1);
+  assert.equal(stub.calls[0]?.url, RUN_ACTIONS_URL);
+  assert.equal(new URL(String(stub.calls[0]?.url)).pathname, RUN_ACTIONS_PATH);
+});
+
+test('a run-actions-form path outside the closed grammar is refused', () => {
+  for (const path of [
+    `/123/idtoken/${UUID_A}/${UUID_B}`,
+    `/123//idtoken/${UUID_A.toUpperCase()}/${UUID_B}`,
+    `/123//idtoken/${UUID_A}`,
+    `/abc//idtoken/${UUID_A}/${UUID_B}`,
+    `/123//idtoken/${UUID_A}/${UUID_B}/`,
+    `//idtoken/${UUID_A}/${UUID_B}`,
+  ]) {
+    assert.throws(
+      () =>
+        validateTokenRequestUrl(`${RUN_ACTIONS_HOST}${path}?api-version=2.0`),
+      /PAGES_OIDC_SOURCE_URL_INVALID: the request-target path does not match the exact closed grammar/u,
+      `path ${path} must be refused`,
+    );
+  }
+});
+
 test('the happy path sends exactly one no-audience request with the fixed header rows', async () => {
   const stub = stubFetch({});
   const result = await acquirePagesOidcToken({ env: env(), fetch: stub.fetch });

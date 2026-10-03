@@ -52,18 +52,28 @@ export const MAXIMUM_OIDC_TOKEN_BYTES = 8000;
 /** One request-target path segment: 1..128 bytes of `[A-Za-z0-9._~-]`. */
 const SAFE_SEGMENT = '[A-Za-z0-9._~-]{1,128}';
 
+/** One lowercase hex UUID (8-4-4-4-12), as the run-actions shards emit it. */
+const LOWER_UUID =
+  '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+
 /**
- * The exact request-target grammar DEC-097 fixes:
+ * The exact request-target grammar DEC-097 fixes. Exactly one of two closed
+ * path forms is admitted; nothing else is. GitHub's `run-actions-N-azure-*`
+ * shards use the second form, while the legacy `pipelines*` shards keep the
+ * first.
  *
  * ```text
- * path  = "/" safeSegment "/" safeSegment
- *         "/_apis/distributedtask/hubs/Actions/plans/" safeSegment
- *         "/jobs/" safeSegment "/idtoken"
+ * path  = legacyPath / runActionsPath
+ * legacyPath = "/" safeSegment "/" safeSegment
+ *              "/_apis/distributedtask/hubs/Actions/plans/" safeSegment
+ *              "/jobs/" safeSegment "/idtoken"
+ * runActionsPath = "/" 1*20DIGIT "//idtoken/" lowerUuid "/" lowerUuid
+ *                  ; the empty segment (double slash) is literal
  * query = "api-version=2.0"
  * ```
  */
 const REQUEST_TARGET_PATTERN = new RegExp(
-  `^/${SAFE_SEGMENT}/${SAFE_SEGMENT}/_apis/distributedtask/hubs/Actions/plans/${SAFE_SEGMENT}/jobs/${SAFE_SEGMENT}/idtoken$`,
+  `^(?:/${SAFE_SEGMENT}/${SAFE_SEGMENT}/_apis/distributedtask/hubs/Actions/plans/${SAFE_SEGMENT}/jobs/${SAFE_SEGMENT}/idtoken|/[0-9]{1,20}//idtoken/${LOWER_UUID}/${LOWER_UUID})$`,
   'u',
 );
 
