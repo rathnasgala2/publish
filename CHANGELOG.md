@@ -12,6 +12,10 @@ and this project adheres to
 
 ### Fixed
 
+- `scripts/workflow/deploy.mjs` reads the Actions token from `GH_TOKEN`, the
+  name every `publish-v2.yml` step already exports, instead of `GITHUB_TOKEN`,
+  which no step set. The first production Pages deploy on the fixed toolchain
+  stopped with `DEPLOY_CREDENTIAL_MISSING: GITHUB_TOKEN` before any Pages call.
 - Normalise the Pages carrier's `actions/upload-artifact` `artifact-digest`
   output in `scripts/workflow/deploy.mjs` (`normalizeUploadArtifactDigest`): the
   action emits bare lowercase hex, which the adapter compared against

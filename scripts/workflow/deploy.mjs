@@ -310,7 +310,7 @@ async function main() {
 
     destination = {
       ...pagesDestinationBinding(intent, process.env),
-      token: requireEnv('GITHUB_TOKEN'),
+      token: requireEnv('GH_TOKEN'),
       // The Pages carrier is uploaded by the pinned v7 action in this job's
       // own earlier step, never by the adapter: what the adapter is handed
       // is the already observed artifact identity, and the digest it was
