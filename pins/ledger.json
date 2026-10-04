@@ -78,7 +78,7 @@
   "selfReferences": [
     {
       "reference": "rathnasgala2/publish/.github/workflows/publish-v2.yml",
-      "sha": "c6076ad764bdb5cb4b9cf0981e69bd062fb485e8",
+      "sha": "d170a560eea9d8d6a47de614591c0bc134f69b82",
       "status": "author-replaced-example",
       "reason": "The fixed caller in docs/callers/ pins the exact rathnasgala2/publish commit the author is told to use. W0-01 has published this repository (verified 2026-09-25), so the documented example carries a real commit SHA instead of an all-zero placeholder. Re-pinned to the workflow fix commit of 2026-10-03 so generated repositories call the revision that requires and consumes the matching publish_toolchain_ref instead of resolving the caller repository's github.workflow_sha."
     }
