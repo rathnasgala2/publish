@@ -287,7 +287,9 @@ async function main() {
     journalHead.adapterVersion = adapterModule.ADAPTER_VERSION;
     requireAdapterVersionAgreement(adapterModule.ADAPTER_VERSION, bound);
     const pagesArtifactId = requireOption(options, 'pages-artifact-id');
-    const pagesArtifactDigest = requireOption(options, 'pages-artifact-digest');
+    const pagesArtifactDigest = normalizeUploadArtifactDigest(
+      requireOption(options, 'pages-artifact-digest'),
+    );
     journalHead.pagesArtifactId = pagesArtifactId;
     journalHead.pagesArtifactDigest = pagesArtifactDigest;
     // The deploy-phase carrier fact this job holds (LOCAL-62): the digest
@@ -427,8 +429,28 @@ function requireAdapterVersionAgreement(installed, bound) {
   }
 }
 
+/**
+ * Normalise the `artifact-digest` output of `actions/upload-artifact` to the
+ * tagged `sha256:<hex>` form the adapter and the kernel compare. The action
+ * emits bare lowercase hex; a tagged value is accepted unchanged. Anything
+ * else is refused, never repaired.
+ *
+ * @param {string} value the value handed over by the workflow
+ * @returns {string} `sha256:<64 lowercase hex characters>`
+ */
+function normalizeUploadArtifactDigest(value) {
+  const match = /^(?:sha256:)?([0-9a-f]{64})$/u.exec(value);
+  if (match === null) {
+    throw new Error(
+      'DEPLOY_PAGES_ARTIFACT_DIGEST_INVALID: the Pages artifact digest must be exactly 64 lowercase hex characters, optionally prefixed `sha256:`',
+    );
+  }
+  return `sha256:${match[1]}`;
+}
+
 export {
   destinationIdentityFrom,
+  normalizeUploadArtifactDigest,
   pagesDestinationBinding,
   pagesOidcClaims,
   requireAdapterVersionAgreement,

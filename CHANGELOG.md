@@ -10,6 +10,16 @@ and this project adheres to
 
 ### Added
 
+### Fixed
+
+- Normalise the Pages carrier's `actions/upload-artifact` `artifact-digest`
+  output in `scripts/workflow/deploy.mjs` (`normalizeUploadArtifactDigest`): the
+  action emits bare lowercase hex, which the adapter compared against
+  `sha256:<hex>` and refused with `PAGES_CARRIER_HANDOFF_MISMATCH` although the
+  digests were identical. Bare or `sha256:`-tagged 64 lowercase hex is accepted
+  and handed over tagged; anything else fails with
+  `DEPLOY_PAGES_ARTIFACT_DIGEST_INVALID`. The adapter's comparison is unchanged.
+
 ### Changed
 
 - Raise the byte ceilings on GitHub-controlled Pages OIDC values to memory

@@ -14,6 +14,7 @@ import { test } from 'node:test';
 
 import {
   destinationIdentityFrom,
+  normalizeUploadArtifactDigest,
   pagesDestinationBinding,
   requireAdapterVersionAgreement,
   spacesDestination,
@@ -240,5 +241,34 @@ test('a do-spaces intent through the fake: the deploy job’s own recomputation 
   } finally {
     process.env.CALLER_DO_SPACES_ACCESS_KEY_ID = previous.id;
     process.env.CALLER_DO_SPACES_SECRET_ACCESS_KEY = previous.secret;
+  }
+});
+
+test('the upload-artifact digest is normalised to the sha256-tagged form the adapter compares', () => {
+  const hex = 'ab'.repeat(32);
+  assert.equal(normalizeUploadArtifactDigest(hex), `sha256:${hex}`);
+  assert.equal(normalizeUploadArtifactDigest(`sha256:${hex}`), `sha256:${hex}`);
+});
+
+test('a malformed upload-artifact digest is refused by name, never repaired', () => {
+  const hex = 'ab'.repeat(32);
+  for (const bad of [
+    hex.toUpperCase(),
+    `sha256:${hex.toUpperCase()}`,
+    hex.slice(1),
+    `${hex}a`,
+    `sha1:${hex}`,
+    `sha512:${hex}`,
+    ` ${hex}`,
+    `${hex} `,
+    `${hex}\n`,
+    `sha256:${hex.slice(1)}`,
+    '',
+  ]) {
+    assert.throws(
+      () => normalizeUploadArtifactDigest(bad),
+      /DEPLOY_PAGES_ARTIFACT_DIGEST_INVALID/u,
+      JSON.stringify(bad),
+    );
   }
 });

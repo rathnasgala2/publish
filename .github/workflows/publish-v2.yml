@@ -807,6 +807,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PAGES_ARTIFACT_ID: ${{ steps.upload-carrier.outputs.artifact-id }}
+          # actions/upload-artifact emits `artifact-digest` as BARE lowercase
+          # hex (no `sha256:` prefix); deploy.mjs normalises it to the tagged
+          # form the adapter compares and refuses anything else.
           PAGES_ARTIFACT_DIGEST:
             ${{ steps.upload-carrier.outputs.artifact-digest }}
           ENVELOPE_DIGEST: ${{ needs.freeze.outputs.envelope_digest }}
