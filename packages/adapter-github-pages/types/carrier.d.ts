@@ -15,9 +15,9 @@ export function splitUstarPath(entryPath: string): {
  *
  * The carrier is extracted by the provider, not by this process, so the
  * only place an escaping member can be stopped is here, at the point it is
- * written. Only regular-file entries are ever emitted (typeflag `0`): this
- * codec has no link, device or directory entry, so a symlink/hardlink
- * member cannot exist to be followed.
+ * written. Only regular-file (typeflag `0`) and directory (typeflag `5`)
+ * entries are ever emitted: this codec has no link or device entry, so a
+ * symlink/hardlink member cannot exist to be followed.
  *
  * @param {string} entryPath the artifact-relative POSIX path
  * @returns {string} the accepted path
@@ -39,7 +39,8 @@ export function encodeCarrier(files: readonly CarrierFile[]): Buffer;
  * codec golden test — can prove the round trip is lossless.
  *
  * @param {Buffer} carrier the carrier bytes
- * @returns {CarrierFile[]} the decoded file set, in carrier order
+ * @returns {CarrierFile[]} the decoded file set, in carrier order; directory
+ *   entries (typeflag `5`) are skipped
  */
 export function decodeCarrier(carrier: Buffer): CarrierFile[];
 export type CarrierFile = Readonly<{

@@ -12,6 +12,12 @@ and this project adheres to
 
 ### Fixed
 
+- The Pages carrier now writes a directory entry (typeflag `5`, mode 0755) for
+  every parent directory and sets uname/gname to `root` on every entry. Measured
+  on GitHub Pages: a tar of file entries only with empty uname/gname is refused
+  ("Deployment failed"), while the same files with directory entries and `root`
+  names deploy. Entries are sorted by full path (directories with their trailing
+  `/`); `decodeCarrier` skips directory entries.
 - The Pages carrier is now an uncompressed ustar tar uploaded as a standard
   (zip-wrapped) Actions artifact: measured on GitHub, Pages only processes a
   standard artifact holding an uncompressed tar; a gzip tar fails and an

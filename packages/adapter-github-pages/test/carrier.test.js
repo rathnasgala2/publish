@@ -59,7 +59,8 @@ test('every tar header records the ustar magic and zeroed ownership', () => {
   assert.equal(header.subarray(108, 115).toString('ascii'), '0000000');
   assert.equal(header.subarray(116, 123).toString('ascii'), '0000000');
   assert.equal(header.subarray(136, 147).toString('ascii'), '00000000000');
-  assert.equal(header.subarray(156, 157).toString('ascii'), '0');
+  assert.equal(header.subarray(156, 157).toString('ascii'), '5');
+  assert.equal(header.subarray(0, 2).toString('ascii'), 'a/');
 });
 
 test('the tar stream ends with two zero blocks', () => {
@@ -117,9 +118,101 @@ test('a member that would extract outside the carrier root is refused', () => {
   }
 });
 
-test('the carrier has no entry type but the regular file', () => {
+/**
+ * @param {Buffer} tar carrier bytes
+ * @returns {{path: string, typeflag: string, mode: string, uname: string, gname: string, size: number}[]} header facts, in carrier order
+ */
+function listHeaders(tar) {
+  const out = [];
+  const field = (
+    /** @type {Buffer} */ h,
+    /** @type {number} */ o,
+    /** @type {number} */ l,
+  ) =>
+    h
+      .subarray(o, o + l)
+      .toString('ascii')
+      .replace(/\0.*$/su, '');
+  for (let offset = 0; offset + 512 <= tar.byteLength;) {
+    const header = tar.subarray(offset, offset + 512);
+    if (header.every((byte) => byte === 0)) {
+      break;
+    }
+    const prefix = field(header, 345, 155);
+    const name = field(header, 0, 100);
+    const size = Number.parseInt(field(header, 124, 12) || '0', 8);
+    out.push({
+      path: prefix === '' ? name : `${prefix}/${name}`,
+      typeflag: field(header, 156, 1),
+      mode: field(header, 100, 8),
+      uname: field(header, 265, 32),
+      gname: field(header, 297, 32),
+      size,
+    });
+    offset += 512 + Math.ceil(size / 512) * 512;
+  }
+  return out;
+}
+
+test('every parent directory gets a typeflag-5 entry, sorted before its contents', () => {
+  const headers = listHeaders(
+    encodeCarrier([
+      ...fixture(),
+      { path: '.well-known/m.json', bytes: Buffer.from('{}') },
+      { path: 'assets/theme/assets/x.css', bytes: Buffer.from('x') },
+    ]),
+  );
+  const dirs = headers.filter((h) => h.typeflag === '5');
+  assert.deepEqual(
+    dirs.map((h) => h.path),
+    [
+      '.well-known/',
+      'a/',
+      'a/b/',
+      'assets/',
+      'assets/theme/',
+      'assets/theme/assets/',
+    ],
+  );
+  for (const dir of dirs) {
+    assert.equal(dir.mode, '0000755');
+    assert.equal(dir.size, 0);
+    assert.equal(dir.uname, 'root');
+    assert.equal(dir.gname, 'root');
+  }
+  for (const file of headers.filter((h) => h.typeflag === '0')) {
+    assert.equal(file.mode, '0000644');
+    assert.equal(file.uname, 'root');
+    assert.equal(file.gname, 'root');
+  }
+  const paths = headers.map((h) => h.path);
+  assert.deepEqual(paths, [...paths].sort());
+  assert.ok(paths.indexOf('a/') < paths.indexOf('a/b/'));
+  assert.ok(paths.indexOf('a/b/') < paths.indexOf('a/b/c.txt'));
+});
+
+test('decodeCarrier skips directory entries and returns only files', () => {
+  const decoded = decodeCarrier(encodeCarrier(fixture()));
+  assert.deepEqual(decoded.map((f) => f.path).sort(), [
+    'a/b/c.txt',
+    'empty.txt',
+    'exact-block.bin',
+    'index.html',
+  ]);
+});
+
+test('a long nested directory path is split into prefix/name', () => {
+  const deep = `${'directory/'.repeat(12)}page.html`;
+  const dirs = listHeaders(
+    encodeCarrier([{ path: deep, bytes: Buffer.from('d') }]),
+  ).filter((h) => h.typeflag === '5');
+  assert.equal(dirs.length, 12);
+  assert.equal(dirs[11]?.path, `${'directory/'.repeat(12)}`);
+});
+
+test('the carrier has only regular-file and directory entries', () => {
   const bytes = encodeCarrier([
-    { path: 'index.html', bytes: Buffer.from('ok') },
+    { path: 'sub/index.html', bytes: Buffer.from('ok') },
   ]);
   const tar = bytes;
   for (let offset = 0; offset + 512 <= tar.byteLength; offset += 512) {
@@ -129,7 +222,7 @@ test('the carrier has no entry type but the regular file', () => {
     }
     // Typeflag 0 is a regular file; 1 and 2 (hard link and symlink) carry a
     // linkname that an extractor would follow, and are never emitted.
-    assert.equal(String.fromCharCode(Number(header[156])), '0');
+    assert.ok(['0', '5'].includes(String.fromCharCode(Number(header[156]))));
     assert.equal(
       header.subarray(157, 257).every((byte) => byte === 0),
       true,

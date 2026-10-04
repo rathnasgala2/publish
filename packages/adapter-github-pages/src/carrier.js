@@ -9,8 +9,20 @@
  *
  * Determinism comes from fixing every field a tar writer would normally
  * take from the ambient environment: modification time `0`, owner/group id
- * `0`, empty owner/group names, a fixed file mode, no PAX or GNU extension
- * records, and entries emitted in ascending UTF-8 path order.
+ * `0`, owner/group names fixed to `root`, a fixed file mode, no PAX or GNU
+ * extension records, and entries emitted in one deterministic order (below).
+ *
+ * Entry order: every entry, directory or file, is sorted by its full path
+ * string (directories carry their trailing `/`) in ascending code-unit order,
+ * so a directory entry always precedes everything inside it. The order is
+ * independent of the input order.
+ *
+ * Measured on GitHub Pages (actions/deploy-pages as oracle, same site files):
+ * a tar holding only file entries with EMPTY uname/gname is refused
+ * ("Deployment failed"); the same files with a directory entry (typeflag `5`,
+ * mode 0755) for every parent directory AND uname/gname `root` deploy. Which
+ * of the two matters is not yet separated, so both are emitted; both are
+ * harmless to an extractor.
  *
  * Measured on GitHub (actions/deploy-pages as oracle): Pages processes a
  * deployment only when the artifact is a standard Actions artifact (the zip
@@ -25,6 +37,8 @@ const BLOCK_BYTES = 512;
 const NAME_FIELD_BYTES = 100;
 const PREFIX_FIELD_BYTES = 155;
 const FILE_MODE = '0000644';
+const DIRECTORY_MODE = '0000755';
+const OWNER_NAME = 'root';
 const USTAR_MAGIC = 'ustar\0' + '00';
 
 /**
@@ -85,9 +99,9 @@ export function splitUstarPath(entryPath) {
  *
  * The carrier is extracted by the provider, not by this process, so the
  * only place an escaping member can be stopped is here, at the point it is
- * written. Only regular-file entries are ever emitted (typeflag `0`): this
- * codec has no link, device or directory entry, so a symlink/hardlink
- * member cannot exist to be followed.
+ * written. Only regular-file (typeflag `0`) and directory (typeflag `5`)
+ * entries are ever emitted: this codec has no link or device entry, so a
+ * symlink/hardlink member cannot exist to be followed.
  *
  * @param {string} entryPath the artifact-relative POSIX path
  * @returns {string} the accepted path
@@ -111,25 +125,30 @@ export function requireContainedPath(entryPath) {
 }
 
 /**
- * Build one 512-byte ustar header block for a regular file.
+ * Build one 512-byte ustar header block for a regular file or a directory.
  *
- * @param {string} entryPath the artifact-relative POSIX path
- * @param {number} byteLength the member's byte length
+ * @param {string} entryPath the artifact-relative POSIX path; a directory
+ *   carries a trailing `/`
+ * @param {number} byteLength the member's byte length (`0` for a directory)
+ * @param {boolean} isDirectory whether this is a directory entry
  * @returns {Buffer} the header block, with its checksum applied
  */
-function buildHeaderBlock(entryPath, byteLength) {
+function buildHeaderBlock(entryPath, byteLength, isDirectory) {
   const block = Buffer.alloc(BLOCK_BYTES);
-  const { name, prefix } = splitUstarPath(requireContainedPath(entryPath));
+  requireContainedPath(isDirectory ? entryPath.slice(0, -1) : entryPath);
+  const { name, prefix } = splitUstarPath(entryPath);
 
   writeField(block, 0, NAME_FIELD_BYTES, name);
-  writeField(block, 100, 8, FILE_MODE);
+  writeField(block, 100, 8, isDirectory ? DIRECTORY_MODE : FILE_MODE);
   writeField(block, 108, 8, '0000000');
   writeField(block, 116, 8, '0000000');
   writeField(block, 124, 12, byteLength.toString(8).padStart(11, '0'));
   writeField(block, 136, 12, '00000000000');
   block.fill(0x20, 148, 156);
-  block.write('0', 156, 1, 'ascii');
+  block.write(isDirectory ? '5' : '0', 156, 1, 'ascii');
   writeField(block, 257, 8, USTAR_MAGIC);
+  writeField(block, 265, 32, OWNER_NAME);
+  writeField(block, 297, 32, OWNER_NAME);
   writeField(block, 345, PREFIX_FIELD_BYTES, prefix);
 
   let checksum = 0;
@@ -149,13 +168,31 @@ function buildHeaderBlock(entryPath, byteLength) {
  * @returns {Buffer} the carrier bytes
  */
 export function encodeCarrier(files) {
-  const ordered = [...files].sort((left, right) =>
+  /** @type {Set<string>} */
+  const directories = new Set();
+  for (const file of files) {
+    const segments = file.path.split('/');
+    for (let depth = 1; depth < segments.length; depth += 1) {
+      directories.add(`${segments.slice(0, depth).join('/')}/`);
+    }
+  }
+  /** @type {{path: string, bytes: Buffer, isDirectory: boolean}[]} */
+  const ordered = [
+    ...[...directories].map((path) => ({
+      path,
+      bytes: Buffer.alloc(0),
+      isDirectory: true,
+    })),
+    ...files.map((file) => ({ ...file, isDirectory: false })),
+  ].sort((left, right) =>
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
   /** @type {Buffer[]} */
   const blocks = [];
   for (const file of ordered) {
-    blocks.push(buildHeaderBlock(file.path, file.bytes.byteLength));
+    blocks.push(
+      buildHeaderBlock(file.path, file.bytes.byteLength, file.isDirectory),
+    );
     blocks.push(file.bytes);
     const remainder = file.bytes.byteLength % BLOCK_BYTES;
     if (remainder !== 0) {
@@ -174,7 +211,8 @@ export function encodeCarrier(files) {
  * codec golden test — can prove the round trip is lossless.
  *
  * @param {Buffer} carrier the carrier bytes
- * @returns {CarrierFile[]} the decoded file set, in carrier order
+ * @returns {CarrierFile[]} the decoded file set, in carrier order; directory
+ *   entries (typeflag `5`) are skipped
  */
 export function decodeCarrier(carrier) {
   if (carrier.byteLength >= 2 && carrier[0] === 0x1f && carrier[1] === 0x8b) {
@@ -198,10 +236,12 @@ export function decodeCarrier(carrier) {
       8,
     );
     offset += BLOCK_BYTES;
-    files.push({
-      path: prefix === '' ? name : `${prefix}/${name}`,
-      bytes: Buffer.from(tar.subarray(offset, offset + size)),
-    });
+    if (String.fromCharCode(Number(header[156])) !== '5') {
+      files.push({
+        path: prefix === '' ? name : `${prefix}/${name}`,
+        bytes: Buffer.from(tar.subarray(offset, offset + size)),
+      });
+    }
     offset += Math.ceil(size / BLOCK_BYTES) * BLOCK_BYTES;
   }
   return files;
