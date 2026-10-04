@@ -329,6 +329,10 @@ export async function pollDeployment(context, pagesDeploymentId, options) {
  */
 function defaultSleep(seconds) {
   return new Promise((resolve) => {
-    setTimeout(resolve, seconds * 1000).unref();
+    // Referenced on purpose: an unreferenced timer let the event loop drain while
+    // the only pending work was this sleep, and Node exited with code 13
+    // ("unsettled top-level await") mid-poll on a real run. The poll budget
+    // bounds the wait; nothing else keeps the process alive during it.
+    setTimeout(resolve, seconds * 1000);
   });
 }

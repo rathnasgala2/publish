@@ -12,6 +12,11 @@ and this project adheres to
 
 ### Fixed
 
+- The Pages adapter's status-poll sleep keeps its timer referenced. An
+  unreferenced timer let Node exit with code 13 ("unsettled top-level await") in
+  the middle of the first real poll, right after GitHub had accepted the
+  deployment. A claim-binding refusal now names the observed claim value, which
+  is a public identity string, next to the expected one.
 - The Pages deploy step passes the toolchain commit as
   `GALA_PUBLISH_TOOLCHAIN_SHA`. It was mapped onto `GITHUB_WORKFLOW_SHA`, a
   reserved name a step cannot override (measured), whose runner value in a

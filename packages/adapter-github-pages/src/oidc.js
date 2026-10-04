@@ -361,9 +361,12 @@ function requireTemporalValidity(payload, now) {
  */
 function requireClaimEquals(observed, expected, name, code) {
   if (observed !== expected) {
+    // Every claim compared here is a public identity string (ref, sha, run id,
+    // workflow path), never a credential, so the observed value is named: a
+    // production refusal that hides it costs a full publish cycle to diagnose.
     refuse(
       code,
-      `the ${JSON.stringify(name)} claim does not byte-equal the expected ${JSON.stringify(expected)}`,
+      `the ${JSON.stringify(name)} claim ${JSON.stringify(String(observed))} does not byte-equal the expected ${JSON.stringify(expected)}`,
     );
   }
 }
