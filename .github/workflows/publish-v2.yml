@@ -790,6 +790,11 @@ jobs:
             --envelope-digest "${ENVELOPE_DIGEST}" \
             --out "${RUNNER_TEMP}/carrier/gala-pages-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}"
 
+      # Measured on GitHub (actions/deploy-pages as oracle): Pages processes a
+      # deployment only for a STANDARD Actions artifact (the default zip
+      # wrapper, so no `archive: false` here) whose single member is an
+      # UNCOMPRESSED tar. A raw (`archive: false`) artifact is never processed
+      # and stays in deployment_queued.
       - name: Upload the deterministic Pages carrier
         id: upload-carrier
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -798,7 +803,6 @@ jobs:
           path:
             ${{ runner.temp }}/carrier/gala-pages-r${{ github.run_id }}-a${{
             github.run_attempt }}
-          archive: false
           overwrite: false
           retention-days: 1
 

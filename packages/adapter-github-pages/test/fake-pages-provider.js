@@ -7,7 +7,7 @@
  * and serialises a real JSON body, and only the transport hop is redirected
  * here (the original origin travels in `x-fake-origin`, so the server routes
  * exactly as the real split between the control plane and the public origin
- * would). The carrier the adapter produces is genuinely gunzipped and
+ * would). The carrier the adapter produces is genuinely decoded (uncompressed tar) and
  * untarred here before it is served, so the deterministic ustar codec is
  * exercised end to end rather than trusted.
  */

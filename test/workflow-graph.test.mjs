@@ -394,7 +394,9 @@ test("the Pages carrier's basename and artifact name are exactly gala-pages-r<ru
     upload.with.path.replaceAll(/\s+/gu, ' ').trim(),
     '${{ runner.temp }}/carrier/gala-pages-r${{ github.run_id }}-a${{ github.run_attempt }}',
   );
-  assert.equal(upload.with.archive, false);
+  // Pages only processes a standard (zip-wrapped) artifact; raw never leaves the queue.
+  assert.equal(upload.with.archive, undefined);
+  assert.equal(upload.with.overwrite, false);
   assert.equal(upload.with['retention-days'], 1);
 
   const build = job.steps.find(

@@ -12,6 +12,11 @@ and this project adheres to
 
 ### Fixed
 
+- The Pages carrier is now an uncompressed ustar tar uploaded as a standard
+  (zip-wrapped) Actions artifact: measured on GitHub, Pages only processes a
+  standard artifact holding an uncompressed tar; a gzip tar fails and an
+  `archive: false` raw artifact never leaves the deployment queue.
+  `decodeCarrier` refuses gzip with `PAGES_CARRIER_GZIP_REFUSED`.
 - The Pages adapter's status-poll sleep keeps its timer referenced. An
   unreferenced timer let Node exit with code 13 ("unsettled top-level await") in
   the middle of the first real poll, right after GitHub had accepted the

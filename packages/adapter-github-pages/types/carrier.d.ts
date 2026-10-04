@@ -24,8 +24,8 @@ export function splitUstarPath(entryPath: string): {
  */
 export function requireContainedPath(entryPath: string): string;
 /**
- * Encode a complete file set as deterministic one-member gzip/ustar carrier
- * bytes.
+ * Encode a complete file set as deterministic uncompressed ustar
+ * carrier bytes (never gzip; see the module comment).
  *
  * @param {readonly CarrierFile[]} files the complete artifact file set,
  *   including the reserved public generation marker

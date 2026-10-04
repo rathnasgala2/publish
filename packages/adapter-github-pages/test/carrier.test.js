@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { gunzipSync } from 'node:zlib';
+import { gzipSync } from 'node:zlib';
 import { test } from 'node:test';
 
 import {
@@ -39,14 +39,20 @@ test('carrier bytes are independent of the input order', () => {
   assert.deepEqual(ordered, shuffled);
 });
 
-test('the gzip member records no ambient MTIME or OS byte', () => {
+test('the carrier is an uncompressed tar, not gzip', () => {
   const carrier = encodeCarrier(fixture());
-  assert.equal(carrier.readUInt32LE(4), 0, 'gzip MTIME must be zero');
-  assert.equal(carrier.readUInt8(9), 0xff, 'gzip OS must be "unknown"');
+  assert.notDeepEqual([...carrier.subarray(0, 2)], [0x1f, 0x8b]);
+  assert.equal(carrier.byteLength % 512, 0);
+  assert.equal(carrier.subarray(257, 262).toString('ascii'), 'ustar');
+});
+
+test('decodeCarrier refuses a gzip-compressed carrier with a clear code', () => {
+  const gz = gzipSync(encodeCarrier(fixture()));
+  assert.throws(() => decodeCarrier(gz), /PAGES_CARRIER_GZIP_REFUSED/u);
 });
 
 test('every tar header records the ustar magic and zeroed ownership', () => {
-  const tar = gunzipSync(encodeCarrier(fixture()));
+  const tar = encodeCarrier(fixture());
   const header = tar.subarray(0, 512);
   assert.equal(header.subarray(257, 263).toString('ascii'), 'ustar\0');
   assert.equal(header.subarray(263, 265).toString('ascii'), '00');
@@ -57,7 +63,7 @@ test('every tar header records the ustar magic and zeroed ownership', () => {
 });
 
 test('the tar stream ends with two zero blocks', () => {
-  const tar = gunzipSync(encodeCarrier(fixture()));
+  const tar = encodeCarrier(fixture());
   assert.ok(tar.subarray(tar.byteLength - 1024).every((byte) => byte === 0));
 });
 
@@ -115,7 +121,7 @@ test('the carrier has no entry type but the regular file', () => {
   const bytes = encodeCarrier([
     { path: 'index.html', bytes: Buffer.from('ok') },
   ]);
-  const tar = gunzipSync(bytes);
+  const tar = bytes;
   for (let offset = 0; offset + 512 <= tar.byteLength; offset += 512) {
     const header = tar.subarray(offset, offset + 512);
     if (header.every((byte) => byte === 0)) {

@@ -6,10 +6,10 @@ declares exactly the DEC-097 section 7 `github-pages` capability row.
 
 ## What it does
 
-1. **stage** builds one deterministic gzip/POSIX.1-1988 ustar carrier from the
-   frozen artifact plus the reserved public generation marker, and hands it to
-   the caller-supplied Actions-artifact publisher. Nothing public changes:
-   `staging: private` is literal.
+1. **stage** builds one deterministic uncompressed POSIX.1-1988 ustar carrier
+   from the frozen artifact plus the reserved public generation marker, and
+   hands it to the caller-supplied Actions-artifact publisher. Nothing public
+   changes: `staging: private` is literal.
 2. **activate** re-reads the served generation, checks the mandatory activation
    fence, re-derives the artifact digest from the carrier bytes that will
    actually be deployed, verifies the caller-supplied Pages OIDC token's

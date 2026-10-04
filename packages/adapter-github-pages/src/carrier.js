@@ -1,6 +1,7 @@
 /**
- * The deterministic Pages carrier codec (slice brief section 2.3: "its
- * deterministic one-member gzip/POSIX.1-1988 ustar bytes"). The carrier is
+ * The deterministic Pages carrier codec (slice brief section 2.3, as
+ * amended by a measurement: the bytes are an UNCOMPRESSED POSIX.1-1988 ustar
+ * tar). The carrier is
  * the *only* thing this adapter ever hands the provider, and it is
  * byte-deterministic for a given file set: identical inputs always produce
  * identical carrier bytes, so a lost create response can be recovered
@@ -9,13 +10,16 @@
  * Determinism comes from fixing every field a tar writer would normally
  * take from the ambient environment: modification time `0`, owner/group id
  * `0`, empty owner/group names, a fixed file mode, no PAX or GNU extension
- * records, entries emitted in ascending UTF-8 path order, and a gzip member
- * written with a zeroed MTIME/OS byte.
+ * records, and entries emitted in ascending UTF-8 path order.
+ *
+ * Measured on GitHub (actions/deploy-pages as oracle): Pages processes a
+ * deployment only when the artifact is a standard Actions artifact (the zip
+ * wrapper upload-artifact adds by default) whose single member is an
+ * uncompressed tar of the site. A gzip-compressed tar fails ("Deployment
+ * failed"), so this codec never compresses.
  *
  * @module
  */
-
-import { gunzipSync, gzipSync } from 'node:zlib';
 
 const BLOCK_BYTES = 512;
 const NAME_FIELD_BYTES = 100;
@@ -137,8 +141,8 @@ function buildHeaderBlock(entryPath, byteLength) {
 }
 
 /**
- * Encode a complete file set as deterministic one-member gzip/ustar carrier
- * bytes.
+ * Encode a complete file set as deterministic uncompressed ustar
+ * carrier bytes (never gzip; see the module comment).
  *
  * @param {readonly CarrierFile[]} files the complete artifact file set,
  *   including the reserved public generation marker
@@ -160,12 +164,7 @@ export function encodeCarrier(files) {
   }
   blocks.push(Buffer.alloc(BLOCK_BYTES * 2));
 
-  const gzipped = gzipSync(Buffer.concat(blocks), { level: 9 });
-  // Zero the gzip header's MTIME (bytes 4..7) and OS (byte 9) fields, the
-  // only two places zlib is permitted to record ambient facts.
-  gzipped.writeUInt32LE(0, 4);
-  gzipped.writeUInt8(0xff, 9);
-  return gzipped;
+  return Buffer.concat(blocks);
 }
 
 /**
@@ -178,7 +177,12 @@ export function encodeCarrier(files) {
  * @returns {CarrierFile[]} the decoded file set, in carrier order
  */
 export function decodeCarrier(carrier) {
-  const tar = gunzipSync(carrier);
+  if (carrier.byteLength >= 2 && carrier[0] === 0x1f && carrier[1] === 0x8b) {
+    throw new RangeError(
+      'PAGES_CARRIER_GZIP_REFUSED: the Pages carrier must be an uncompressed ustar tar; GitHub Pages fails a gzip-compressed artifact',
+    );
+  }
+  const tar = carrier;
   /** @type {CarrierFile[]} */
   const files = [];
   let offset = 0;
