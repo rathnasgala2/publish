@@ -166,3 +166,26 @@ test('appearance.json naming a different theme than the lock is refused with THE
     await cleanup();
   }
 });
+
+test('intake does not validate the lock lockDigest against its theme block (a future enforcement must change this test)', async () => {
+  const { dir, cleanup } = await fixtureSelecting(
+    '@rathnasgala2/theme-amaze',
+    '@rathnasgala2/theme-amaze',
+  );
+  try {
+    // The fixture's lockDigest (…0008) was computed for a different theme
+    // block, and is now also set to an unrelated value: intake accepts both.
+    await editJson(dir, 'gala.lock.json', (lock) => {
+      lock.lockDigest = `sha256:${'f'.repeat(64)}`;
+    });
+    const input = await buildBuildInputFromRepository({
+      repositoryDirectory: dir,
+    });
+    assert.equal(
+      /** @type {any} */ (input).packages.theme.package,
+      '@rathnasgala2/theme-amaze',
+    );
+  } finally {
+    await cleanup();
+  }
+});
