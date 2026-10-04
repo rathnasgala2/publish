@@ -145,6 +145,12 @@ that actually exists wins:
    a real Action run outside this exact workspace layout can rely on, and it is
    **never** consulted once step 1 already found an installed package.
 
+On a runner the sandbox sets `WORKSPACE_ROOT` to the toolchain's
+`node_modules/@rathnasgala2`, so step 3 finds the themes the toolchain root
+installs (`src/theme-catalog.js` lists them with the lock block each needs).
+Repository intake also refuses with `THEME_SELECTION_MISMATCH` when
+`appearance.json`'s theme package differs from the lock's.
+
 Once a candidate directory is found, it is verified before ever being handed to
 `renderPublication`: its own `package.json` `name`/`version` must exactly match
 the lock-pinned `theme.package`/`theme.version`, and its own `theme.json` must

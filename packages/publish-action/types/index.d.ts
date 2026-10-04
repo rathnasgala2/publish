@@ -15,4 +15,5 @@ export const PACKAGE_STATUS: Readonly<{
 export { runPreview, serveDirectoryReadOnly } from "./commands/preview.js";
 export { buildBuildInputFromRepository, RepositoryIntakeError } from "./normalize/repository-intake.js";
 export { resolveThemeDirectory, ThemeResolutionError } from "./theme-bridge.js";
+export { THEME_CATALOG, THEME_REGISTRY, findThemeCatalogEntry, themePackageNameOf } from "./theme-catalog.js";
 export { buildResultEnvelope, classifyFindings, EXIT_CODES } from "./result.js";

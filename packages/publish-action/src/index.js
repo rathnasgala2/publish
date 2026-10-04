@@ -22,6 +22,12 @@ export {
 } from './normalize/repository-intake.js';
 export { buildProvenance } from './normalize/provenance.js';
 export { resolveThemeDirectory, ThemeResolutionError } from './theme-bridge.js';
+export {
+  THEME_CATALOG,
+  THEME_REGISTRY,
+  findThemeCatalogEntry,
+  themePackageNameOf,
+} from './theme-catalog.js';
 export { deployToLocalDirectory } from './deploy-local-directory.js';
 export { assertImplementedAdapter } from './adapter-select.js';
 export { runAction } from './action/run.js';

@@ -8,6 +8,20 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `THEME_SELECTION_MISMATCH` (`SOURCE_ERROR`, exit 5): repository intake refuses
+  when `appearance.json`'s `theme` package differs from `gala.lock.json`'s
+  `theme.package`. The finding names both packages; its recovery is "Choose the
+  theme again in Galascribe -> Settings -> Appearance, which updates both
+  files." Previously the lock was the sole authority and a differing
+  `appearance.json` was ignored, giving a silently different theme.
+- `src/theme-catalog.js` (exported from the package entry): `THEME_CATALOG`, the
+  exact `gala.lock.json` `theme` block for each theme the toolchain ships
+  (default, flashy, minimal, zebra), plus `findThemeCatalogEntry` and
+  `themePackageNameOf`. `test/theme-catalog.test.js` keeps it equal to the
+  installed packages and builds with each theme.
+
 ### Changed
 
 - **PUB-H5:** `template-bridge.js`'s `currentRenderPolicyIdentity` now imports

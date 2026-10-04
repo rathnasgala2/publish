@@ -4,9 +4,9 @@
  *
  * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean}} options the absolute repository directory and candidate-render policy
  * @returns {Promise<Record<string, unknown>>} the validated build-input
- *   document. `buildInput.packages.theme` (sourced from `lock.json`, the
- *   sole authority for the theme selection — no separate "theme" input
- *   exists) is the theme identity provenance building and any other
+ *   document. `buildInput.packages.theme` (sourced from `lock.json`; the
+ *   intake refuses with `THEME_SELECTION_MISMATCH` when `appearance.json`
+ *   names a different theme package) is the theme identity provenance building and any other
  *   theme-aware caller should reuse.
  */
 export function buildBuildInputFromRepository({ repositoryDirectory, includeDraftsAsUnlisted, }: {

@@ -89,6 +89,7 @@ import { destinationCapabilitiesFromLock } from './destination-capabilities.js';
 import { resolveBuildEpoch, resolveSourceRevision } from './source-revision.js';
 import { parseConstrainedYamlFrontmatter } from './frontmatter.js';
 import { REPOSITORY_ROOT_DOMAIN } from '../constants.js';
+import { themePackageNameOf } from '../theme-catalog.js';
 
 const SCHEMA = Object.freeze({
   repository: 'urn:gala:schema:repository:2.0.0',
@@ -219,9 +220,9 @@ function splitFrontmatterFence(text, relativePath) {
  *
  * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean}} options the absolute repository directory and candidate-render policy
  * @returns {Promise<Record<string, unknown>>} the validated build-input
- *   document. `buildInput.packages.theme` (sourced from `lock.json`, the
- *   sole authority for the theme selection — no separate "theme" input
- *   exists) is the theme identity provenance building and any other
+ *   document. `buildInput.packages.theme` (sourced from `lock.json`; the
+ *   intake refuses with `THEME_SELECTION_MISMATCH` when `appearance.json`
+ *   names a different theme package) is the theme identity provenance building and any other
  *   theme-aware caller should reuse.
  */
 export async function buildBuildInputFromRepository({
@@ -372,7 +373,7 @@ export async function buildBuildInputFromRepository({
     },
   };
 
-  // --- packages (lock.json is the sole authority for the theme selection) ----
+  // --- packages (lock.json is the authority for the theme identity; appearance.json must agree) ----
   const packages = {
     schemas: projectPackageIdentity(lock.document.schemas),
     template: projectPackageIdentity(lock.document.template),
@@ -380,6 +381,30 @@ export async function buildBuildInputFromRepository({
     publisher: lock.document.publisher.map(projectPackageIdentity),
     dependencies: lock.document.dependencies.map(projectPackageIdentity),
   };
+
+  // --- theme selection consistency ----------------------------------------------
+  const appearanceThemePackage = themePackageNameOf(
+    String(appearanceDoc.document.theme),
+  );
+  if (appearanceThemePackage !== packages.theme.package) {
+    throw new RepositoryIntakeError(
+      `appearance.json selects ${appearanceThemePackage} but gala.lock.json pins ${packages.theme.package}`,
+      [
+        {
+          ...sourceFinding(
+            'THEME_SELECTION_MISMATCH',
+            `gala/appearance.json chooses ${appearanceThemePackage} but gala.lock.json pins ${packages.theme.package}. The two files must name the same theme.`,
+            {
+              appearanceTheme: appearanceThemePackage,
+              lockTheme: packages.theme.package,
+            },
+          ),
+          recovery:
+            'Choose the theme again in Galascribe \u2192 Settings \u2192 Appearance, which updates both files.',
+        },
+      ],
+    );
+  }
 
   // --- appearance --------------------------------------------------------------
   if (
