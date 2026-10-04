@@ -815,8 +815,9 @@ jobs:
           ENVELOPE_DIGEST: ${{ needs.freeze.outputs.envelope_digest }}
           # The exact reusable-workflow identity the acquired Pages OIDC
           # token's `job_workflow_ref`/`job_workflow_sha` claims must bind
-          # to. It is not a default runner variable, so it is mapped here.
-          GITHUB_WORKFLOW_SHA: ${{ inputs.publish_toolchain_ref }}
+          # to. GITHUB_WORKFLOW_SHA cannot be overridden (reserved) and holds
+          # the caller's commit in a reusable job, so a plain name is used.
+          GALA_PUBLISH_TOOLCHAIN_SHA: ${{ inputs.publish_toolchain_ref }}
         run: |
           set -euo pipefail
           node publish-toolchain/scripts/workflow/deploy.mjs \

@@ -12,6 +12,13 @@ and this project adheres to
 
 ### Fixed
 
+- The Pages deploy step passes the toolchain commit as
+  `GALA_PUBLISH_TOOLCHAIN_SHA`. It was mapped onto `GITHUB_WORKFLOW_SHA`, a
+  reserved name a step cannot override (measured), whose runner value in a
+  reusable-workflow job is the caller's commit, so the adapter's
+  `job_workflow_ref` expectation never matched and every real Pages deploy
+  refused its own token with `PAGES_OIDC_BINDING_MISMATCH` before calling
+  GitHub.
 - The kernel logs an activation failure's adapter code and GitHub's redacted
   message to the job log; the journal keeps only the failure's class name by
   contract, which left a production Pages refusal invisible.

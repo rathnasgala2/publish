@@ -151,7 +151,10 @@ function pagesDestinationBinding(intent, runner) {
  * @returns {Readonly<Record<string, string>>} the expected claims
  */
 function pagesOidcClaims() {
-  const workflowSha = requireEnv('GITHUB_WORKFLOW_SHA');
+  // Not GITHUB_WORKFLOW_SHA: GITHUB_* names are reserved, a step cannot override
+  // them (measured), and the runner's value in a reusable-workflow job is the
+  // caller's commit, not the toolchain's, so the claim expectation was wrong.
+  const workflowSha = requireEnv('GALA_PUBLISH_TOOLCHAIN_SHA');
   return Object.freeze({
     ref: requireEnv('GITHUB_REF'),
     sha: requireEnv('GITHUB_SHA'),
