@@ -12,6 +12,10 @@ and this project adheres to
 
 ### Fixed
 
+- The sandbox renders with `@rathnasgala2/template@2.2.0`, which honours the
+  path component of `canonicalBase`: a GitHub project site served under `/repo/`
+  no longer emits root-relative links, stylesheets, scripts, canonical and feed
+  URLs that 404 at the domain root.
 - The Pages carrier now writes a directory entry (typeflag `5`, mode 0755) for
   every parent directory and sets uname/gname to `root` on every entry. Measured
   on GitHub Pages: a tar of file entries only with empty uname/gname is refused
