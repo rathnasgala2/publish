@@ -87,40 +87,25 @@ export function deriveStableId(domain, preimage) {
 }
 
 /**
- * DEC-097's `pagesBuildVersion`: the first 40 lowercase hexadecimal
- * characters of the digest over the domain separator and the closed
- * operation/attempt/generation/artifact binding.
+ * The `pagesBuildVersion`: the workflow run's head commit SHA (`GITHUB_SHA`,
+ * the OIDC `sha` claim). GitHub validates `pages_build_version` as a commit of
+ * the repository (measured on 2026-10-04: any other 40-hex value, such as a
+ * synthetic hash, answers 404), so a synthetic derivation can never deploy.
+ * The tagged `sha1:<40 hex>` form of the authorization input is accepted and
+ * stripped; the result is bare lowercase 40 hex.
  *
- * @param {{
- *   repositoryId: string,
- *   operationId: string,
- *   attemptId: string,
- *   runId: string,
- *   runAttempt: number,
- *   artifactId: string,
- *   artifactDigest: string,
- *   proposedGenerationId: string
- * }} binding the closed preimage members
- * @returns {string} the 40-character build version
+ * @param {{workflowTriggerCommit: string}} binding the bound run head commit
+ * @returns {string} the 40-character lowercase hexadecimal build version
  */
 export function derivePagesBuildVersion(binding) {
-  return createHash('sha256')
-    .update(PAGES_BUILD_VERSION_DOMAIN, 'utf8')
-    .update(
-      canonicalJson({
-        repositoryId: binding.repositoryId,
-        operationId: binding.operationId,
-        attemptId: binding.attemptId,
-        runId: binding.runId,
-        runAttempt: binding.runAttempt,
-        artifactId: binding.artifactId,
-        artifactDigest: binding.artifactDigest,
-        proposedGenerationId: binding.proposedGenerationId,
-      }),
-      'utf8',
-    )
-    .digest('hex')
-    .slice(0, 40);
+  const value = String(binding.workflowTriggerCommit);
+  const bare = value.startsWith('sha1:') ? value.slice('sha1:'.length) : value;
+  if (!/^[0-9a-f]{40}$/u.test(bare)) {
+    throw new TypeError(
+      'pagesBuildVersion must be the run head commit SHA: 40 lowercase hexadecimal characters',
+    );
+  }
+  return bare;
 }
 
 /**

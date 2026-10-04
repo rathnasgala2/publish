@@ -210,6 +210,7 @@ const ISSUABLE_ADAPTERS = [
         token: provider.token,
         publishCarrier: provider.publishCarrier,
         fetch: provider.fetch,
+        headSha: SHA,
         /**
          * @returns {Promise<void>} resolves immediately
          */
@@ -292,6 +293,9 @@ function requestFor(bound, operationId, overrides = {}) {
             : { providerBinding: bound.providerBinding }),
         },
       }),
+      // The run's head commit is both the OIDC `sha` claim and the Pages
+      // build version.
+      workflowTriggerCommit: `sha1:${SHA}`,
       ...overrides,
     }),
   );

@@ -111,10 +111,11 @@ two places this repository talks to Gala, and they reach exactly two routes:
   directions.
 - **Identities are derived, not invented.**
   `scripts/workflow/workload-identity.mjs` derives the artifact, attempt and
-  proposed-generation `stableId`s, DEC-097's `pagesBuildVersion` preimage and
-  the exact Spaces staging prefix from the bound run identity, so a rerun of one
-  authorized attempt derives the same values and the exchange is a replay rather
-  than a second claim.
+  proposed-generation `stableId`s, the `pagesBuildVersion` (the run's head
+  commit SHA, which GitHub validates as a commit) and the exact Spaces staging
+  prefix from the bound run identity, so a rerun of one authorized attempt
+  derives the same values and the exchange is a replay rather than a second
+  claim.
 - **No credential is ever written down.** The assertion is never persisted. The
   issued reporting capability reaches one masked `$GITHUB_OUTPUT` line; the
   job's journal head records only the fact of issuance, the generation and the
@@ -139,14 +140,16 @@ two places this repository talks to Gala, and they reach exactly two routes:
   contract generation authorized it. A kind-less body still parses
   (`test/gala-api.test.mjs`).
 - **`pagesBuildVersion` and `spacesStagePrefix` are optional on the intent
-  request** (LOCAL-57). The API derives both from the closed binding
-  `(repositoryId, operationId, runId, runAttempt, artifactDigest)` exactly as
-  `workload-identity.mjs` does, so the builder keeps sending its own derivation
-  where it holds every input (`sendDerivedConditionalMembers: false` omits it
-  where it does not), and a disagreement is `422 VALIDATION_FAILED`. The fake
-  API mirrors that rule and the retained intent always carries the derived
-  values; `derivationsAccepted` in the exchange journal head records the API's
-  agreement.
+  request** (LOCAL-57). The API derives both: `spacesStagePrefix` from the
+  closed binding
+  `(repositoryId, operationId, runId, runAttempt, artifactDigest)` and
+  `pagesBuildVersion` as the run's head commit SHA (the OIDC `sha` claim), each
+  exactly as `workload-identity.mjs` does, so the builder keeps sending its own
+  derivation where it holds every input (`sendDerivedConditionalMembers: false`
+  omits it where it does not), and a disagreement is `422 VALIDATION_FAILED`.
+  The fake API mirrors that rule and the retained intent always carries the
+  derived values; `derivationsAccepted` in the exchange journal head records the
+  API's agreement.
 - **`destination.providerBinding`** (LOCAL-55 (2)): `{owner, repository}` for
   `github-pages`, `{region, servedBucket, stagingBucket}` for `do-spaces`,
   forbidden for `local-directory`, closed by the contract validator per adapter.

@@ -1,30 +1,15 @@
 /**
- * Derive the `pagesBuildVersion`: the first 40 lowercase hex characters of
- * the domain-separated repository/operation/attempt/run/artifact/generation
- * projection (DEC-097 section 6.2). `pagesDeploymentId` must equal it
- * exactly.
+ * The `pagesBuildVersion`: the workflow run's head commit SHA (`GITHUB_SHA`,
+ * the OIDC `sha` claim). GitHub validates `pages_build_version` as a commit
+ * of the repository (measured on 2026-10-04: any other 40-hex value, such as
+ * a synthetic hash, answers 404), so a synthetic derivation can never deploy.
+ * `pagesDeploymentId` must equal it exactly.
  *
- * @param {{
- *   destinationKey: string,
- *   operationId: string,
- *   attemptId: string,
- *   runId?: string,
- *   runAttempt?: number,
- *   artifactId: string,
- *   artifactDigest: string,
- *   generationId: string
- * }} projection the closed projection inputs
+ * @param {{headSha?: string | undefined}} projection the run's head commit
  * @returns {string} the 40-character lowercase hexadecimal build version
  */
 export function derivePagesBuildVersion(projection: {
-    destinationKey: string;
-    operationId: string;
-    attemptId: string;
-    runId?: string;
-    runAttempt?: number;
-    artifactId: string;
-    artifactDigest: string;
-    generationId: string;
+    headSha?: string | undefined;
 }): string;
 /**
  * Refuse a create-body text that is not the exact compact JCS of the three

@@ -88,6 +88,7 @@ const runtimeFixture = {
       publicBaseUrl: provider.publicBaseUrl,
       token: provider.token,
       publishCarrier: provider.publishCarrier,
+      headSha: '1c14dcdff9501ef74b8b7a5897fba69c586fa76a',
       fetch: provider.fetch,
       ...(() => {
         const credentials = oidcFor({

@@ -495,10 +495,7 @@ function deriveIdentities(request, binding) {
   const adapterId = request.adapter.adapterId;
   if (adapterId === 'github-pages') {
     derived.pagesBuildVersion = derivePagesBuildVersion({
-      ...preimage,
-      artifactId,
-      attemptId,
-      proposedGenerationId: generationId,
+      workflowTriggerCommit: String(request.workflowTriggerCommit),
     });
   } else if (adapterId === 'do-spaces') {
     derived.spacesStagePrefix = deriveSpacesStagePrefix({

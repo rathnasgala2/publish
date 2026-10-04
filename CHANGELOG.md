@@ -12,6 +12,23 @@ and this project adheres to
 
 ### Fixed
 
+- `pagesBuildVersion` is the workflow run's head commit SHA (`GITHUB_SHA`, the
+  OIDC `sha` claim), not a synthetic domain-separated hash. GitHub validates
+  `pages_build_version` as a commit of the repository: measured on 2026-10-04,
+  `POST /pages/deployments` answers 200 only for the run's real head SHA and 404
+  for any other 40-hex value, so the synthetic value could never deploy.
+  `derivePagesBuildVersion` in `scripts/workflow/workload-identity.mjs` returns
+  the bound `workflowTriggerCommit` (bare lowercase 40 hex), the exchange
+  request and its agreement check use it, and the adapter derives the same value
+  from the new `headSha` destination member, which `deploy.mjs` sets from
+  `GITHUB_SHA`. The adapter still requires the response id to equal it.
+- Deploy diagnostics that were missing on production: the kernel journal is
+  uploaded and re-observed even when the deploy step failed (`!cancelled()` in
+  `publish-v2.yml`); `PAGES_PROVIDER_STATUS_UNEXPECTED` now carries the
+  provider's JSON `message` with any 40+ character token-like run redacted; and
+  `deploy.mjs` prints one stdout line per journal attempt (stage, outcome,
+  observationClass, failureCode) before `DEPLOY_NOT_ACTIVATED`.
+
 - `scripts/workflow/build-pages-carrier.mjs` rebuilds the generation marker
   through the adapter's exported `buildValidatedMarker` from the authorized
   values instead of re-serialising the API's canonical (sorted-key) marker

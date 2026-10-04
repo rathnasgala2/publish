@@ -285,6 +285,7 @@ export type PagesDestination = Readonly<{
     sleep?: (seconds: number) => Promise<void>;
     runId?: string;
     runAttempt?: number;
+    headSha?: string;
 }>;
 export type StagedFile = Readonly<{
     path: string;

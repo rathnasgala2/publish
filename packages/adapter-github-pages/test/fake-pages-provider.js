@@ -178,9 +178,9 @@ export async function startFakePagesProvider(options = {}) {
         bodyText,
         memberNames: Object.keys(parsed),
       });
-      if (!deployments.has(id)) {
-        deployments.set(id, { statusIndex: 0, artifactId });
-      }
+      // A re-deploy of the same commit answers the same id and starts a
+      // fresh deployment, as GitHub does (the id is the commit SHA).
+      deployments.set(id, { statusIndex: 0, artifactId });
       json(response, 200, {
         id,
         status_url: `${API_ORIGIN}${base}/deployments/${id}/status`,

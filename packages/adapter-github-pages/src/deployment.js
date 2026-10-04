@@ -14,10 +14,9 @@
  */
 
 import { PagesAdapterError } from './errors.js';
-import { canonicalizeJson, domainDigest } from '@rathnasgala2/adapter-protocol';
+import { canonicalizeJson } from '@rathnasgala2/adapter-protocol';
 
 import {
-  DOMAIN_PAGES_BUILD_VERSION,
   POLL_BUDGET_SECONDS,
   POLL_SCHEDULE_SECONDS,
   POLL_TAIL_SECONDS,
@@ -44,36 +43,24 @@ export const MAXIMUM_ARTIFACT_ID = 9007199254740991;
 const BUILD_VERSION_PATTERN = /^[0-9a-f]{40}$/u;
 
 /**
- * Derive the `pagesBuildVersion`: the first 40 lowercase hex characters of
- * the domain-separated repository/operation/attempt/run/artifact/generation
- * projection (DEC-097 section 6.2). `pagesDeploymentId` must equal it
- * exactly.
+ * The `pagesBuildVersion`: the workflow run's head commit SHA (`GITHUB_SHA`,
+ * the OIDC `sha` claim). GitHub validates `pages_build_version` as a commit
+ * of the repository (measured on 2026-10-04: any other 40-hex value, such as
+ * a synthetic hash, answers 404), so a synthetic derivation can never deploy.
+ * `pagesDeploymentId` must equal it exactly.
  *
- * @param {{
- *   destinationKey: string,
- *   operationId: string,
- *   attemptId: string,
- *   runId?: string,
- *   runAttempt?: number,
- *   artifactId: string,
- *   artifactDigest: string,
- *   generationId: string
- * }} projection the closed projection inputs
+ * @param {{headSha?: string | undefined}} projection the run's head commit
  * @returns {string} the 40-character lowercase hexadecimal build version
  */
 export function derivePagesBuildVersion(projection) {
-  return domainDigest(DOMAIN_PAGES_BUILD_VERSION, {
-    destinationKey: projection.destinationKey,
-    operationId: projection.operationId,
-    attemptId: projection.attemptId,
-    runId: projection.runId ?? null,
-    runAttempt: projection.runAttempt ?? null,
-    artifactId: projection.artifactId,
-    artifactDigest: projection.artifactDigest,
-    generationId: projection.generationId,
-  })
-    .slice('sha256:'.length)
-    .slice(0, 40);
+  const value = projection.headSha;
+  if (typeof value !== 'string' || !BUILD_VERSION_PATTERN.test(value)) {
+    throw new PagesAdapterError(
+      'PAGES_HEAD_SHA_INVALID',
+      'the destination must carry the run head commit SHA (headSha) as exactly 40 lowercase hexadecimal characters',
+    );
+  }
+  return value;
 }
 
 /**

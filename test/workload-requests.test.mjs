@@ -80,7 +80,7 @@ test('the intent builder derives the artifact, attempt and generation identities
 });
 
 test('pagesBuildVersion is present exactly for github-pages', () => {
-  const { request, derived } = buildDeploymentIntentRequest(
+  const { request } = buildDeploymentIntentRequest(
     /** @type {any} */ (input(destinationFor('github-pages'))),
   );
   assert.match(String(request.pagesBuildVersion), PAGES_BUILD_VERSION_PATTERN);
@@ -88,16 +88,10 @@ test('pagesBuildVersion is present exactly for github-pages', () => {
   assert.equal(
     request.pagesBuildVersion,
     derivePagesBuildVersion({
-      repositoryId: '4242',
-      operationId: OPERATION_ID,
-      runId: '987654321',
-      runAttempt: 1,
-      artifactDigest: String(request.artifactDigest),
-      artifactId: derived.artifactId,
-      attemptId: derived.attemptId,
-      proposedGenerationId: derived.proposedGenerationId,
+      workflowTriggerCommit: String(request.workflowTriggerCommit),
     }),
-    'the builder derives it from DEC-097s closed preimage, never from an input',
+
+    'the builder derives it from the run head commit, never from an input',
   );
 });
 
@@ -560,5 +554,20 @@ test('the fixture artifact is what the builder actually commits to', () => {
   assert.equal(
     request.artifactByteCount,
     ARTIFACT_FILES.reduce((total, file) => total + file.bytes.byteLength, 0),
+  );
+});
+
+test('derivePagesBuildVersion is the bound run head commit, bare, and refuses anything else', () => {
+  const sha = '1c14dcdff9501ef74b8b7a5897fba69c586fa76a';
+  assert.equal(derivePagesBuildVersion({ workflowTriggerCommit: sha }), sha);
+  assert.equal(
+    derivePagesBuildVersion({ workflowTriggerCommit: `sha1:${sha}` }),
+    sha,
+  );
+  assert.throws(() =>
+    derivePagesBuildVersion({ workflowTriggerCommit: 'f'.repeat(39) }),
+  );
+  assert.throws(() =>
+    derivePagesBuildVersion({ workflowTriggerCommit: sha.toUpperCase() }),
   );
 });

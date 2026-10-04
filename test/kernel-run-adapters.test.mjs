@@ -426,6 +426,7 @@ test('the kernel run drives github-pages end to end against its fake provider', 
       publicBaseUrl: provider.publicBaseUrl,
       token: provider.token,
       publishCarrier: provider.publishCarrier,
+      headSha: '1c14dcdff9501ef74b8b7a5897fba69c586fa76a',
       fetch: provider.fetch,
       /**
        * @returns {Promise<void>} resolves immediately
@@ -678,6 +679,7 @@ const BIND_EACH = [
       publicBaseUrl: provider.publicBaseUrl,
       token: provider.token,
       publishCarrier: provider.publishCarrier,
+      headSha: '1c14dcdff9501ef74b8b7a5897fba69c586fa76a',
       fetch: provider.fetch,
       sleep: () => Promise.resolve(),
     };

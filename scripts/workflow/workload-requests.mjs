@@ -244,10 +244,7 @@ export function buildDeploymentIntentRequest(input) {
   const derived = { artifactId, attemptId, proposedGenerationId };
   if (adapterId === 'github-pages') {
     derived.pagesBuildVersion = derivePagesBuildVersion({
-      ...binding,
-      attemptId,
-      artifactId,
-      proposedGenerationId,
+      workflowTriggerCommit: input.workflowTriggerCommit,
     });
   } else if (adapterId === 'do-spaces') {
     derived.spacesStagePrefix = deriveSpacesStagePrefix({

@@ -29,6 +29,7 @@
 
 import { PagesAdapterError } from './errors.js';
 import { NORMAL_MODE, RECOVERY_MODE } from './constants.js';
+import { REDACTION_PLACEHOLDER } from './redaction.js';
 import { callClassIdBinding, requireTemplate } from './request-catalog.js';
 
 /** Maximum response body this client will read, in bytes. */
@@ -249,6 +250,31 @@ export function assertRequestMatchesTemplate(tmpl, request) {
 }
 
 /**
+ * The provider's own JSON `message`, for the unexpected-status diagnostic: a
+ * bounded, single-line text with every 40+ character token-like run replaced,
+ * so a credential echoed by a provider can never reach a message.
+ *
+ * @param {Buffer} rawBody the raw response body
+ * @returns {string} `: provider message: <message>` or the empty string
+ */
+export function providerMessageSuffix(rawBody) {
+  try {
+    const parsed = JSON.parse(rawBody.toString('utf8'));
+    const message = parsed === null ? undefined : parsed.message;
+    if (typeof message !== 'string' || message === '') {
+      return '';
+    }
+    const redacted = message
+      .replace(/[A-Za-z0-9_\-.~+/=]{40,}/gu, REDACTION_PLACEHOLDER)
+      .replace(/\s+/gu, ' ')
+      .slice(0, 200);
+    return `: provider message: ${redacted}`;
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Issue one cataloged provider call.
  *
  * @param {RestContext} context the bound REST context
@@ -311,7 +337,7 @@ export async function callProvider(context, stage, callClass, options) {
   if (!options.acceptStatuses.includes(response.status)) {
     throw new PagesAdapterError(
       `PAGES_PROVIDER_STATUS_UNEXPECTED`,
-      `${stage}/${callClass} returned HTTP ${response.status}, expected one of ${options.acceptStatuses.join(', ')}`,
+      `${stage}/${callClass} returned HTTP ${response.status}, expected one of ${options.acceptStatuses.join(', ')}${providerMessageSuffix(rawBody)}`,
     );
   }
 

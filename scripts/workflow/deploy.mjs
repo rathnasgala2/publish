@@ -331,6 +331,7 @@ async function main() {
       }),
       runId: process.env.GITHUB_RUN_ID,
       runAttempt: Number.parseInt(process.env.GITHUB_RUN_ATTEMPT ?? '1', 10),
+      headSha: requireEnv('GITHUB_SHA'),
     };
     activateExtras = {
       pagesOidcToken: oidc.token,
@@ -379,6 +380,21 @@ async function main() {
     // point of normalizing an adapter/provider failure into the handoff —
     // but this job did not activate a verified generation and does not
     // report success.
+    // One diagnostic line per journal attempt; observationClass lives on the
+    // observations, joined here by stageAttemptId.
+    const observations = /** @type {Record<string, unknown>[]} */ (
+      outcome.journal.observations
+    );
+    for (const attempt of /** @type {Record<string, unknown>[]} */ (
+      outcome.journal.attempts
+    )) {
+      const classes = observations
+        .filter((o) => o.stageAttemptId === attempt.stageAttemptId)
+        .map((o) => String(o.observationClass));
+      process.stdout.write(
+        `${adapterId}: attempt stage=${String(attempt.stage)} outcome=${String(attempt.outcome)} observationClass=${classes.length === 0 ? 'none' : classes.join(',')} failureCode=${String(attempt.failureCode ?? 'none')}\n`,
+      );
+    }
     throw new Error(
       `DEPLOY_NOT_ACTIVATED: the ${adapterId} run ended ${outcome.decision} with verified=${String(outcome.verified)}; the kernel journal is written and reportable`,
     );

@@ -15,7 +15,7 @@ import {
   TEMPORARY_STATUSES,
   TERMINAL_FAILURE_STATUSES,
 } from '../src/constants.js';
-import { pollDeployment } from '../src/deployment.js';
+import { derivePagesBuildVersion, pollDeployment } from '../src/deployment.js';
 import * as adapter from '../src/index.js';
 import {
   computeArtifactDigest,
@@ -23,7 +23,7 @@ import {
   generateUuidV7,
 } from '../src/index.js';
 import { buildRequestTemplates } from '../src/request-catalog.js';
-import { expectedStatusUrl } from '../src/rest.js';
+import { expectedStatusUrl, providerMessageSuffix } from '../src/rest.js';
 import { startFakePagesProvider } from './fake-pages-provider.js';
 import { oidcFor } from './oidc-fixture.js';
 
@@ -59,6 +59,7 @@ async function bind(options = {}) {
     publicBaseUrl: provider.publicBaseUrl,
     token: provider.token,
     publishCarrier: provider.publishCarrier,
+    headSha: '1c14dcdff9501ef74b8b7a5897fba69c586fa76a',
     fetch: provider.fetch,
     /**
      * @param {number} seconds the scheduled wait
@@ -618,4 +619,30 @@ test('a missing OIDC token fails closed before any provider call', async () => {
   } finally {
     await bound.teardown();
   }
+});
+
+test('the unexpected-status diagnostic carries the provider message with token-like runs redacted', () => {
+  const body = (/** @type {unknown} */ value) =>
+    Buffer.from(JSON.stringify(value), 'utf8');
+  assert.equal(
+    providerMessageSuffix(body({ message: 'Not Found' })),
+    ': provider message: Not Found',
+  );
+  const leaked = providerMessageSuffix(
+    body({ message: `bad token ${'A1b2'.repeat(12)} here` }),
+  );
+  assert.ok(!leaked.includes('A1b2A1b2'));
+  assert.match(leaked, /bad token .+ here/u);
+  assert.equal(providerMessageSuffix(body({})), '');
+  assert.equal(providerMessageSuffix(Buffer.from('not json')), '');
+});
+
+test('the Pages build version is the run head commit and nothing else', () => {
+  const sha = '1c14dcdff9501ef74b8b7a5897fba69c586fa76a';
+  assert.equal(derivePagesBuildVersion({ headSha: sha }), sha);
+  assert.throws(() => derivePagesBuildVersion({}), /headSha/u);
+  assert.throws(
+    () => derivePagesBuildVersion({ headSha: sha.toUpperCase() }),
+    /headSha/u,
+  );
 });

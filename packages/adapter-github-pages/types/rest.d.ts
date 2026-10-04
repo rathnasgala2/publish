@@ -89,6 +89,15 @@ export function assertRequestMatchesTemplate(tmpl: Readonly<Record<string, unkno
     body: string | undefined;
 }): void;
 /**
+ * The provider's own JSON `message`, for the unexpected-status diagnostic: a
+ * bounded, single-line text with every 40+ character token-like run replaced,
+ * so a credential echoed by a provider can never reach a message.
+ *
+ * @param {Buffer} rawBody the raw response body
+ * @returns {string} `: provider message: <message>` or the empty string
+ */
+export function providerMessageSuffix(rawBody: Buffer): string;
+/**
  * Issue one cataloged provider call.
  *
  * @param {RestContext} context the bound REST context

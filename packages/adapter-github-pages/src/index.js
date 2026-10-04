@@ -57,7 +57,7 @@ import {
 } from './recovery.js';
 import { GITHUB_API_ORIGIN, buildRequestTemplates } from './request-catalog.js';
 import { bindIdentity, callProvider } from './rest.js';
-import { destinationKey, stateFor } from './store.js';
+import { stateFor } from './store.js';
 
 export {
   EXPECT_NOTHING_SERVED,
@@ -117,7 +117,8 @@ export {
  *   publicFetch?: typeof globalThis.fetch,
  *   sleep?: (seconds: number) => Promise<void>,
  *   runId?: string,
- *   runAttempt?: number
+ *   runAttempt?: number,
+ *   headSha?: string
  * }>} PagesDestination
  */
 
@@ -715,18 +716,7 @@ export async function activate(input) {
   }
 
   const pagesBuildVersion = derivePagesBuildVersion({
-    destinationKey: destinationKey(input.destination),
-    operationId: record.operationId,
-    attemptId: record.attemptId,
-    ...(input.destination.runId === undefined
-      ? {}
-      : { runId: input.destination.runId }),
-    ...(input.destination.runAttempt === undefined
-      ? {}
-      : { runAttempt: input.destination.runAttempt }),
-    artifactId: record.artifactId,
-    artifactDigest: record.artifactDigest,
-    generationId: input.generationId,
+    headSha: input.destination.headSha,
   });
 
   const context = bindIdentity(baseContext, {
