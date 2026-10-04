@@ -45,13 +45,13 @@ jobs:
     # was last reconciled (2026-09-30) -- a real, resolvable commit, not a
     # placeholder -- so replacing it exercises exactly the sha you must
     # actually type in, rather than an all-zero sentinel.
-    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@ce582e88346d202985b46ddf8d691e6377d24aa7
+    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@588cb9412f70fcd788bb82661d28ca9c91166474
     with:
       # REPLACE with the signed Gala service-origin catalog location.
       service_origin_catalog_url: https://api.galascribe.com/v2/service-origins
       # REPLACE with the Gala API origin used for publish authorization and reporting.
       gala_api_origin: https://api.galascribe.com
-      publish_toolchain_ref: ce582e88346d202985b46ddf8d691e6377d24aa7
+      publish_toolchain_ref: 588cb9412f70fcd788bb82661d28ca9c91166474
       artifact_retention_days: 7
       require_github_attestation: false
     # The sole caller secret map. `secrets: inherit` is never used, and no
