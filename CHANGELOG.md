@@ -10,13 +10,11 @@ and this project adheres to
 
 ### Added
 
-- The toolchain installs `@rathnasgala2/theme-flashy`, `-minimal` and `-zebra`
-  (2.1.0, exact-pinned) beside `theme-default`, so the sandbox's
+- The toolchain installs `@rathnasgala2/theme-amaze`, `-flashy`, `-minimal` and
+  `-zebra` (2.1.0, exact-pinned) beside `theme-default`, so the sandbox's
   `WORKSPACE_ROOT=<toolchain>/node_modules/@rathnasgala2` resolves whichever of
   them `gala.lock.json` names instead of refusing with
-  `THEME_PACKAGE_NOT_FOUND`. `theme-amaze` is not yet shipped: its only
-  published version (2.0.0) declares contractVersion 2.0.0, which template 2.2.0
-  refuses, so it joins once 2.1.0 is published.
+  `THEME_PACKAGE_NOT_FOUND`.
 - A build refuses with `THEME_SELECTION_MISMATCH` when `gala/appearance.json`
   names a different theme package than `gala.lock.json`. See
   `packages/publish-action/CHANGELOG.md`.

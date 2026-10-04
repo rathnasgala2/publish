@@ -62,8 +62,8 @@ async function fixtureSelecting(lockPackage, appearancePackage) {
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
-test('the catalog is exactly the four installed theme packages', async () => {
-  assert.equal(THEME_CATALOG.length, 4);
+test('the catalog is exactly the five installed theme packages', async () => {
+  assert.equal(THEME_CATALOG.length, 5);
   for (const entry of THEME_CATALOG) {
     const directory = path.join(
       INSTALLED_SCOPE,

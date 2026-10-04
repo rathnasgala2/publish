@@ -405,6 +405,45 @@
     },
     {
       "type": "library",
+      "name": "theme-amaze",
+      "group": "@rathnasgala2",
+      "version": "2.1.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@2.1.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/%40rathnasgala2/theme-amaze@2.1.0",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/@rathnasgala2/theme-amaze/-/theme-amaze-2.1.0.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "f6e488f3eec8a9af1ed8603ba3927e02544406778a80daad97a461ff8d5cfce018c0634703d5d5bfaafcd517b7ce20be305c99dda7797f0ba69936f710ded1e0"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:development",
+          "value": "true"
+        },
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/@rathnasgala2/theme-amaze"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "theme-default",
       "group": "@rathnasgala2",
       "version": "2.1.0",
@@ -18015,6 +18054,7 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@2.2.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@2.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@2.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-flashy@2.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-minimal@2.1.0",
@@ -18118,6 +18158,9 @@
         "@rathnasgala2/publish-workspace@0.0.0|markdown-it@14.3.1",
         "@rathnasgala2/publish-workspace@0.0.0|sanitize-html@2.17.7"
       ]
+    },
+    {
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@2.1.0"
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@2.1.0"

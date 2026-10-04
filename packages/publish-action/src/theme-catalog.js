@@ -13,10 +13,8 @@
  * provenance and the authorization input unchanged. The workspace test
  * `theme-catalog.test.js` keeps this table equal to the installed packages.
  *
- * `theme-amaze` is deliberately absent: its only published version (2.0.0)
- * carries contractVersion 2.0.0, which the pinned template 2.2.0 refuses
- * (`THEME_CONTRACT_VERSION_MISMATCH`, measured). It joins the catalog once
- * 2.1.0 is on the registry.
+ * `theme-amaze` joins at 2.1.0 (its 2.0.0 carried contractVersion 2.0.0, which
+ * the pinned template 2.2.0 refuses with `THEME_CONTRACT_VERSION_MISMATCH`).
  *
  * @module
  */
@@ -37,6 +35,11 @@ export const THEME_REGISTRY = 'https://registry.npmjs.org/';
 /** @type {readonly ThemeCatalogEntry[]} */
 export const THEME_CATALOG = Object.freeze(
   [
+    [
+      'amaze',
+      '2.1.0',
+      '147ae7d085c9126d8f74460ce442ae572d25de649f56d7a1ecc1f50f8c06e64a',
+    ],
     [
       'default',
       '2.1.0',
