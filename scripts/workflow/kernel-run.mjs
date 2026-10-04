@@ -490,6 +490,18 @@ export async function runKernelDeployment(run) {
       })
     );
   } catch (failure) {
+    // The journal carries only the failure's class name by contract; the
+    // provider's refusal (adapter code and GitHub's redacted message) is what an
+    // operator needs to see, so it goes to the job log here and nowhere else.
+    process.stderr.write(
+      `activation failure: ${nameOf(failure)} code=${String(
+        /** @type {{code?: unknown}} */ (failure)?.code ?? 'none',
+      )} message=${String(
+        /** @type {{message?: unknown}} */ (failure)?.message ?? '',
+      )
+        .replace(/[A-Za-z0-9_-]{40,}/gu, '<redacted>')
+        .slice(0, 400)}\n`,
+    );
     // An activation whose outcome cannot be established is `unknown`, never
     // `failed`: the mutation may have landed. Duty 8 forbids a blind retry
     // from here, and the journal must say so rather than imply nothing

@@ -12,6 +12,9 @@ and this project adheres to
 
 ### Fixed
 
+- The kernel logs an activation failure's adapter code and GitHub's redacted
+  message to the job log; the journal keeps only the failure's class name by
+  contract, which left a production Pages refusal invisible.
 - `pagesBuildVersion` is the workflow run's head commit SHA (`GITHUB_SHA`, the
   OIDC `sha` claim), not a synthetic domain-separated hash. GitHub validates
   `pages_build_version` as a commit of the repository: measured on 2026-10-04,
