@@ -12,6 +12,13 @@ and this project adheres to
 
 ### Fixed
 
+- `scripts/workflow/build-pages-carrier.mjs` rebuilds the generation marker
+  through the adapter's exported `buildValidatedMarker` from the authorized
+  values instead of re-serialising the API's canonical (sorted-key) marker
+  document. The adapter re-encodes the carrier in declaration order at stage
+  time, so the same values produced different bytes and every real Pages deploy
+  stopped with `DEPLOY_PAGES_CARRIER_DIGEST_MISMATCH` (measured on production).
+  `@rathnasgala2/adapter-github-pages` now exports `buildValidatedMarker`.
 - The Pages deploy binds the adapter's re-encoded carrier to the carrier file
   this job built and uploaded (`--pages-carrier`), and hands the adapter that
   byte digest. upload-artifact's `artifact-digest` is the SHA-256 of the stored

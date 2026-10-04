@@ -253,6 +253,7 @@ export function rollback(input: {
 }): Promise<Readonly<Record<string, unknown>>>;
 export { PagesAdapterError } from "./errors.js";
 export { computeArtifactDigest } from "./artifact-projection.js";
+export { buildValidatedMarker } from "./marker.js";
 export { forgetDestination } from "./store.js";
 /** This package's runtime status: fully implemented per S4-T04 (W4-11). */
 export const PACKAGE_STATUS: Readonly<{

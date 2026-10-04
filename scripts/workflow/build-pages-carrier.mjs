@@ -47,6 +47,40 @@ export async function readAuthorization(inbox) {
 /**
  * @returns {Promise<void>} resolves once the Pages carrier is written
  */
+/**
+ * Encode the Pages carrier exactly as the adapter re-encodes it at stage time.
+ *
+ * The API renders the authorized marker as canonical JSON (keys sorted), while
+ * the adapter serialises its own marker object in declaration order; the same
+ * five values produce different bytes, and the adapter refuses a carrier whose
+ * bytes are not its own (measured on production, rathnastest/g9, 2026-10-04).
+ * So the marker is rebuilt through the adapter's validated builder from the
+ * authorized values, never re-serialised from the authorization document.
+ *
+ * @param {Array<{path: string, bytes: Buffer}>} files the frozen envelope files
+ * @param {Record<string, unknown>} authorizedMarker the marker the API authorized
+ * @returns {Promise<Buffer>} the carrier bytes
+ */
+export async function buildPagesCarrier(files, authorizedMarker) {
+  const {
+    GENERATION_MARKER_PATH,
+    buildValidatedMarker,
+    encodeCarrier: encodePagesCarrier,
+  } = await import('@rathnasgala2/adapter-github-pages');
+  const marker = buildValidatedMarker({
+    artifactId: String(authorizedMarker.artifactId),
+    artifactDigest: String(authorizedMarker.artifactDigest),
+    generationId: String(authorizedMarker.generationId),
+  });
+  return encodePagesCarrier([
+    ...files,
+    {
+      path: GENERATION_MARKER_PATH,
+      bytes: Buffer.from(JSON.stringify(marker), 'utf8'),
+    },
+  ]);
+}
+
 async function main() {
   const options = parseOptions(process.argv.slice(2));
   const inbox = requireOption(options, 'inbox');
@@ -58,17 +92,10 @@ async function main() {
     (await findCarrier(inbox, requireOption(options, 'envelope-digest'))).bytes,
   );
   const authorization = await readAuthorization(inbox);
-  const marker = /** @type {Record<string, unknown>} */ (authorization.marker);
-
-  const { GENERATION_MARKER_PATH, encodeCarrier: encodePagesCarrier } =
-    await import('@rathnasgala2/adapter-github-pages');
-  const carrier = encodePagesCarrier([
-    ...envelope.files,
-    {
-      path: GENERATION_MARKER_PATH,
-      bytes: Buffer.from(JSON.stringify(marker), 'utf8'),
-    },
-  ]);
+  const carrier = await buildPagesCarrier(
+    envelope.files,
+    /** @type {Record<string, unknown>} */ (authorization.marker),
+  );
   await writeFile(out, carrier);
   process.stdout.write(
     `pages carrier: ${envelope.files.length + 1} member(s), ${carrier.byteLength} bytes\n`,

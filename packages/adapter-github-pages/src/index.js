@@ -67,6 +67,7 @@ export {
 export { PagesAdapterError } from './errors.js';
 export { computeArtifactDigest } from './artifact-projection.js';
 export { decodeCarrier, encodeCarrier } from './carrier.js';
+export { buildValidatedMarker } from './marker.js';
 export { GENERATION_MARKER_PATH } from './constants.js';
 export { forgetDestination } from './store.js';
 export { ADAPTER_VERSION, NORMAL_MODE, RECOVERY_MODE } from './constants.js';
