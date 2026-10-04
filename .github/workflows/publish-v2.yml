@@ -825,6 +825,7 @@ jobs:
             --envelope-digest "${ENVELOPE_DIGEST}" \
             --pages-artifact-id "${PAGES_ARTIFACT_ID}" \
             --pages-artifact-digest "${PAGES_ARTIFACT_DIGEST}" \
+            --pages-carrier "${RUNNER_TEMP}/carrier/gala-pages-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}" \
             --out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs"
 
       - name: Upload the kernel journal

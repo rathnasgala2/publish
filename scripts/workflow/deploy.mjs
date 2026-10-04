@@ -38,7 +38,7 @@
  * @module
  */
 
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 
 import {
@@ -290,8 +290,18 @@ async function main() {
     const pagesArtifactDigest = normalizeUploadArtifactDigest(
       requireOption(options, 'pages-artifact-digest'),
     );
+    // Measured on production (rathnastest/g9, artifact 11298103317): upload-artifact's
+    // `artifact-digest` is the SHA-256 of the artifact ZIP GitHub stores, not of the
+    // carrier bytes inside it, so it can never equal the adapter's byte digest. The
+    // binding that matters is "the bytes the adapter re-encodes are the bytes this job
+    // built and uploaded", proven against the carrier file on disk; the action's ZIP
+    // digest is kept in the journal as the observed artifact identity.
+    const uploadedCarrierDigest = carrierBytesDigest(
+      await readFile(requireOption(options, 'pages-carrier')),
+    );
     journalHead.pagesArtifactId = pagesArtifactId;
     journalHead.pagesArtifactDigest = pagesArtifactDigest;
+    journalHead.pagesCarrierDigest = uploadedCarrierDigest;
     // The deploy-phase carrier fact this job holds (LOCAL-62): the digest
     // the uploaded Pages carrier was re-observed at.
     capabilityDecision.deployPhase = deployPhaseEvaluation({
@@ -315,17 +325,10 @@ async function main() {
       // own earlier step, never by the adapter: what the adapter is handed
       // is the already observed artifact identity, and the digest it was
       // re-observed at is compared before it is returned.
-      publishCarrier: async (
-        /** @type {{bytes: Buffer, carrierDigest: string}} */ input,
-      ) => {
-        const observed = `sha256:${createHash('sha256').update(input.bytes).digest('hex')}`;
-        if (observed !== input.carrierDigest) {
-          throw new Error(
-            'DEPLOY_PAGES_CARRIER_DIGEST_MISMATCH: the adapter re-encoded a carrier this job did not upload',
-          );
-        }
-        return { pagesArtifactId, artifactDigest: pagesArtifactDigest };
-      },
+      publishCarrier: pagesCarrierPublisher({
+        pagesArtifactId,
+        uploadedCarrierDigest,
+      }),
       runId: process.env.GITHUB_RUN_ID,
       runAttempt: Number.parseInt(process.env.GITHUB_RUN_ATTEMPT ?? '1', 10),
     };
@@ -448,9 +451,46 @@ function normalizeUploadArtifactDigest(value) {
   return `sha256:${match[1]}`;
 }
 
+/**
+ * The sha256-tagged digest of carrier bytes, the form the Pages adapter compares.
+ *
+ * @param {Buffer} bytes carrier bytes
+ * @returns {string} `sha256:<hex>`
+ */
+function carrierBytesDigest(bytes) {
+  return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+}
+
+/**
+ * The Pages carrier publisher handed to the adapter. The adapter re-encodes the
+ * carrier in-process and asks the publisher for the artifact it was uploaded as;
+ * the publisher admits only bytes that digest to the carrier file this job built
+ * and uploaded, and reports that byte digest back, which is what the adapter's
+ * handoff check compares. The upload action's own digest covers the artifact ZIP
+ * and is never compared with bytes.
+ *
+ * @param {{pagesArtifactId: string, uploadedCarrierDigest: string}} handoff the uploaded artifact
+ * @returns {(input: {bytes: Buffer, carrierDigest: string}) => Promise<{pagesArtifactId: string, artifactDigest: string}>} the publisher
+ */
+function pagesCarrierPublisher(handoff) {
+  return async (input) => {
+    const observed = carrierBytesDigest(input.bytes);
+    if (observed !== handoff.uploadedCarrierDigest) {
+      throw new Error(
+        'DEPLOY_PAGES_CARRIER_DIGEST_MISMATCH: the adapter re-encoded a carrier this job did not upload',
+      );
+    }
+    return {
+      pagesArtifactId: handoff.pagesArtifactId,
+      artifactDigest: handoff.uploadedCarrierDigest,
+    };
+  };
+}
+
 export {
   destinationIdentityFrom,
   normalizeUploadArtifactDigest,
+  pagesCarrierPublisher,
   pagesDestinationBinding,
   pagesOidcClaims,
   requireAdapterVersionAgreement,

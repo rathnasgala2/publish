@@ -12,6 +12,12 @@ and this project adheres to
 
 ### Fixed
 
+- The Pages deploy binds the adapter's re-encoded carrier to the carrier file
+  this job built and uploaded (`--pages-carrier`), and hands the adapter that
+  byte digest. upload-artifact's `artifact-digest` is the SHA-256 of the stored
+  ZIP (measured on production), so comparing it with carrier bytes refused every
+  real Pages deploy with `PAGES_CARRIER_HANDOFF_MISMATCH`. The ZIP digest stays
+  in the kernel journal as the observed artifact identity.
 - `scripts/workflow/deploy.mjs` reads the Actions token from `GH_TOKEN`, the
   name every `publish-v2.yml` step already exports, instead of `GITHUB_TOKEN`,
   which no step set. The first production Pages deploy on the fixed toolchain

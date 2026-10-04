@@ -10,11 +10,13 @@
  */
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 
 import {
   destinationIdentityFrom,
   normalizeUploadArtifactDigest,
+  pagesCarrierPublisher,
   pagesDestinationBinding,
   requireAdapterVersionAgreement,
   spacesDestination,
@@ -271,4 +273,38 @@ test('a malformed upload-artifact digest is refused by name, never repaired', ()
       JSON.stringify(bad),
     );
   }
+});
+
+test('the Pages carrier publisher admits only the bytes this job uploaded and reports their byte digest', async () => {
+  const bytes = Buffer.from('carrier-bytes');
+  const uploadedCarrierDigest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+  const publish = pagesCarrierPublisher({
+    pagesArtifactId: '11298103317',
+    uploadedCarrierDigest,
+  });
+  const published = await publish({
+    bytes,
+    carrierDigest: uploadedCarrierDigest,
+  });
+  assert.deepEqual(published, {
+    pagesArtifactId: '11298103317',
+    artifactDigest: uploadedCarrierDigest,
+  });
+});
+
+test('the Pages carrier publisher refuses bytes that are not the uploaded carrier', async () => {
+  const uploaded = Buffer.from('uploaded');
+  const publish = pagesCarrierPublisher({
+    pagesArtifactId: '1',
+    uploadedCarrierDigest: `sha256:${createHash('sha256').update(uploaded).digest('hex')}`,
+  });
+  const other = Buffer.from('re-encoded differently');
+  await assert.rejects(
+    () =>
+      publish({
+        bytes: other,
+        carrierDigest: `sha256:${createHash('sha256').update(other).digest('hex')}`,
+      }),
+    /DEPLOY_PAGES_CARRIER_DIGEST_MISMATCH/u,
+  );
 });
