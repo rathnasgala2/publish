@@ -40,14 +40,24 @@ export const GITHUB_ACTIONS_OIDC_ORIGIN_HOST_PATTERN =
 /** Maximum bytes of the source URL, per DEC-097. */
 export const MAXIMUM_SOURCE_URL_BYTES = 8192;
 
-/** Maximum response entity bytes the token endpoint may return. */
-export const MAXIMUM_TOKEN_RESPONSE_BYTES = 16384;
+/**
+ * Memory bound, not an expected size, on the token endpoint response entity.
+ * GitHub controls the actual size; the ceiling carries generous headroom.
+ */
+export const MAXIMUM_TOKEN_RESPONSE_BYTES = 65536;
 
-/** Maximum bytes of the runner bearer value. */
-export const MAXIMUM_RUNNER_BEARER_BYTES = 4096;
+/**
+ * Memory bound, not an expected size, on the runner bearer value. GitHub
+ * controls the actual size: an environment-scoped job carries a ~4.1 KB bearer
+ * today (large `oidc_extra` and `scp` claims), so the ceiling has wide headroom.
+ */
+export const MAXIMUM_RUNNER_BEARER_BYTES = 32768;
 
-/** Maximum bytes of the returned compact JWT. */
-export const MAXIMUM_OIDC_TOKEN_BYTES = 8000;
+/**
+ * Memory bound, not an expected size, on the returned compact JWT. GitHub
+ * controls the actual size; the ceiling carries generous headroom.
+ */
+export const MAXIMUM_OIDC_TOKEN_BYTES = 32768;
 
 /** One request-target path segment: 1..128 bytes of `[A-Za-z0-9._~-]`. */
 const SAFE_SEGMENT = '[A-Za-z0-9._~-]{1,128}';

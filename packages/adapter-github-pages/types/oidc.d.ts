@@ -79,8 +79,11 @@ export const PAGES_OIDC_ISSUER: "https://token.actions.githubusercontent.com";
 export const PAGES_OIDC_ENVIRONMENT: "github-pages";
 /** Inclusive byte bounds on the compact JWT (DEC-097 section 7). */
 export const PAGES_OIDC_MINIMUM_BYTES: 1;
-/** Inclusive upper byte bound on the compact JWT. */
-export const PAGES_OIDC_MAXIMUM_BYTES: 8000;
+/**
+ * Inclusive upper byte bound on the compact JWT: a memory bound with headroom,
+ * not an expected size. GitHub controls the actual token size.
+ */
+export const PAGES_OIDC_MAXIMUM_BYTES: 32768;
 /**
  * PUB-L5: clock-skew tolerance, in seconds, for the belt-and-braces
  * `exp`/`iat`/`nbf` checks below. GitHub Pages is the relying party that

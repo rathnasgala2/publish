@@ -306,6 +306,38 @@ test('a non-200, a non-JSON media type and a body with any extra member all reje
   }
 });
 
+test('a 4128-byte three-segment runner bearer is accepted and a 32769-byte one is refused', async () => {
+  /**
+   * @param {number} total the exact byte length
+   * @returns {string} a three-segment bearer of that length
+   */
+  const bearerOf = (total) => {
+    const head = 'eyJhbGciOiJSUzI1NiJ9';
+    const sig = 'c2ln';
+    return [head, 'a'.repeat(total - head.length - sig.length - 2), sig].join(
+      '.',
+    );
+  };
+  const accepted = bearerOf(4128);
+  assert.equal(Buffer.byteLength(accepted), 4128);
+  const stub = stubFetch({ body: JSON.stringify({ value: FAKE_TOKEN }) });
+  await acquirePagesOidcToken({
+    env: env({ ACTIONS_ID_TOKEN_REQUEST_TOKEN: accepted }),
+    fetch: stub.fetch,
+  });
+  const refused = bearerOf(32769);
+  assert.equal(Buffer.byteLength(refused), 32769);
+  await assert.rejects(
+    acquirePagesOidcToken({
+      env: env({ ACTIONS_ID_TOKEN_REQUEST_TOKEN: refused }),
+      fetch: stubFetch({}).fetch,
+    }),
+    (error) =>
+      error instanceof PagesOidcError &&
+      error.code === 'PAGES_OIDC_RUNNER_BEARER_INVALID',
+  );
+});
+
 test('a job without id-token: write fails closed before any request', async () => {
   for (const missing of [
     { ACTIONS_ID_TOKEN_REQUEST_URL: undefined },

@@ -12,6 +12,17 @@ and this project adheres to
 
 ### Changed
 
+- Raise the byte ceilings on GitHub-controlled Pages OIDC values to memory
+  bounds with headroom, because an `environment: github-pages` job carries a
+  4128-byte runner bearer and failed a production deployment with
+  `PAGES_OIDC_RUNNER_BEARER_INVALID`: `MAXIMUM_RUNNER_BEARER_BYTES` 4096 ->
+  32768, `MAXIMUM_OIDC_TOKEN_BYTES` 8000 -> 32768,
+  `MAXIMUM_TOKEN_RESPONSE_BYTES` 16384 -> 65536 (all in
+  `scripts/workflow/pages-oidc.mjs`) and the adapter's
+  `PAGES_OIDC_MAXIMUM_BYTES` 8000 -> 32768. Every character-class and
+  compact-JWT structural check is unchanged; `MAXIMUM_SOURCE_URL_BYTES`
+  stays 8192.
+
 - Replace the literal `GITHUB_ACTIONS_OIDC_ORIGIN_CATALOG` list in
   `scripts/workflow/pages-oidc.mjs` with the closed origin grammar
   `GITHUB_ACTIONS_OIDC_ORIGIN_HOST_PATTERN`: `https`, no port, no userinfo, and
