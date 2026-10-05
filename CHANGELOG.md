@@ -8,6 +8,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Re-observing a freshly uploaded carrier by exact artifact ID no longer fails
+  with `CARRIER_REST_REOBSERVATION_FAILED: ... HTTP 404` when GitHub's artifact
+  REST view has not caught up. The read (`scripts/workflow/github-rest.mjs`)
+  retries 404, 5xx, network errors and rate-limited 403/429 (honouring
+  `Retry-After`) for up to 61 s, logging each retry. A 200 is never retried, so
+  an identity, expiry or digest failure stays an immediate hard failure; a
+  persistent 404 still fails with the same error code.
+
 ### Added
 
 - The toolchain installs `@rathnasgala2/theme-amaze`, `-flashy`, `-minimal` and

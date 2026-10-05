@@ -13,6 +13,7 @@
 import { readFile, stat } from 'node:fs/promises';
 
 import { carrierDigest, parseOptions, requireOption } from './carrier.mjs';
+import { getWithRetry } from './github-rest.mjs';
 import { runIfMain } from '../run-if-main.mjs';
 
 /**
@@ -61,7 +62,7 @@ async function main() {
       'CARRIER_REST_REOBSERVATION_UNAVAILABLE: GH_TOKEN and GITHUB_REPOSITORY are required; a carrier is never exposed as a job output on the upload action word alone',
     );
   }
-  const response = await fetch(
+  const response = await getWithRetry(
     `${apiUrl}/repos/${repository}/actions/artifacts/${encodeURIComponent(artifactId)}`,
     {
       headers: {

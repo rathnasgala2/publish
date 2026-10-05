@@ -34,11 +34,22 @@ let server;
 let origin;
 /** @type {Record<string, unknown>} */
 let artifact = {};
+let requests = 0;
+let flakyOnce = false;
 
 before(async () => {
   workspace = await mkdtemp(path.join(tmpdir(), 'observe-carrier-'));
   await writeFile(path.join(workspace, 'carrier.bin'), 'carrier bytes');
   server = createServer((request, response) => {
+    requests += 1;
+    if (
+      request.url === '/repos/gala-author/site/actions/artifacts/5150' &&
+      flakyOnce
+    ) {
+      flakyOnce = false;
+      response.writeHead(404).end();
+      return;
+    }
     if (request.url !== '/repos/gala-author/site/actions/artifacts/5150') {
       response.writeHead(404).end();
       return;
@@ -121,4 +132,30 @@ test('a complete observation emits the id, name, digest, byte count and expiry',
     ],
   );
   assert.ok(lines.includes('artifact_expires_at=2026-09-25T12:00:00Z'));
+});
+
+test('a fresh artifact that 404s once is retried and then observed', async () => {
+  artifact = {
+    id: 5150,
+    name: 'gala-r1-a1-frozen-envelope-v2',
+    expired: false,
+    expires_at: '2026-09-25T12:00:00Z',
+  };
+  const output = path.join(workspace, 'flaky.txt');
+  await writeFile(output, '');
+  requests = 0;
+  flakyOnce = true;
+  const { stderr } = await observe(output);
+  assert.equal(requests, 2);
+  assert.match(stderr, /GITHUB_REST_RETRY: HTTP 404/u);
+  assert.match(await readFile(output, 'utf8'), /artifact_id=5150/u);
+});
+
+test('a 200 whose body names another artifact fails at once without retry', async () => {
+  artifact = { id: 9999, name: 'x', expired: false, expires_at: 'z' };
+  const output = path.join(workspace, 'mismatch.txt');
+  await writeFile(output, '');
+  requests = 0;
+  await assert.rejects(observe(output), /CARRIER_REST_IDENTITY_MISMATCH/u);
+  assert.equal(requests, 1);
 });
