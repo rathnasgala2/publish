@@ -660,7 +660,7 @@ export async function resolvePriorAttempt(context, options = {}) {
         first.status,
         observed,
         0,
-        'the prior attempt reported a status outside the eleven accepted values; no current create is made',
+        'the prior attempt reported a status outside the twelve accepted values; no current create is made',
       );
     }
     if (first.status === SUCCESS_STATUS) {

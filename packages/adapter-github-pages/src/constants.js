@@ -32,11 +32,13 @@ export const ADAPTER_VERSION = /** @type {string} */ (
 export const GENERATION_MARKER_PATH = '.well-known/gala-generation.json';
 
 /**
- * The exact eleven accepted `GET /repos/{owner}/{repo}/pages/deployments/{id}`
- * status values (brief section 6.2). Anything else is unknown and can never
- * release the destination fence.
+ * The exact twelve accepted `GET /repos/{owner}/{repo}/pages/deployments/{id}`
+ * status values (brief section 6.2, plus `deployment_queued`, which GitHub's
+ * REST reference lists and a real run returned on 2026-10-06). Anything else
+ * is unknown and can never release the destination fence.
  */
 export const PAGES_DEPLOYMENT_STATUSES = Object.freeze([
+  'deployment_queued',
   'deployment_in_progress',
   'syncing_files',
   'finished_file_sync',
@@ -52,10 +54,12 @@ export const PAGES_DEPLOYMENT_STATUSES = Object.freeze([
 
 /**
  * Temporary statuses: polling continues and the fence stays held.
+ * `deployment_queued` is the state before `deployment_in_progress`, and
  * `deployment_attempt_error` is temporary because GitHub retries it
  * automatically (brief section 6.2).
  */
 export const TEMPORARY_STATUSES = Object.freeze([
+  'deployment_queued',
   'deployment_in_progress',
   'syncing_files',
   'finished_file_sync',

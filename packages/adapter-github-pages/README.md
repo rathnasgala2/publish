@@ -158,11 +158,12 @@ separately, so the deploy script can run it before `stage` uploads a carrier.
 
 ## The exact status vocabulary and poll schedule
 
-The eleven accepted statuses, their temporary/terminal partition (with
-`deployment_attempt_error` temporary, because GitHub retries it automatically)
-and the exact `5, 8, 12, 18, 27, 30`-then-`30` poll schedule live in
-`src/constants.js` and are asserted in `test/index.test.js`. An unknown,
-malformed or ambiguous status can never release the destination fence.
+The twelve accepted statuses, their temporary/terminal partition (with
+`deployment_queued` and `deployment_attempt_error` temporary; the latter because
+GitHub retries it automatically) and the exact `5, 8, 12, 18, 27, 30`-then-`30`
+poll schedule live in `src/constants.js` and are asserted in
+`test/index.test.js`. An unknown, malformed or ambiguous status can never
+release the destination fence.
 
 ## Destination shape
 

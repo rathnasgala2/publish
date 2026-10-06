@@ -113,9 +113,13 @@ async function publish(destination, body) {
   return { generationId, artifactDigest, activation };
 }
 
-test('the accepted status vocabulary is exactly the eleven DEC-097 values, partitioned without overlap', () => {
-  assert.equal(PAGES_DEPLOYMENT_STATUSES.length, 11);
-  assert.equal(TEMPORARY_STATUSES.length, 6);
+test('the accepted status vocabulary is exactly the twelve GitHub values, partitioned without overlap', () => {
+  assert.equal(PAGES_DEPLOYMENT_STATUSES.length, 12);
+  assert.equal(TEMPORARY_STATUSES.length, 7);
+  assert.ok(
+    TEMPORARY_STATUSES.includes('deployment_queued'),
+    'deployment_queued precedes deployment_in_progress: keep polling',
+  );
   assert.equal(TERMINAL_FAILURE_STATUSES.length, 4);
   assert.ok(
     TEMPORARY_STATUSES.includes('deployment_attempt_error'),
@@ -126,7 +130,7 @@ test('the accepted status vocabulary is exactly the eleven DEC-097 values, parti
     ...TERMINAL_FAILURE_STATUSES,
     SUCCESS_STATUS,
   ];
-  assert.equal(new Set(partition).size, 11);
+  assert.equal(new Set(partition).size, 12);
   assert.deepEqual(
     [...partition].sort(),
     [...PAGES_DEPLOYMENT_STATUSES].sort(),
@@ -144,6 +148,18 @@ test('the poll schedule is exactly 5, 8, 12, 18, 27, 30 and then repeats 30', as
     await publish(bound.destination, 'polled');
     assert.deepEqual(bound.waited, [5, 8, 12, 18, 27, 30, 30, 30]);
     assert.deepEqual([...POLL_SCHEDULE_SECONDS], [5, 8, 12, 18, 27, 30]);
+  } finally {
+    await bound.teardown();
+  }
+});
+
+test('a queued deployment keeps polling and then activates (real GitHub shape, 2026-10-06)', async () => {
+  const bound = await bind({
+    statusSequence: ['deployment_queued', 'deployment_in_progress', 'succeed'],
+  });
+  try {
+    await publish(bound.destination, 'queued');
+    assert.deepEqual(bound.waited, [5, 8]);
   } finally {
     await bound.teardown();
   }

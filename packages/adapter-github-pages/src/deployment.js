@@ -1,7 +1,7 @@
 /**
  * The Pages deployment call sequence: the `pagesBuildVersion` projection,
  * the exact `gala-pages-create-deployment-jcs-v2` request entity, the single
- * create call, and the bounded poll loop over the exact eleven accepted
+ * create call, and the bounded poll loop over the exact twelve accepted
  * statuses (DEC-097 sections 6.2 and 7).
  *
  * The create body is the one place either credential is allowed to meet the
@@ -294,7 +294,7 @@ export async function pollDeployment(context, pagesDeploymentId, options) {
     if (!PAGES_DEPLOYMENT_STATUSES.includes(status)) {
       throw new PagesAdapterError(
         `PAGES_DEPLOYMENT_STATUS_UNKNOWN`,
-        `${JSON.stringify(status)} is outside the eleven accepted statuses; the destination fence stays held`,
+        `${JSON.stringify(status)} is outside the twelve accepted statuses; the destination fence stays held`,
       );
     }
     if (status === SUCCESS_STATUS) {

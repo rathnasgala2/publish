@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- GitHub Pages adapter: `deployment_queued` is now an accepted, temporary
+  deployment status. Its absence stopped a real publish on 2026-10-06 with
+  `PAGES_DEPLOYMENT_STATUS_UNKNOWN`.
+
 ### Changed
 
 - Pins `@rathnasgala2/schemas` 3.0.0, `@rathnasgala2/template` 3.0.1 and

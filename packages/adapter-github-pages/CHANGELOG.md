@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Accept GitHub's `deployment_queued` Pages deployment status as temporary (keep
+  polling). It is in GitHub's REST reference but was missing from the accepted
+  vocabulary, so a real publish on 2026-10-06 stopped with
+  `PAGES_DEPLOYMENT_STATUS_UNKNOWN` and held the destination fence.
+
 ## [0.1.1] - 2026-09-26
 
 ### Added
