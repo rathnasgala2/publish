@@ -26,8 +26,10 @@ export function themePackageNameOf(themeSpecifier: string): string;
  * provenance and the authorization input unchanged. The workspace test
  * `theme-catalog.test.js` keeps this table equal to the installed packages.
  *
- * `theme-amaze` joins at 2.1.0 (its 2.0.0 carried contractVersion 2.0.0, which
- * the pinned template 2.2.0 refuses with `THEME_CONTRACT_VERSION_MISMATCH`).
+ * The catalog is `theme-default` only. `contractVersion` is the theme CONTRACT
+ * version (`theme.json` `contractVersion`, which the pinned template compares
+ * with its published styling contract), never the package version; the
+ * package version and the contract version are independent.
  *
  * @module
  */
@@ -39,7 +41,7 @@ export const THEME_REGISTRY: "https://registry.npmjs.org/";
  * @property {string} version exact installed version
  * @property {string} integrity `sha256:<hex>` of the registry tarball
  * @property {string} registry registry URL
- * @property {string} contractVersion the theme's own `theme.json` contractVersion
+ * @property {string} contractVersion the theme contract version (`theme.json` contractVersion)
  * @property {string} compatibleWith semver range over the contract version
  */
 /** @type {readonly ThemeCatalogEntry[]} */
@@ -62,7 +64,7 @@ export type ThemeCatalogEntry = {
      */
     registry: string;
     /**
-     * the theme's own `theme.json` contractVersion
+     * the theme contract version (`theme.json` contractVersion)
      */
     contractVersion: string;
     /**

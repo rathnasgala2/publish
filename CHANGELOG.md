@@ -8,6 +8,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Pins `@rathnasgala2/schemas` 3.0.0, `@rathnasgala2/template` 3.0.1 and
+  `@rathnasgala2/theme-default` 3.0.0 (theme contract 3, 116 tokens). The
+  sibling checkouts in CI, release and nightly follow the same commits.
+- The toolchain ships `theme-default` only; `theme-amaze`, `theme-flashy`,
+  `theme-minimal` and `theme-zebra` are no longer installed or offered.
+- The theme catalog `contractVersion` is the theme contract version from
+  `theme.json` (3.0.0), not the package version.
+
 ### Fixed
 
 - Re-observing a freshly uploaded carrier by exact artifact ID no longer fails

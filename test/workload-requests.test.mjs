@@ -518,6 +518,16 @@ test('route projection is closed: an unknown extension is an inert asset', () =>
   });
 });
 
+test('the template 3 root text files (robots.txt, llms.txt, llms-full.txt) project as plain-text assets', () => {
+  for (const name of ['robots.txt', 'llms.txt', 'llms-full.txt']) {
+    assert.deepEqual(projectRoute(name), {
+      publicRoute: `/${name}`,
+      routeClass: 'asset',
+      expectedContentType: 'text/plain; charset=utf-8',
+    });
+  }
+});
+
 test('canonical JSON orders members and refuses an unsafe integer', () => {
   assert.equal(canonicalJson({ b: 1, a: 'x' }), '{"a":"x","b":1}');
   assert.throws(() => canonicalJson(2 ** 53), /CANONICALIZATION_REFUSED/u);

@@ -334,7 +334,7 @@ test('the request-side rebuildRecord (2.9.0) declares the retained record’s me
       path.join(schemasRoot, 'schemas/deployment-intent.schema.json'),
       'utf8',
     ),
-  ).$defs.reproducibleBuildRecord;
+  ).$defs.recordReproducibleBuildRecord;
   assertSameMembers(retained.required, contract.REBUILD_RECORD_FIELDS);
   assertSameMembers(
     Object.keys(retained.properties),

@@ -57,13 +57,14 @@ async function fixtureSelecting(lockPackage, appearancePackage) {
     lock.theme = { ...entry };
   });
   await editJson(dir, 'gala/appearance.json', (doc) => {
-    doc.theme = `${appearancePackage}@^2.0.0`;
+    doc.theme = `${appearancePackage}@^3.0.0`;
   });
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
-test('the catalog is exactly the five installed theme packages', async () => {
-  assert.equal(THEME_CATALOG.length, 5);
+test('the catalog is exactly the one installed theme package (theme-default)', async () => {
+  assert.equal(THEME_CATALOG.length, 1);
+  assert.equal(THEME_CATALOG[0]?.package, '@rathnasgala2/theme-default');
   for (const entry of THEME_CATALOG) {
     const directory = path.join(
       INSTALLED_SCOPE,
@@ -169,8 +170,8 @@ test('appearance.json naming a different theme than the lock is refused with THE
 
 test('intake does not validate the lock lockDigest against its theme block (a future enforcement must change this test)', async () => {
   const { dir, cleanup } = await fixtureSelecting(
-    '@rathnasgala2/theme-amaze',
-    '@rathnasgala2/theme-amaze',
+    '@rathnasgala2/theme-default',
+    '@rathnasgala2/theme-default',
   );
   try {
     // The fixture's lockDigest (…0008) was computed for a different theme
@@ -183,7 +184,7 @@ test('intake does not validate the lock lockDigest against its theme block (a fu
     });
     assert.equal(
       /** @type {any} */ (input).packages.theme.package,
-      '@rathnasgala2/theme-amaze',
+      '@rathnasgala2/theme-default',
     );
   } finally {
     await cleanup();

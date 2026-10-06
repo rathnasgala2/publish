@@ -18,11 +18,15 @@ and this project adheres to
   `appearance.json` was ignored, giving a silently different theme.
 - `src/theme-catalog.js` (exported from the package entry): `THEME_CATALOG`, the
   exact `gala.lock.json` `theme` block for each theme the toolchain ships
-  (default, flashy, minimal, zebra), plus `findThemeCatalogEntry` and
-  `themePackageNameOf`. `test/theme-catalog.test.js` keeps it equal to the
-  installed packages and builds with each theme.
+  (`theme-default` only; the other four themes are not shipped), plus
+  `findThemeCatalogEntry` and `themePackageNameOf`. `test/theme-catalog.test.js`
+  keeps it equal to the installed packages and builds with each theme.
 
 ### Changed
+
+- Pins schemas 3.0.0, template 3.0.1 and theme-default 3.0.0. The catalog is
+  `theme-default` only and states the theme contract version (`theme.json`
+  `contractVersion`, 3.0.0) as `contractVersion`, not the package version.
 
 - **PUB-H5:** `template-bridge.js`'s `currentRenderPolicyIdentity` now imports
   `computeRenderPolicyIdentity` from `template`'s public entry point

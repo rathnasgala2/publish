@@ -368,8 +368,8 @@
       "type": "library",
       "name": "template",
       "group": "@rathnasgala2",
-      "version": "2.2.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@2.2.0",
+      "version": "3.0.1",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.0.1",
       "licenses": [
         {
           "license": {
@@ -378,15 +378,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/template@2.2.0",
+      "purl": "pkg:npm/%40rathnasgala2/template@3.0.1",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/@rathnasgala2/template/-/template-2.2.0.tgz",
+          "url": "https://registry.npmjs.org/@rathnasgala2/template/-/template-3.0.1.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "46848ca0a63c03bd567739d14601a8bd7d0f75144662476ea6dc9d1c074d2256278ec34382b5095d40f8d9e5eea419f90863a853170b7dcf3378b79266bf4523"
+              "content": "53497b7fc076b651b5ed0e0c703f07d7194d5cd5c7dca6e5011b7b887e76d7884567495bdb59e477be7e2f33210db5104d56e5408104dfcc31c0e8d88563006f"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -405,49 +405,10 @@
     },
     {
       "type": "library",
-      "name": "theme-amaze",
-      "group": "@rathnasgala2",
-      "version": "2.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@2.1.0",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/%40rathnasgala2/theme-amaze@2.1.0",
-      "externalReferences": [
-        {
-          "url": "https://registry.npmjs.org/@rathnasgala2/theme-amaze/-/theme-amaze-2.1.0.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "f6e488f3eec8a9af1ed8603ba3927e02544406778a80daad97a461ff8d5cfce018c0634703d5d5bfaafcd517b7ce20be305c99dda7797f0ba69936f710ded1e0"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@rathnasgala2/theme-amaze"
-        }
-      ]
-    },
-    {
-      "type": "library",
       "name": "theme-default",
       "group": "@rathnasgala2",
-      "version": "2.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@2.1.0",
+      "version": "3.0.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@3.0.0",
       "licenses": [
         {
           "license": {
@@ -456,15 +417,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/theme-default@2.1.0",
+      "purl": "pkg:npm/%40rathnasgala2/theme-default@3.0.0",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/@rathnasgala2/theme-default/-/theme-default-2.1.0.tgz",
+          "url": "https://registry.npmjs.org/@rathnasgala2/theme-default/-/theme-default-3.0.0.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "316bfbb40633e146ce725546706d42b9ece1741a18ba3a88d48a9c027403543ce4d4b0948b68eb48b232e96bda86f9807249e8325296872745f485b8db5d9cfe"
+              "content": "dbbfc01750f5d48183377fe91940f7396d03d2bf0ec224dcf42bbe23a42d2344ab8e37e54f73b553bd3b032e9d02b38a211d48ec5d3e4a84e3197e027ab09d1d"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -478,123 +439,6 @@
         {
           "name": "cdx:npm:package:path",
           "value": "node_modules/@rathnasgala2/theme-default"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "theme-flashy",
-      "group": "@rathnasgala2",
-      "version": "2.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-flashy@2.1.0",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/%40rathnasgala2/theme-flashy@2.1.0",
-      "externalReferences": [
-        {
-          "url": "https://registry.npmjs.org/@rathnasgala2/theme-flashy/-/theme-flashy-2.1.0.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "9c62b8360e1ff1bd080c8f266a15852fbf655335e4a14e0eed7a4e5f61008b17d8edc02b0ffbaa1fb28cbb1a46035a6f88718be8980050303c5f830dff05bbaf"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@rathnasgala2/theme-flashy"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "theme-minimal",
-      "group": "@rathnasgala2",
-      "version": "2.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-minimal@2.1.0",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/%40rathnasgala2/theme-minimal@2.1.0",
-      "externalReferences": [
-        {
-          "url": "https://registry.npmjs.org/@rathnasgala2/theme-minimal/-/theme-minimal-2.1.0.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "92ff0f456c636fb5f148763aa4ed328be5933e01b8468b782828269d700d3e804ae5e3a130612896d0bad438a114f5543d43df3514d74a32ce023474e330a297"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@rathnasgala2/theme-minimal"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "theme-zebra",
-      "group": "@rathnasgala2",
-      "version": "2.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-zebra@2.1.0",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/%40rathnasgala2/theme-zebra@2.1.0",
-      "externalReferences": [
-        {
-          "url": "https://registry.npmjs.org/@rathnasgala2/theme-zebra/-/theme-zebra-2.1.0.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "c649475fac1ac0e3c81772423631e6055f4f1b592c942306229243660b5763769a6a22280339066fb1a2bc23179e4ed76bce829abae0d414aac89c2f469a70c5"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/@rathnasgala2/theme-zebra"
         }
       ]
     },
@@ -1588,8 +1432,8 @@
       "type": "library",
       "name": "schemas",
       "group": "@rathnasgala2",
-      "version": "2.11.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0",
+      "version": "3.0.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0",
       "licenses": [
         {
           "license": {
@@ -1598,15 +1442,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/schemas@2.11.0",
+      "purl": "pkg:npm/%40rathnasgala2/schemas@3.0.0",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/@rathnasgala2/schemas/-/schemas-2.11.0.tgz",
+          "url": "https://registry.npmjs.org/@rathnasgala2/schemas/-/schemas-3.0.0.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "e615f1a4b697a8428a86844b04112af7caf3250f4ae2eddbf270ccb7f659995da02f85d1993382c2317553ad7c509d428261679627e141646e0ef41057215f4c"
+              "content": "767e23f477c348d41e83be1cf4b60f42fcbcbff1c3439501060bc6346a3b5bc40a6be04b3407f32d0310b617b11cd4ae12fc3974a5fda5aa1d42bd8dfcada787"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -18053,12 +17897,8 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@2.2.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@2.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@2.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-flashy@2.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-minimal@2.1.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-zebra@2.1.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.0.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@3.0.0",
         "@rathnasgala2/publish-workspace@0.0.0|@types/node@24.13.4",
         "@rathnasgala2/publish-workspace@0.0.0|ajv@8.20.0",
         "@rathnasgala2/publish-workspace@0.0.0|dependency-cruiser@18.2.0",
@@ -18104,7 +17944,7 @@
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0"
       ]
     },
     {
@@ -18112,7 +17952,7 @@
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0"
       ]
     },
     {
@@ -18121,13 +17961,13 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0"
       ]
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0"
       ]
     },
     {
@@ -18136,8 +17976,8 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@2.2.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.0.1",
         "@rathnasgala2/publish-workspace@0.0.0|yaml@2.9.0"
       ]
     },
@@ -18145,34 +17985,22 @@
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0"
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@2.2.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.0.1",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@11ty/eleventy-plugin-syntaxhighlight@5.0.2",
         "@rathnasgala2/publish-workspace@0.0.0|@11ty/eleventy@3.1.6",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0",
         "@rathnasgala2/publish-workspace@0.0.0|jpeg-js@0.4.4",
         "@rathnasgala2/publish-workspace@0.0.0|markdown-it@14.3.1",
         "@rathnasgala2/publish-workspace@0.0.0|sanitize-html@2.17.7"
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@2.1.0"
-    },
-    {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@2.1.0"
-    },
-    {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-flashy@2.1.0"
-    },
-    {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-minimal@2.1.0"
-    },
-    {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-zebra@2.1.0"
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@3.0.0"
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@types/node@24.13.4",
@@ -18400,7 +18228,7 @@
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@2.11.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|ajv-formats@3.0.1",
         "@rathnasgala2/publish-workspace@0.0.0|ajv@8.20.0"

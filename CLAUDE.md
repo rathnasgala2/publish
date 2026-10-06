@@ -81,7 +81,7 @@ control-plane key.
 
 ## Contract sources and generation commands
 
-`@rathnasgala2/schemas@2.11.0` is consumed from the public npm registry (exact
+`@rathnasgala2/schemas@3.0.0` is consumed from the public npm registry (exact
 pin, no range); the LOCAL-1/LOCAL-43 local-tarball convention
 (`file:../../local-packages/rathnasgala2-schemas-*.tgz`, pinned in
 `pins/ledger.json`) is retired for this package now that it publishes. No schema

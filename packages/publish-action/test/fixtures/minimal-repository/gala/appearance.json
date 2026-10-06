@@ -1,7 +1,7 @@
 {
   "schemaId": "urn:gala:schema:appearance:2.0.0",
   "schemaVersion": "2.0.0",
-  "theme": "@rathnasgala2/theme-default@^2.0.0",
+  "theme": "@rathnasgala2/theme-default@^3.0.0",
   "colorMode": { "allowed": ["light"], "default": "light" },
   "headerComposition": "mark-and-name",
   "footerComposition": "profile",
