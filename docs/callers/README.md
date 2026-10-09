@@ -18,12 +18,21 @@ updating the file — never permission for Gala to generate or patch one.
 | the 40-hex pin after `@`     | the `rathnasgala2/publish` commit Gala tells you to pin |
 | `service_origin_catalog_url` | the signed Gala service-origin catalog location         |
 
+The file in this directory pins `111072a848f204d783420ef89acfed557bdfe797` in
+both fields. That is the commit the starter repository
+(`rathnasgala2/user-template`) pins, and the starter's own check requires its
+`.github/workflows/gala-publish-v2.yml` to be byte-identical to this file, so
+the two are changed together. `pins/ledger.json` records the same commit.
+
 ## What you must not change
 
 - the two triggers, `create` and `workflow_dispatch`, and nothing else;
 - the five-permission union `actions: read`, `contents: read`,
   `id-token: write`, `pages: write`, `attestations: write`;
-- the coarse guard expression;
+- the coarse guard expression. It admits only a `gala/publish/` branch: its
+  creation, or a `workflow_dispatch` run on it. A `gala/candidate/` branch (the
+  branch Galascribe saves a change on) is never built; a change is previewed in
+  Galascribe, and only publishing builds and deploys;
 - the three-entry secret map. `secrets: inherit` is never permitted, an unknown
   mapping is rejected, and a control-plane secret must never appear here.
 

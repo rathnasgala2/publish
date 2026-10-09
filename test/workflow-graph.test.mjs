@@ -329,7 +329,12 @@ test('every publish-toolchain checkout and authorization fact uses the explicit 
   assert.doesNotMatch(JSON.stringify(workflows), /github\.workflow_sha/u);
 });
 
-test("the fixed caller's guard is byte-equal to the DEC-097 coarse guard", () => {
+test("the fixed caller's guard admits gala/publish/ branches only", () => {
+  // DEC-097's coarse guard also admitted `gala/candidate/` branch creation.
+  // 2026-10: a saved change's candidate branch is no longer built (a change
+  // is previewed in the App, never deployed), so the starter repository's
+  // caller (rathnasgala2/user-template 8b584a1, kept byte-identical in
+  // docs/callers/) narrowed the guard to the publish branch.
   const normalized = String(CALLER.jobs.publish.if)
     .replace(/\s+/gu, ' ')
     .trim();
@@ -337,10 +342,15 @@ test("the fixed caller's guard is byte-equal to the DEC-097 coarse guard", () =>
     normalized,
     "(github.event_name == 'create' && github.event.ref_type == 'branch' && " +
       "github.ref == format('refs/heads/{0}', github.event.ref) && " +
-      "(startsWith(github.event.ref, 'gala/candidate/') || " +
-      "startsWith(github.event.ref, 'gala/publish/'))) || " +
+      "startsWith(github.event.ref, 'gala/publish/')) || " +
       "(github.event_name == 'workflow_dispatch' && " +
       "startsWith(github.ref, 'refs/heads/gala/publish/'))",
+  );
+  assert.ok(
+    !readFileSync('docs/callers/gala-publish-v2.yml', 'utf8').includes(
+      'gala/candidate/',
+    ),
+    'the caller must not mention a candidate branch',
   );
 });
 

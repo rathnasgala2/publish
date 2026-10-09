@@ -35,8 +35,7 @@ jobs:
     if: >-
       (github.event_name == 'create' && github.event.ref_type == 'branch' &&
        github.ref == format('refs/heads/{0}', github.event.ref) &&
-       (startsWith(github.event.ref, 'gala/candidate/') ||
-        startsWith(github.event.ref, 'gala/publish/'))) ||
+       startsWith(github.event.ref, 'gala/publish/')) ||
       (github.event_name == 'workflow_dispatch' &&
        startsWith(github.ref, 'refs/heads/gala/publish/'))
     # REPLACE the 40-character lowercase hexadecimal commit SHA below with
@@ -45,13 +44,13 @@ jobs:
     # was last reconciled (2026-09-30) -- a real, resolvable commit, not a
     # placeholder -- so replacing it exercises exactly the sha you must
     # actually type in, rather than an all-zero sentinel.
-    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@41f39e1b8789b3c5b6e86b48ef3e24443cee7123
+    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@111072a848f204d783420ef89acfed557bdfe797
     with:
       # REPLACE with the signed Gala service-origin catalog location.
       service_origin_catalog_url: https://api.galascribe.com/v2/service-origins
       # REPLACE with the Gala API origin used for publish authorization and reporting.
       gala_api_origin: https://api.galascribe.com
-      publish_toolchain_ref: 41f39e1b8789b3c5b6e86b48ef3e24443cee7123
+      publish_toolchain_ref: 111072a848f204d783420ef89acfed557bdfe797
       artifact_retention_days: 7
       require_github_attestation: false
     # The sole caller secret map. `secrets: inherit` is never used, and no
