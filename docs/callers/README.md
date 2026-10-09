@@ -18,7 +18,7 @@ updating the file — never permission for Gala to generate or patch one.
 | the 40-hex pin after `@`     | the `rathnasgala2/publish` commit Gala tells you to pin |
 | `service_origin_catalog_url` | the signed Gala service-origin catalog location         |
 
-The file in this directory pins `111072a848f204d783420ef89acfed557bdfe797` in
+The file in this directory pins `ac7112dca2cbf3994b28439b8380fced35a4bdaa` in
 both fields. That is the commit the starter repository
 (`rathnasgala2/user-template`) pins, and the starter's own check requires its
 `.github/workflows/gala-publish-v2.yml` to be byte-identical to this file, so

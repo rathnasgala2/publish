@@ -11,11 +11,12 @@ and this project adheres to
 ### Changed
 
 - The documented caller (`docs/callers/gala-publish-v2.yml`) is byte-identical
-  to the starter repository's (`rathnasgala2/user-template` 5ce8238). Its guard
+  to the starter repository's (`rathnasgala2/user-template` 73a2e33). Its guard
   admits only `gala/publish/` branches (a saved change's `gala/candidate/`
-  branch is no longer built), and both pin fields name `111072a`. The pin
-  ledger, the callers README and the workflow-graph guard assertion agree. The
-  reusable workflow itself is unchanged.
+  branch is no longer built), and both pin fields name `ac7112d`, the release
+  commit of this toolchain. The pin ledger, the callers README and the
+  workflow-graph guard assertion agree. The reusable workflow itself is
+  unchanged.
 - `publish-action` intake lists content images (`content[].media[]`), admits a
   `hero`, copies the appearance attribution switch and keeps Prism editions only
   while their article is unchanged. See `packages/publish-action/CHANGELOG.md`.
