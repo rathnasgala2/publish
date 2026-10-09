@@ -4,47 +4,57 @@
  * may read.
  *
  * Two kinds of reference exist. A body image is `![alt](path)` in the
- * Markdown body; a hero is the `hero.path` of the front matter. Intake lists
- * every file either kind names, checks it, digests it and hands the list to
- * the renderer as `build-input.assets[]` (`{path, sourceDigest}`). The bytes
- * stay on disk: the sandbox mounts the repository read-only and the
+ * Markdown body; a hero is the `hero.path` of the front matter. Intake checks
+ * every file either kind names, digests it, and hands the renderer:
+ *
+ * - for a body image, one entry in that document's `content[].media[]`
+ *   (`{path, sourceDigest, mediaType, byteLength}`, ordered by path), which is
+ *   the inventory the renderer resolves the body's `<img src>` against;
+ * - for a hero, `frontmatter.hero.file` (`{path, sourceDigest}`).
+ *
+ * The bytes stay on disk: the sandbox mounts the repository read-only and the
  * template's media pipeline reads each file from there, failing closed when
- * the bytes do not hash to the digest listed here.
+ * the bytes do not hash to the digest given here.
  *
- * **Where the references come from.** Body images are read from the
- * *sanitized HTML* that `template`'s `normalizeAuthoredMarkdown` produced for
- * the body, not from the Markdown text. That is the exact string the
- * renderer will see, so both sides agree on the set of references and on
- * every `src`: reference-style images, titles, escapes and code spans are all
- * settled by the one Markdown parser, and an `<img>` that appears inside a
- * code block is text, never a reference.
+ * **Where the body references come from.** From the *sanitized HTML* that
+ * `template`'s `normalizeAuthoredMarkdown` produced for the body, not from the
+ * Markdown text. That is the exact string the renderer will see, so both sides
+ * agree on the set of references and on every `src`: reference-style images,
+ * titles, escapes and code spans are all settled by the one Markdown parser,
+ * and an `<img>` inside a code block is text, never a reference. The
+ * sanitizer removes the `src` of an image whose address has a scheme, so an
+ * external image reaches this module as an image with no path.
  *
- * **What a reference may be.** A repository-relative path, written exactly as
- * the file's path: slash separators, no leading `/` or `./`, no `..`, no
- * scheme, no query or fragment, no percent-encoding, Unicode NFC. The
- * renderer matches an `<img src>` to this inventory by exact string equality
- * and never resolves a path against the document's own directory, so a
- * relative-to-the-document spelling is refused rather than guessed at. An
- * external address cannot be reached by the sanitizer at all (it removes the
- * `src` of every image whose address has a scheme), so it surfaces here as an
- * image with no usable path.
+ * **How a `src` becomes a path** is the renderer's own rule
+ * (`template/src/core/internal/media/content-images.js`,
+ * `repositoryPathOfImageSource`), applied here so the inventory and the
+ * lookup cannot disagree: entities decoded; a scheme, a protocol-relative
+ * `//`, a query, a fragment or a backslash never resolves; one leading `/` or
+ * `./` is dropped (paths are relative to the repository root, never to the
+ * document's directory); the rest is percent-decoded and NFC-normalized; an
+ * empty, `.` or `..` segment never resolves. The result is the path the
+ * inventory carries and the file is looked for at. A hero's `path` is used
+ * exactly as written, so it must already be in that final form.
  *
  * **Where the file may be.** Under an `assetRoots` entry of
  * `gala/repository.json`, as a regular file whose real location (after any
  * directory symbolic link) is still inside that root and inside the
- * repository. A symbolic link is never followed.
+ * repository. A symbolic link is never followed. Its first bytes must be a
+ * PNG, JPEG, WebP, AVIF or GIF image; SVG is refused. The `mediaType` the
+ * inventory states is taken from those bytes, never from the file name.
  *
  * **Limits** mirror `template`'s media pipeline
  * (`src/core/internal/media/limits.js`): one source image at most 10 MiB, at
- * most 2048 distinct images, at most 256 MiB of source bytes together. The
- * template re-checks its own, stricter decode ceilings (dimensions, pixels).
- * A test keeps these numbers equal to the template's.
+ * most 2048 distinct images, at most 256 MiB of source bytes together; and the
+ * build input's own bound of 200 images per document. The template re-checks
+ * its stricter decode ceilings (dimensions, pixels) when it reads the file.
+ * A test keeps the template's numbers equal to these.
  *
  * @module
  */
 
 import { createHash } from 'node:crypto';
-import { lstat, readFile, realpath } from 'node:fs/promises';
+import { lstat, open, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
 /**
@@ -52,22 +62,22 @@ import path from 'node:path';
  * @property {number} maxSourceBytes largest admitted source image, in bytes
  * @property {number} maxDistinctImages most distinct image files one publication may reference
  * @property {number} maxTotalBytes most source bytes all referenced images may add up to
+ * @property {number} maxImagesPerDocument most distinct body images one document's `media[]` may list
  */
 
 /**
- * Media ceilings, equal to `template`'s `limits.js`
+ * Media ceilings. The first three equal `template`'s `limits.js`
  * (`MAX_IMAGE_SOURCE_BYTES`, `MAX_IMAGES_PER_PUBLICATION`,
- * `MAX_TOTAL_MEDIA_BYTES_PER_PUBLICATION`).
+ * `MAX_TOTAL_MEDIA_BYTES_PER_PUBLICATION`); the last is the maximum length of
+ * `build-input`'s `content[].media[]`.
  *
  * @type {Readonly<MediaLimits>}
  */
 export const MEDIA_LIMITS = Object.freeze({
-  /** Largest admitted source image, in bytes (10 MiB). */
   maxSourceBytes: 10_485_760,
-  /** Most distinct image files one publication may reference. */
   maxDistinctImages: 2048,
-  /** Most source bytes all referenced images may add up to (256 MiB). */
   maxTotalBytes: 268_435_456,
+  maxImagesPerDocument: 200,
 });
 
 /** Most findings one intake failure reports; the rest are counted, not listed. */
@@ -75,6 +85,9 @@ export const MAX_MEDIA_FINDINGS = 50;
 
 /** The schema's bound on a repository-relative path, in UTF-8 bytes. */
 const MAX_PATH_BYTES = 512;
+
+/** How many leading bytes are read to recognize an image format. */
+const SNIFF_BYTES = 4096;
 
 const SCHEME_PREFIX = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
 // eslint-disable-next-line no-control-regex -- the point is to refuse controls
@@ -84,14 +97,18 @@ const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/u;
  * @typedef {object} MediaReference
  * @property {string} document repository-relative path of the document that refers to the image
  * @property {'body' | 'hero'} origin whether it is a body image or the front matter hero
- * @property {string | null} path the reference as written; `null` when the image has no usable path
+ * @property {string | null} source the reference as written (an `<img src>` with entities decoded, or a hero path); `null` when the image has no usable address
  * @property {string} alt the image's alternative text, for messages
  */
 
 /**
- * @typedef {object} MediaAsset
+ * One image file as the build input lists it.
+ *
+ * @typedef {object} MediaFile
  * @property {string} path repository-relative path
  * @property {string} sourceDigest `sha256:` plus 64 lowercase hexadecimal characters
+ * @property {'image/png' | 'image/jpeg' | 'image/webp' | 'image/avif' | 'image/gif'} mediaType the format, from the file's bytes
+ * @property {number} byteLength the file's size in bytes
  */
 
 /**
@@ -99,22 +116,27 @@ const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/u;
  */
 
 /**
- * Decode the four entities `sanitize-html` produces inside an attribute
- * value, in one left-to-right pass (so `&amp;lt;` stays `&lt;`).
+ * @typedef {{reason: string, explanation: string}} Problem
+ */
+
+/**
+ * Decode the entities `sanitize-html` writes inside an attribute value, in
+ * one left-to-right pass (so `&amp;lt;` stays `&lt;`).
  *
  * @param {string} value an attribute value as serialized
  * @returns {string} the decoded value
  */
 function decodeAttribute(value) {
   return value.replace(
-    /&(amp|lt|gt|quot);/gu,
-    (_match, name) =>
+    /&(amp|lt|gt|quot|#39);/gu,
+    (match, name) =>
       /** @type {Record<string, string>} */ ({
         amp: '&',
         lt: '<',
         gt: '>',
         quot: '"',
-      })[name] ?? _match,
+        '#39': "'",
+      })[name] ?? match,
   );
 }
 
@@ -164,18 +186,71 @@ export function normalizeAssetRoots(assetRoots) {
 }
 
 /**
- * Why a reference string is not a plain repository-relative file path, or
- * `null` when it is one. The rules are the schema's `repoRelativePath`
- * (NFC, at most 512 UTF-8 bytes, no leading slash, no backslash, no NUL, no
- * dot segment) plus the ones that make a string safe to compare verbatim
- * with an `<img src>`: no scheme, query, fragment, percent-encoding,
- * control character, empty segment or leading `./`.
+ * Turn an `<img src>` (entities already decoded) into the repository path it
+ * names, by the renderer's rule (see the module documentation).
  *
- * @param {string} value the reference as written
- * @returns {{reason: 'EXTERNAL_ADDRESS' | 'NOT_A_REPOSITORY_PATH', explanation: string} | null}
- *   the problem, or `null` when the reference is well formed
+ * @param {string} source the `src` value
+ * @returns {{path: string} | Problem} the path, or why there is none
  */
-export function referencePathProblem(value) {
+export function resolveImageSource(source) {
+  if (source.startsWith('//') || SCHEME_PREFIX.test(source)) {
+    return {
+      reason: 'EXTERNAL_ADDRESS',
+      explanation:
+        'is an external address; an image must be a file in this repository',
+    };
+  }
+  if (/[?#\\]/u.test(source)) {
+    return {
+      reason: 'NOT_A_REPOSITORY_PATH',
+      explanation: 'contains a query, a fragment or a backslash',
+    };
+  }
+  const relative = source.startsWith('/')
+    ? source.slice(1)
+    : source.startsWith('./')
+      ? source.slice(2)
+      : source;
+  let decoded;
+  try {
+    decoded = decodeURIComponent(relative).normalize('NFC');
+  } catch {
+    return {
+      reason: 'NOT_A_REPOSITORY_PATH',
+      explanation: 'contains an invalid "%" escape',
+    };
+  }
+  if (
+    decoded.includes('\\') ||
+    decoded.includes('\u0000') ||
+    decoded.split('/').some((segment) => ['', '.', '..'].includes(segment))
+  ) {
+    return {
+      reason: 'NOT_A_REPOSITORY_PATH',
+      explanation:
+        'has an empty, "." or ".." segment; write the path from the repository root',
+    };
+  }
+  if (Buffer.byteLength(decoded, 'utf8') > MAX_PATH_BYTES) {
+    return {
+      reason: 'NOT_A_REPOSITORY_PATH',
+      explanation: `is longer than ${MAX_PATH_BYTES} bytes`,
+    };
+  }
+  return { path: decoded };
+}
+
+/**
+ * Why a hero path cannot be used as written, or `null` when it can. The
+ * schema's `repoRelativePath` (NFC, at most 512 UTF-8 bytes, no leading
+ * slash, no backslash, no NUL, no dot segment) plus what makes the string
+ * safe to hand on verbatim: no scheme, no query or fragment, no `%` escape, no
+ * control character, no empty segment.
+ *
+ * @param {string} value the front matter `hero.path`
+ * @returns {Problem | null} the problem, or `null` when it is well formed
+ */
+export function heroPathProblem(value) {
   if (SCHEME_PREFIX.test(value) || value.startsWith('//')) {
     return {
       reason: 'EXTERNAL_ADDRESS',
@@ -187,12 +262,12 @@ export function referencePathProblem(value) {
   let explanation = null;
   if (value.startsWith('/')) {
     explanation =
-      'starts with "/"; write the path from the repository root, for example assets/photo.png';
+      'starts with "/"; write the path from the repository root, for example assets/hero.jpg';
   } else if (/[?#]/u.test(value)) {
     explanation = 'contains a query or fragment ("?" or "#")';
   } else if (value.includes('%')) {
     explanation =
-      'contains "%"; escaped characters are not read, so rename the file to a name that needs no escaping';
+      'contains "%"; a hero path is used exactly as written, so rename the file to a name without it';
   } else if (value.includes('\\') || CONTROL_CHARACTER.test(value)) {
     explanation = 'contains a backslash or a control character';
   } else if (
@@ -201,7 +276,7 @@ export function referencePathProblem(value) {
       .some((segment) => segment === '' || segment === '.' || segment === '..')
   ) {
     explanation =
-      'contains an empty, "." or ".." segment; write the path from the repository root without "./" or "../"';
+      'has an empty, "." or ".." segment; write the path from the repository root';
   } else if (value.normalize('NFC') !== value) {
     explanation = 'is not Unicode NFC normalized';
   } else if (Buffer.byteLength(value, 'utf8') > MAX_PATH_BYTES) {
@@ -210,6 +285,60 @@ export function referencePathProblem(value) {
   return explanation === null
     ? null
     : { reason: 'NOT_A_REPOSITORY_PATH', explanation };
+}
+
+/**
+ * Recognize an image format from a file's first bytes (the same signatures
+ * as the renderer: never the file name).
+ *
+ * @param {Buffer} head the first bytes of the file
+ * @returns {MediaFile['mediaType'] | 'svg' | null} the media type, `'svg'`
+ *   for markup that looks like SVG/XML, or `null` for anything else
+ */
+export function sniffImageMediaType(head) {
+  const text = head.subarray(0, SNIFF_BYTES).toString('utf8').trimStart();
+  if (
+    text.startsWith('﻿') ||
+    text.startsWith('<?xml') ||
+    text.startsWith('<!--') ||
+    text.startsWith('<svg') ||
+    /<svg[\s>]/iu.test(text.slice(0, 512))
+  ) {
+    return 'svg';
+  }
+  if (
+    head.length >= 8 &&
+    head.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  ) {
+    return 'image/png';
+  }
+  if (
+    head.length >= 3 &&
+    head[0] === 0xff &&
+    head[1] === 0xd8 &&
+    head[2] === 0xff
+  ) {
+    return 'image/jpeg';
+  }
+  if (
+    head.length >= 12 &&
+    head.subarray(0, 4).toString('latin1') === 'RIFF' &&
+    head.subarray(8, 12).toString('latin1') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  if (
+    head.length >= 12 &&
+    head.subarray(4, 8).toString('latin1') === 'ftyp' &&
+    head.subarray(8, 12).toString('latin1') === 'avif'
+  ) {
+    return 'image/avif';
+  }
+  const signature = head.subarray(0, 6).toString('latin1');
+  if (signature === 'GIF87a' || signature === 'GIF89a') {
+    return 'image/gif';
+  }
+  return null;
 }
 
 /**
@@ -266,29 +395,33 @@ function describeRoots(roots) {
  * The finding for a reference that cannot be used.
  *
  * @param {MediaReference} reference the reference
- * @param {string} reason a stable reason code
- * @param {string} explanation what is wrong, completing "image ... <explanation>"
+ * @param {string | null} resolved the path it resolved to, when it did
+ * @param {Problem} problem what is wrong
  * @param {readonly string[]} roots normalized asset roots
  * @returns {Finding} the finding
  */
-function unresolvedFinding(reference, reason, explanation, roots) {
+function unresolvedFinding(reference, resolved, problem, roots) {
+  const written = reference.source;
+  const kind = reference.origin === 'hero' ? 'the hero image' : 'the image';
   const subject =
-    reference.path === null
+    written === null
       ? `the image "${reference.alt}"`
-      : `${reference.origin === 'hero' ? 'the hero image' : 'the image'} "${reference.path}"`;
+      : `${kind} "${written}"${resolved !== null && resolved !== written ? ` (the file "${resolved}")` : ''}`;
   const recovery =
-    reason === 'OUTSIDE_ASSET_ROOTS'
+    problem.reason === 'OUTSIDE_ASSET_ROOTS'
       ? `Move the file under a declared asset root (${describeRoots(roots)}), or add its folder to "assetRoots" in gala/repository.json.`
-      : 'Add the image as a file under an asset root declared in gala/repository.json (for example "assets/"), refer to it by its path from the repository root, or remove the reference.';
+      : problem.reason === 'UNSUPPORTED_FORMAT'
+        ? 'Use a PNG, JPEG, WebP, AVIF or GIF image (SVG is not allowed).'
+        : 'Add the image as a file under an asset root declared in gala/repository.json (for example "assets/"), refer to it by its path from the repository root, or remove the reference.';
   return mediaFinding(
     'MEDIA_REFERENCE_UNRESOLVED',
-    `${reference.document}: ${subject} ${explanation}.`,
+    `${reference.document}: ${subject} ${problem.explanation}.`,
     reference.document,
     {
       document: reference.document,
-      path: reference.path,
+      path: written,
       origin: reference.origin,
-      reason,
+      reason: problem.reason,
     },
     recovery,
   );
@@ -303,8 +436,8 @@ function unresolvedFinding(reference, reason, explanation, roots) {
  * @param {readonly string[]} roots normalized asset roots
  * @param {{real: Map<string, string | null>, repository: string}} realPaths
  *   memo of real root paths, and the real repository path
- * @returns {Promise<{size: number} | {reason: string, explanation: string}>}
- *   the file's size, or why it cannot be used
+ * @returns {Promise<{size: number, mediaType: MediaFile['mediaType']} | Problem>}
+ *   the file's size and format, or why it cannot be used
  */
 async function inspectAsset(
   repositoryDirectory,
@@ -319,10 +452,16 @@ async function inspectAsset(
     stats = await lstat(absolute);
   } catch (error) {
     const code = /** @type {NodeJS.ErrnoException} */ (error).code;
-    if (code === 'ENOENT' || code === 'ENOTDIR') {
+    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ENAMETOOLONG') {
       return {
         reason: 'FILE_MISSING',
         explanation: 'does not exist in the repository',
+      };
+    }
+    if (code === 'ELOOP') {
+      return {
+        reason: 'NOT_A_REGULAR_FILE',
+        explanation: 'goes through a symbolic link loop',
       };
     }
     throw error;
@@ -340,6 +479,7 @@ async function inspectAsset(
     };
   }
   const realParent = await realpath(path.dirname(absolute));
+  let contained = false;
   for (const root of rootsContaining(relativePath, roots)) {
     if (!realPaths.real.has(root)) {
       realPaths.real.set(
@@ -356,14 +496,43 @@ async function inspectAsset(
       isWithin(realRoot, realPaths.repository) &&
       isWithin(realParent, realRoot)
     ) {
-      return { size: stats.size };
+      contained = true;
+      break;
     }
   }
-  return {
-    reason: 'OUTSIDE_ASSET_ROOTS',
-    explanation:
-      'resolves outside its asset root through a symbolic link, which is not followed',
-  };
+  if (!contained) {
+    return {
+      reason: 'OUTSIDE_ASSET_ROOTS',
+      explanation:
+        'resolves outside its asset root through a symbolic link, which is not followed',
+    };
+  }
+  const handle = await open(absolute, 'r');
+  let head;
+  try {
+    const buffer = Buffer.alloc(SNIFF_BYTES);
+    const { bytesRead } = await handle.read(buffer, 0, SNIFF_BYTES, 0);
+    head = buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+  const mediaType = sniffImageMediaType(head);
+  if (mediaType === 'svg') {
+    return {
+      reason: 'UNSUPPORTED_FORMAT',
+      explanation: 'is an SVG file; SVG is not allowed',
+    };
+  }
+  if (mediaType === null) {
+    return {
+      reason: 'UNSUPPORTED_FORMAT',
+      explanation:
+        stats.size === 0
+          ? 'is empty'
+          : 'is not a PNG, JPEG, WebP, AVIF or GIF image',
+    };
+  }
+  return { size: stats.size, mediaType };
 }
 
 /**
@@ -400,6 +569,10 @@ function compareUtf8(left, right) {
 }
 
 /**
+ * @typedef {{order: number, reference: MediaReference}} OrderedReference
+ */
+
+/**
  * @typedef {{order: number, finding: Finding}} OrderedFinding
  */
 
@@ -419,66 +592,87 @@ function inReadingOrder(problems) {
 }
 
 /**
- * Why a reference cannot be used, judged without touching the file system.
+ * @param {string} located a well-formed repository path
+ * @param {readonly string[]} roots normalized asset roots
+ * @returns {{path: string} | {path: string, problem: Problem}} the path, with
+ *   a problem when it is not under any declared asset root
+ */
+function underAssetRoot(located, roots) {
+  return rootsContaining(located, roots).length > 0
+    ? { path: located }
+    : {
+        path: located,
+        problem: {
+          reason: 'OUTSIDE_ASSET_ROOTS',
+          explanation: `is not under an asset root declared in gala/repository.json (${describeRoots(roots)})`,
+        },
+      };
+}
+
+/**
+ * Where a reference points, judged without touching the file system.
  *
  * @param {MediaReference} reference the reference
  * @param {readonly string[]} roots normalized asset roots
- * @returns {{reason: string, explanation: string} | null} the problem, or
- *   `null` when the reference is a well-formed path under a declared root
+ * @returns {{path: string} | {path: string | null, problem: Problem}} the
+ *   repository path it names, or the problem (with the path, when it got that far)
  */
-function referenceProblem(reference, roots) {
-  if (reference.path === null) {
+function locate(reference, roots) {
+  const { source } = reference;
+  if (source === null) {
     return {
-      reason: 'NO_SOURCE',
-      explanation:
-        'has no repository path (it is empty, or it is an external address, which is not supported)',
+      path: null,
+      problem: {
+        reason: 'NO_SOURCE',
+        explanation:
+          'has no repository path (it is empty, or it is an external address, which is not supported)',
+      },
     };
   }
-  const problem = referencePathProblem(reference.path);
-  if (problem !== null) {
-    return problem;
+  if (reference.origin === 'hero') {
+    const problem = heroPathProblem(source);
+    return problem === null
+      ? underAssetRoot(source, roots)
+      : { path: null, problem };
   }
-  if (rootsContaining(reference.path, roots).length === 0) {
-    return {
-      reason: 'OUTSIDE_ASSET_ROOTS',
-      explanation: `is not under an asset root declared in gala/repository.json (${describeRoots(roots)})`,
-    };
-  }
-  return null;
+  const resolved = resolveImageSource(source);
+  return 'path' in resolved
+    ? underAssetRoot(resolved.path, roots)
+    : { path: null, problem: resolved };
 }
 
 /**
  * Sort the references into the ones that cannot be used (and why), and the
- * well-formed ones grouped by path. Pure: nothing is read from disk.
+ * well-formed ones grouped by the path they resolve to. Pure: nothing is read
+ * from disk.
  *
  * @param {readonly MediaReference[]} references every reference
  * @param {readonly string[]} roots normalized asset roots
- * @returns {{problems: OrderedFinding[], byPath: Map<string, {order: number, reference: MediaReference}[]>}}
+ * @returns {{problems: OrderedFinding[], byPath: Map<string, OrderedReference[]>}}
  *   the unusable references, and the usable ones by path
  */
 function classifyReferences(references, roots) {
   /** @type {OrderedFinding[]} */
   const problems = [];
-  /** @type {Map<string, {order: number, reference: MediaReference}[]>} */
+  /** @type {Map<string, OrderedReference[]>} */
   const byPath = new Map();
   references.forEach((reference, order) => {
-    const problem = referenceProblem(reference, roots);
-    if (problem !== null) {
+    const located = locate(reference, roots);
+    if ('problem' in located) {
       problems.push({
         order,
         finding: unresolvedFinding(
           reference,
-          problem.reason,
-          problem.explanation,
+          located.path,
+          located.problem,
           roots,
         ),
       });
       return;
     }
-    const key = /** @type {string} */ (reference.path);
-    const known = byPath.get(key);
+    const known = byPath.get(located.path);
     if (known === undefined) {
-      byPath.set(key, [{ order, reference }]);
+      byPath.set(located.path, [{ order, reference }]);
     } else {
       known.push({ order, reference });
     }
@@ -487,14 +681,14 @@ function classifyReferences(references, roots) {
 }
 
 /**
- * The limits that need only file sizes.
+ * The limits that need only file sizes and reference counts.
  *
  * @param {ReadonlyMap<string, number>} sizes size in bytes of each distinct file, by path
- * @param {ReadonlyMap<string, {order: number, reference: MediaReference}[]>} byPath who refers to each file
+ * @param {ReadonlyMap<string, OrderedReference[]>} byPath who refers to each file
  * @param {Readonly<MediaLimits>} limits the ceilings
- * @returns {Finding[]} one finding per oversized file, then one for the total if exceeded
+ * @returns {Finding[]} the findings, empty when every limit holds
  */
-function sizeLimitFindings(sizes, byPath, limits) {
+function limitFindings(sizes, byPath, limits) {
   /** @type {Finding[]} */
   const exceeded = [];
   let total = 0;
@@ -534,13 +728,59 @@ function sizeLimitFindings(sizes, byPath, limits) {
 }
 
 /**
+ * Documents that list more distinct body images than `media[]` can hold.
+ *
+ * @param {ReadonlyMap<string, OrderedReference[]>} byPath who refers to each file
+ * @param {Readonly<MediaLimits>} limits the ceilings
+ * @returns {Finding[]} one finding per such document
+ */
+function documentCountFindings(byPath, limits) {
+  /** @type {Map<string, Set<string>>} */
+  const pathsByDocument = new Map();
+  for (const [relativePath, references] of byPath) {
+    for (const { reference } of references) {
+      if (reference.origin !== 'body') {
+        continue;
+      }
+      const paths = pathsByDocument.get(reference.document) ?? new Set();
+      paths.add(relativePath);
+      pathsByDocument.set(reference.document, paths);
+    }
+  }
+  /** @type {Finding[]} */
+  const findings = [];
+  for (const [document, paths] of pathsByDocument) {
+    if (paths.size > limits.maxImagesPerDocument) {
+      findings.push(
+        mediaFinding(
+          'MEDIA_LIMIT_EXCEEDED',
+          `${document}: the document refers to ${paths.size} distinct images; one document may list at most ${limits.maxImagesPerDocument}.`,
+          document,
+          {
+            limit: 'DOCUMENT_IMAGES',
+            document,
+            count: paths.size,
+            max: limits.maxImagesPerDocument,
+          },
+          'Split the document, or remove images it does not need.',
+        ),
+      );
+    }
+  }
+  return findings;
+}
+
+/**
  * Check every referenced image and digest it.
  *
- * On success the result lists each distinct file once, ordered by the UTF-8
- * bytes of its path. On failure it carries only findings: every unusable
- * reference is reported together, in the order the documents were read (so
- * one run shows the whole list), and the limits are only judged when every
- * reference is usable.
+ * On success `files` has each distinct file once, and `documents` has, for
+ * each document that refers to images in its body, the entries of that
+ * document's `media[]` ordered by the UTF-8 bytes of their path (a hero is
+ * checked and counted like any image but is not in `documents`; it is
+ * `frontmatter.hero.file`, looked up in `files`). On failure only `findings`
+ * is non-empty: every unusable reference is reported together, in the order
+ * the documents were read (so one run shows the whole list), and the limits
+ * are only judged when every reference is usable.
  *
  * @param {object} options the inputs
  * @param {string} options.repositoryDirectory absolute repository root
@@ -549,8 +789,8 @@ function sizeLimitFindings(sizes, byPath, limits) {
  * @param {readonly MediaReference[]} options.references every reference from
  *   the documents that are part of the build
  * @param {Readonly<MediaLimits>} [options.limits] the ceilings (injectable for tests)
- * @returns {Promise<{assets: MediaAsset[], findings: Finding[]}>} the
- *   inventory, or the findings that make the build fail
+ * @returns {Promise<{files: Map<string, MediaFile>, documents: Map<string, MediaFile[]>, findings: Finding[]}>}
+ *   the inventory, or the findings that make the build fail
  */
 export async function resolveMediaReferences({
   repositoryDirectory,
@@ -560,27 +800,34 @@ export async function resolveMediaReferences({
 }) {
   const roots = normalizeAssetRoots(assetRoots);
   const { problems, byPath } = classifyReferences(references, roots);
+  /** @type {Map<string, MediaFile>} */
+  const files = new Map();
+  /** @type {Map<string, MediaFile[]>} */
+  const documents = new Map();
+  /**
+   * @param {Finding[]} findings what went wrong
+   * @returns {{files: Map<string, MediaFile>, documents: Map<string, MediaFile[]>, findings: Finding[]}} a failed resolution
+   */
+  const failed = (findings) => ({ files, documents, findings });
 
   if (byPath.size > limits.maxDistinctImages) {
-    return {
-      assets: [],
-      findings:
-        problems.length > 0
-          ? inReadingOrder(problems)
-          : [
-              mediaFinding(
-                'MEDIA_LIMIT_EXCEEDED',
-                `This publication refers to ${byPath.size} distinct images; the limit is ${limits.maxDistinctImages}.`,
-                undefined,
-                {
-                  limit: 'IMAGE_COUNT',
-                  count: byPath.size,
-                  max: limits.maxDistinctImages,
-                },
-                'Remove references to images you no longer need, or split the publication.',
-              ),
-            ],
-    };
+    return failed(
+      problems.length > 0
+        ? inReadingOrder(problems)
+        : [
+            mediaFinding(
+              'MEDIA_LIMIT_EXCEEDED',
+              `This publication refers to ${byPath.size} distinct images; the limit is ${limits.maxDistinctImages}.`,
+              undefined,
+              {
+                limit: 'IMAGE_COUNT',
+                count: byPath.size,
+                max: limits.maxDistinctImages,
+              },
+              'Remove references to images you no longer need, or split the publication.',
+            ),
+          ],
+    );
   }
 
   const paths = [...byPath.keys()].sort(compareUtf8);
@@ -588,50 +835,70 @@ export async function resolveMediaReferences({
     real: /** @type {Map<string, string | null>} */ (new Map()),
     repository: await realpath(repositoryDirectory),
   };
-  /** @type {Map<string, number>} */
-  const sizes = new Map();
+  /** @type {Map<string, {size: number, mediaType: MediaFile['mediaType']}>} */
+  const inspected = new Map();
   for (const relativePath of paths) {
-    const inspected = await inspectAsset(
+    const result = await inspectAsset(
       repositoryDirectory,
       relativePath,
       roots,
       realPaths,
     );
-    if ('size' in inspected) {
-      sizes.set(relativePath, inspected.size);
+    if ('size' in result) {
+      inspected.set(relativePath, result);
       continue;
     }
     for (const { order, reference } of byPath.get(relativePath) ?? []) {
       problems.push({
         order,
-        finding: unresolvedFinding(
-          reference,
-          inspected.reason,
-          inspected.explanation,
-          roots,
-        ),
+        finding: unresolvedFinding(reference, relativePath, result, roots),
       });
     }
   }
   if (problems.length > 0) {
-    return { assets: [], findings: inReadingOrder(problems) };
+    return failed(inReadingOrder(problems));
   }
 
-  const exceeded = sizeLimitFindings(sizes, byPath, limits);
+  const exceeded = [
+    ...limitFindings(
+      new Map([...inspected].map(([key, { size }]) => [key, size])),
+      byPath,
+      limits,
+    ),
+    ...documentCountFindings(byPath, limits),
+  ];
   if (exceeded.length > 0) {
-    return { assets: [], findings: capFindings(exceeded) };
+    return failed(capFindings(exceeded));
   }
 
-  /** @type {MediaAsset[]} */
-  const assets = [];
   for (const relativePath of paths) {
     const bytes = await readFile(
       path.join(repositoryDirectory, ...relativePath.split('/')),
     );
-    assets.push({
+    const { mediaType } = /** @type {{mediaType: MediaFile['mediaType']}} */ (
+      inspected.get(relativePath)
+    );
+    files.set(relativePath, {
       path: relativePath,
       sourceDigest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`,
+      mediaType,
+      byteLength: bytes.byteLength,
     });
   }
-  return { assets, findings: [] };
+  for (const [relativePath, references_] of byPath) {
+    for (const { reference } of references_) {
+      if (reference.origin !== 'body') {
+        continue;
+      }
+      const entries = documents.get(reference.document) ?? [];
+      if (!entries.some((entry) => entry.path === relativePath)) {
+        entries.push(/** @type {MediaFile} */ (files.get(relativePath)));
+      }
+      documents.set(reference.document, entries);
+    }
+  }
+  for (const entries of documents.values()) {
+    entries.sort((left, right) => compareUtf8(left.path, right.path));
+  }
+  return { files, documents, findings: [] };
 }

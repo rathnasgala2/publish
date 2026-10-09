@@ -24,29 +24,46 @@ export function normalizeAssetRoots(assetRoots: readonly {
     path: string;
 }[] | undefined): string[];
 /**
- * Why a reference string is not a plain repository-relative file path, or
- * `null` when it is one. The rules are the schema's `repoRelativePath`
- * (NFC, at most 512 UTF-8 bytes, no leading slash, no backslash, no NUL, no
- * dot segment) plus the ones that make a string safe to compare verbatim
- * with an `<img src>`: no scheme, query, fragment, percent-encoding,
- * control character, empty segment or leading `./`.
+ * Turn an `<img src>` (entities already decoded) into the repository path it
+ * names, by the renderer's rule (see the module documentation).
  *
- * @param {string} value the reference as written
- * @returns {{reason: 'EXTERNAL_ADDRESS' | 'NOT_A_REPOSITORY_PATH', explanation: string} | null}
- *   the problem, or `null` when the reference is well formed
+ * @param {string} source the `src` value
+ * @returns {{path: string} | Problem} the path, or why there is none
  */
-export function referencePathProblem(value: string): {
-    reason: "EXTERNAL_ADDRESS" | "NOT_A_REPOSITORY_PATH";
-    explanation: string;
-} | null;
+export function resolveImageSource(source: string): {
+    path: string;
+} | Problem;
+/**
+ * Why a hero path cannot be used as written, or `null` when it can. The
+ * schema's `repoRelativePath` (NFC, at most 512 UTF-8 bytes, no leading
+ * slash, no backslash, no NUL, no dot segment) plus what makes the string
+ * safe to hand on verbatim: no scheme, no query or fragment, no `%` escape, no
+ * control character, no empty segment.
+ *
+ * @param {string} value the front matter `hero.path`
+ * @returns {Problem | null} the problem, or `null` when it is well formed
+ */
+export function heroPathProblem(value: string): Problem | null;
+/**
+ * Recognize an image format from a file's first bytes (the same signatures
+ * as the renderer: never the file name).
+ *
+ * @param {Buffer} head the first bytes of the file
+ * @returns {MediaFile['mediaType'] | 'svg' | null} the media type, `'svg'`
+ *   for markup that looks like SVG/XML, or `null` for anything else
+ */
+export function sniffImageMediaType(head: Buffer): MediaFile["mediaType"] | "svg" | null;
 /**
  * Check every referenced image and digest it.
  *
- * On success the result lists each distinct file once, ordered by the UTF-8
- * bytes of its path. On failure it carries only findings: every unusable
- * reference is reported together, in the order the documents were read (so
- * one run shows the whole list), and the limits are only judged when every
- * reference is usable.
+ * On success `files` has each distinct file once, and `documents` has, for
+ * each document that refers to images in its body, the entries of that
+ * document's `media[]` ordered by the UTF-8 bytes of their path (a hero is
+ * checked and counted like any image but is not in `documents`; it is
+ * `frontmatter.hero.file`, looked up in `files`). On failure only `findings`
+ * is non-empty: every unusable reference is reported together, in the order
+ * the documents were read (so one run shows the whole list), and the limits
+ * are only judged when every reference is usable.
  *
  * @param {object} options the inputs
  * @param {string} options.repositoryDirectory absolute repository root
@@ -55,8 +72,8 @@ export function referencePathProblem(value: string): {
  * @param {readonly MediaReference[]} options.references every reference from
  *   the documents that are part of the build
  * @param {Readonly<MediaLimits>} [options.limits] the ceilings (injectable for tests)
- * @returns {Promise<{assets: MediaAsset[], findings: Finding[]}>} the
- *   inventory, or the findings that make the build fail
+ * @returns {Promise<{files: Map<string, MediaFile>, documents: Map<string, MediaFile[]>, findings: Finding[]}>}
+ *   the inventory, or the findings that make the build fail
  */
 export function resolveMediaReferences({ repositoryDirectory, assetRoots, references, limits, }: {
     repositoryDirectory: string;
@@ -66,7 +83,8 @@ export function resolveMediaReferences({ repositoryDirectory, assetRoots, refere
     references: readonly MediaReference[];
     limits?: Readonly<MediaLimits> | undefined;
 }): Promise<{
-    assets: MediaAsset[];
+    files: Map<string, MediaFile>;
+    documents: Map<string, MediaFile[]>;
     findings: Finding[];
 }>;
 /**
@@ -74,11 +92,13 @@ export function resolveMediaReferences({ repositoryDirectory, assetRoots, refere
  * @property {number} maxSourceBytes largest admitted source image, in bytes
  * @property {number} maxDistinctImages most distinct image files one publication may reference
  * @property {number} maxTotalBytes most source bytes all referenced images may add up to
+ * @property {number} maxImagesPerDocument most distinct body images one document's `media[]` may list
  */
 /**
- * Media ceilings, equal to `template`'s `limits.js`
+ * Media ceilings. The first three equal `template`'s `limits.js`
  * (`MAX_IMAGE_SOURCE_BYTES`, `MAX_IMAGES_PER_PUBLICATION`,
- * `MAX_TOTAL_MEDIA_BYTES_PER_PUBLICATION`).
+ * `MAX_TOTAL_MEDIA_BYTES_PER_PUBLICATION`); the last is the maximum length of
+ * `build-input`'s `content[].media[]`.
  *
  * @type {Readonly<MediaLimits>}
  */
@@ -95,15 +115,18 @@ export type MediaReference = {
      */
     origin: "body" | "hero";
     /**
-     * the reference as written; `null` when the image has no usable path
+     * the reference as written (an `<img src>` with entities decoded, or a hero path); `null` when the image has no usable address
      */
-    path: string | null;
+    source: string | null;
     /**
      * the image's alternative text, for messages
      */
     alt: string;
 };
-export type MediaAsset = {
+/**
+ * One image file as the build input lists it.
+ */
+export type MediaFile = {
     /**
      * repository-relative path
      */
@@ -112,8 +135,24 @@ export type MediaAsset = {
      * `sha256:` plus 64 lowercase hexadecimal characters
      */
     sourceDigest: string;
+    /**
+     * the format, from the file's bytes
+     */
+    mediaType: "image/png" | "image/jpeg" | "image/webp" | "image/avif" | "image/gif";
+    /**
+     * the file's size in bytes
+     */
+    byteLength: number;
 };
 export type Finding = import("../types.js").PublishActionFinding;
+export type Problem = {
+    reason: string;
+    explanation: string;
+};
+export type OrderedReference = {
+    order: number;
+    reference: MediaReference;
+};
 export type OrderedFinding = {
     order: number;
     finding: Finding;
@@ -131,4 +170,8 @@ export type MediaLimits = {
      * most source bytes all referenced images may add up to
      */
     maxTotalBytes: number;
+    /**
+     * most distinct body images one document's `media[]` may list
+     */
+    maxImagesPerDocument: number;
 };

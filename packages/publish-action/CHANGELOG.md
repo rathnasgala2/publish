@@ -10,6 +10,38 @@ and this project adheres to
 
 ### Added
 
+- Content images. Intake checks every repository file a document body image
+  (`![alt](path)`) or a front matter `hero.path` refers to, and lists each body
+  image in its document's `content[].media[]` as
+  `{path, sourceDigest, mediaType, byteLength}` (distinct, ordered by path;
+  present only when the document has a body image). A body `src` becomes a path
+  by the renderer's own rule (one leading `/` or `./` dropped, percent-decoded,
+  NFC; never a scheme, query, fragment or `..`). The file must be under an
+  `assetRoots` entry of `gala/repository.json`, a regular file inside that root
+  (symbolic links are not followed), and a PNG, JPEG, WebP, AVIF or GIF image
+  (the type is read from its bytes; SVG is refused). At most 10 MiB per image,
+  2048 distinct images and 256 MiB together (the template's media limits), and
+  200 per document. A hero is admitted and becomes
+  `frontmatter.hero = {file: {path, sourceDigest}, alt, role}`. New findings,
+  both `SOURCE_ERROR`: `MEDIA_REFERENCE_UNRESOLVED` (one per unusable reference,
+  all reported together, naming the document and the path) and
+  `MEDIA_LIMIT_EXCEEDED`. `CONTENT_MEDIA_UNSUPPORTED` now applies to
+  `socialImageRef` only. The preview server serves `.gif`. Requires
+  `@rathnasgala2/schemas` 3.3.0.
+- Appearance attribution: `appearance.json`'s optional `attribution`
+  (`{showMadeWith}`) is copied into `build-input.appearance`; absent stays
+  absent.
+- Prism editions. A `kind: edition` document is kept only when the article its
+  `edition.of` slug names is part of the build and `edition.sourceDigest` equals
+  the SHA-256 of that article's Markdown body (the text after the closing front
+  matter fence, `\r\n` read as `\n`, nothing else changed). Otherwise it is left
+  out of the build input with a `WARNING` finding, `EDITION_SOURCE_MISSING` or
+  `EDITION_STALE`. A kept edition carries its `edition` front matter into the
+  build input.
+- `buildBuildInputFromRepository` accepts an optional `warnings` array that
+  receives non-blocking findings. `validate`, `build`, `preview` and the Action
+  return them as `findings` on a successful result (`SUCCESS`, exit `0`).
+
 - Reader interactions intake: `gala/modules/interactions.json` is validated
   against `interactions-config:2.0.0` and becomes
   `build-input.modules.interactions` (`{config, apiOrigin, appOrigin}`), with

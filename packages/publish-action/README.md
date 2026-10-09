@@ -91,9 +91,11 @@ use. Every authored Markdown body is normalized exactly once through
 `template`'s `normalizeAuthoredMarkdown` (DEC-097 section 5's division of
 labour). See `repository-intake.js`'s own documentation for the deliberate,
 explicitly rejected scope reductions (no `publication.profile`/`footerCard`, no
-content `hero`/`socialImage`, no `appearance` brand/word marks or font assets —
+content `socialImageRef`, no `appearance` brand/word marks or font assets —
 every one fails closed with a typed finding rather than being silently dropped)
-— those are this package's own scope decisions, not a DEC-006 shortfall.
+— those are this package's own scope decisions, not a DEC-006 shortfall. Content
+images (body images and `hero`), the `appearance` attribution switch and Prism
+editions are supported; they are described below.
 
 A minimal deterministic fixture repository lives at
 `test/fixtures/minimal-repository` and is exercised end to end by
@@ -119,6 +121,108 @@ hard-coded here: `currentRenderPolicyIdentity()` calls the template's public
 Content-Security-Policy the template ships (which always allows
 `https://api.galascribe.com` in `connect-src`, and appends a non-production
 `GALA_API_ORIGIN` for the local stack).
+
+## Content images
+
+Intake checks every repository file that a document refers to as an image, so
+the renderer can process it. A document that is part of the build (a draft is
+part of it only in candidate mode; an archived document or a dropped edition
+never is) refers to an image in two ways: a Markdown image in the body,
+`![alt](assets/content/photo.png)`, or the front matter `hero`
+(`{path, alt, role}`). Intake emits:
+
+- for each body image, an entry in that document's **`content[].media[]`**:
+  `{path, sourceDigest, mediaType, byteLength}`. `sourceDigest` is `sha256:` and
+  64 hex digits of the file, `mediaType` is `image/png`, `image/jpeg`,
+  `image/webp`, `image/avif` or `image/gif` as recognized from the file's first
+  bytes (never from its name), `byteLength` its size. Entries are distinct and
+  ordered by the UTF-8 bytes of `path`; `media` is present only on a document
+  that has at least one body image, so a repository without images builds
+  exactly the input it always did. This is the inventory the template resolves
+  the body's `<img src>` against.
+- for a hero,
+  `content[].frontmatter.hero = {file: {path, sourceDigest}, alt, role}` (a hero
+  is not in `media[]`; the renderer reads it from `hero.file`).
+
+The bytes are not copied into the build input: the sandbox mounts the repository
+read-only and the template's media pipeline reads each file from there, refusing
+it when it does not hash to the digest listed.
+
+Body images are read from the sanitized HTML that `normalizeAuthoredMarkdown`
+produces, so intake and the renderer see the same `<img src>` strings, and each
+`src` becomes a path by the renderer's own rule
+(`template/src/core/internal/media/content-images.js`): entities decoded; a
+scheme, a protocol-relative `//`, a query, a fragment or a backslash never
+resolves; one leading `/` or `./` is dropped (a path is relative to the
+repository root, never to the document's directory); the rest is percent-decoded
+and Unicode-NFC-normalized; an empty, `.` or `..` segment never resolves. So
+`assets/my%20pic.png`, `./assets/my%20pic.png` and `/assets/my%20pic.png` all
+name the file `assets/my pic.png`. An external address (`https://...`) has its
+`src` removed by the sanitizer, so it is reported as an image with no repository
+path. A hero `path` is used exactly as written, so it must already be the final
+path: no scheme, `/`, `./`, `..`, `?`, `#`, `%` or backslash.
+
+**The file must be under an `assetRoots` entry** of `gala/repository.json`, be a
+regular file, and stay inside that root after resolving directory symbolic links
+(a symbolic link is never followed). It must start with the signature of a PNG,
+JPEG, WebP, AVIF or GIF image; SVG is refused.
+
+| Code                         | Severity       | Meaning                                                                                                                                                                                                                                                                                                             |
+| ---------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MEDIA_REFERENCE_UNRESOLVED` | `SOURCE_ERROR` | A reference cannot be used. One finding per reference, all reported together in reading order, each naming the document and the path; `evidence.reason` is `NO_SOURCE`, `EXTERNAL_ADDRESS`, `NOT_A_REPOSITORY_PATH`, `OUTSIDE_ASSET_ROOTS`, `FILE_MISSING`, `NOT_A_REGULAR_FILE` or `UNSUPPORTED_FORMAT`.           |
+| `MEDIA_LIMIT_EXCEEDED`       | `SOURCE_ERROR` | One image over 10 MiB (`evidence.limit` `IMAGE_BYTES`), more than 2048 distinct images (`IMAGE_COUNT`), more than 256 MiB of source bytes together (`TOTAL_BYTES`), or more than 200 distinct body images in one document (`DOCUMENT_IMAGES`, the length of `media[]`). Judged only when every reference is usable. |
+
+The first three limits are `template`'s (`src/core/internal/media/limits.js`);
+`test/content-media.test.js` keeps them equal. The template applies its own,
+stricter decode ceilings (dimensions, pixel count) when it reads the file.
+`socialImageRef` is still refused with `CONTENT_MEDIA_UNSUPPORTED`.
+
+## Appearance attribution
+
+`gala/appearance.json`'s optional `attribution` (`{"showMadeWith": boolean}`; an
+absent `attribution` means the "Made with Galascribe" mark is shown) is copied
+into `build-input.appearance.attribution`. Absent stays absent.
+
+## Prism editions
+
+A document with `kind: edition` (normally `content/<slug>.edition.<kind>.md`) is
+a shorter or longer rendering of one article. Its `edition` front matter
+(`{of, kind, sourceDigest, generation, approvedAt}`) names the article by slug
+(`of`) and records which text of that article it was made from (`sourceDigest`).
+Intake keeps an edition only when both still hold:
+
+| Situation                                                      | Result                                                           |
+| -------------------------------------------------------------- | ---------------------------------------------------------------- |
+| no article of this build has the slug `edition.of`             | edition dropped, warning `EDITION_SOURCE_MISSING`                |
+| the article's body no longer digests to `edition.sourceDigest` | edition dropped, warning `EDITION_STALE`                         |
+| both hold                                                      | edition kept, with its front matter (`kind: edition`, `edition`) |
+
+The article is looked for among the documents _of this build_: a draft (outside
+candidate mode) or an archived article is not part of it, so its edition is
+dropped rather than published without an original. When two articles share a
+slug (the same post in two languages) the one in the edition's `language` is
+chosen. A dropped edition is not looked at any further (its authors and images
+are not checked) and never fails the build; a kept edition is held to the same
+rules as any document.
+
+**The digest rule.** `edition.sourceDigest` is the SHA-256 of the UTF-8 bytes of
+the article's _Markdown body_: the text of the article's file after the closing
+`---` line of its front matter, with each `\r\n` read as `\n`, and nothing else
+changed. Leading and trailing newlines count (the editor writes exactly one
+trailing newline); the front matter does not, so retitling or retagging an
+article keeps its editions fresh while any edit to the body makes them stale. It
+is not the digest of the rendered HTML and not `bodyDigest`. The schema writes
+it as `sha256:` and 64 lowercase hex digits; intake compares the hex digits, so
+a bare 64-digit spelling would name the same digest. The API computes the same
+value from the body that its content document parser returns (the parser reads
+`\r\n` as `\n` before it splits the front matter off, which is where the `\r\n`
+rule comes from).
+
+**Warnings.** `buildBuildInputFromRepository` takes an optional `warnings` array
+and pushes the non-blocking findings (severity `WARNING`) onto it; `validate`,
+`build` and `preview` return them as `findings` on a successful result
+(`resultCode` `SUCCESS`, exit `0`), and the CLI also prints them to stderr, so
+they appear in the build log of the managed workflow.
 
 ## Reader interactions module
 

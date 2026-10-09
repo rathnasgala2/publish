@@ -76,13 +76,15 @@
  * **Content media** (`content-media.js`): every repository file that a
  * document body image (`![alt](path)`) or a front matter `hero.path` names
  * is checked (a path from the repository root, under an `assetRoots` entry,
- * a regular file, within the media limits), digested, and listed once in
- * `build-input.assets[]` as `{path, sourceDigest}`; the bytes stay on disk
- * for the template's media pipeline. A hero also becomes
- * `frontmatter.hero = {file: {path, sourceDigest}, alt, role}`. An
- * unusable reference fails the build with `MEDIA_REFERENCE_UNRESOLVED`, an
- * over-limit one with `MEDIA_LIMIT_EXCEEDED`. Only documents that are part
- * of the build are looked at.
+ * a regular file, a PNG/JPEG/WebP/AVIF/GIF image, within the media limits)
+ * and digested; the bytes stay on disk for the template's media pipeline. A
+ * body image becomes an entry `{path, sourceDigest, mediaType, byteLength}`
+ * of its document's `content[].media[]`, which is what the renderer resolves
+ * the body's `<img src>` against; a hero becomes
+ * `frontmatter.hero = {file: {path, sourceDigest}, alt, role}`. An unusable
+ * reference fails the build with `MEDIA_REFERENCE_UNRESOLVED`, an over-limit
+ * one with `MEDIA_LIMIT_EXCEEDED`. Only documents that are part of the build
+ * are looked at.
  *
  * **Appearance attribution**: `appearance.json`'s optional `attribution`
  * (`{showMadeWith}`) is copied into the build-input appearance; absent stays
@@ -359,11 +361,11 @@ function splitFrontmatterFence(text, relativePath) {
  * `build-input.content[].frontmatter`.
  *
  * @param {Record<string, any>} frontmatter the validated front matter
- * @param {ReadonlyMap<string, string>} mediaDigests `sourceDigest` of every
- *   inventoried asset, by repository-relative path
+ * @param {ReadonlyMap<string, import('./content-media.js').MediaFile>} mediaFiles
+ *   every checked image file, by repository-relative path
  * @returns {Record<string, unknown>} the normalized front matter
  */
-function normalizeContentFrontmatter(frontmatter, mediaDigests) {
+function normalizeContentFrontmatter(frontmatter, mediaFiles) {
   return {
     id: frontmatter.id,
     kind: frontmatter.kind,
@@ -389,7 +391,7 @@ function normalizeContentFrontmatter(frontmatter, mediaDigests) {
           hero: {
             file: {
               path: frontmatter.hero.path,
-              sourceDigest: mediaDigests.get(frontmatter.hero.path),
+              sourceDigest: mediaFiles.get(frontmatter.hero.path)?.sourceDigest,
             },
             alt: frontmatter.hero.alt,
             role: frontmatter.hero.role,
@@ -742,7 +744,7 @@ export async function buildBuildInputFromRepository({
       mediaReferences.push({
         document: relativePath,
         origin: 'body',
-        path: image.src,
+        source: image.src,
         alt: image.alt,
       });
     }
@@ -750,15 +752,16 @@ export async function buildBuildInputFromRepository({
       mediaReferences.push({
         document: relativePath,
         origin: 'hero',
-        path: frontmatter.hero.path,
+        source: frontmatter.hero.path,
         alt: frontmatter.hero.alt,
       });
     }
     return normalized;
   });
 
-  // Every referenced image is checked, digested and listed once; the bytes
-  // stay on disk for the template's media pipeline.
+  // Every referenced image is checked and digested; the bytes stay on disk
+  // for the template's media pipeline. A body image becomes an entry of its
+  // document's `media[]`, a hero becomes `frontmatter.hero.file`.
   const media = await resolveMediaReferences({
     repositoryDirectory,
     assetRoots: repository.document.assetRoots,
@@ -770,19 +773,17 @@ export async function buildBuildInputFromRepository({
       media.findings,
     );
   }
-  const mediaDigests = new Map(
-    media.assets.map((asset) => [asset.path, asset.sourceDigest]),
-  );
 
   /** @type {Record<string, unknown>[]} */
   const content = built.map((document, index) => {
     const normalized = /** @type {{html: string, bodyDigest: string}} */ (
       prepared[index]
     );
+    const mediaEntries = media.documents.get(document.relativePath);
     return {
       frontmatter: normalizeContentFrontmatter(
         document.frontmatter,
-        mediaDigests,
+        media.files,
       ),
       body: normalized.html,
       bodyMediaType: 'text/html',
@@ -792,6 +793,7 @@ export async function buildBuildInputFromRepository({
       sourceRevision,
       sourceDigest: document.sourceDigest,
       resolvedAuthorIds: document.frontmatter.authors,
+      ...(mediaEntries === undefined ? {} : { media: mediaEntries }),
     };
   });
 
@@ -833,7 +835,6 @@ export async function buildBuildInputFromRepository({
     publication,
     authors,
     content,
-    ...(media.assets.length > 0 ? { assets: media.assets } : {}),
     navigation,
     appearance,
     modules: interactions ? { interactions } : {},
