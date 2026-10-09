@@ -177,7 +177,7 @@ test('PUB-L6: the ledger no longer carries a packages field at all', () => {
 });
 
 test('every workspace package declares exactly the registry-pinned schemas version', () => {
-  const expected = '3.0.0';
+  const expected = '3.1.0';
   const declaring = readdirSync('packages')
     .map((name) => ({
       name,

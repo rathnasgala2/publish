@@ -38,11 +38,11 @@
     "@rathnasgala2/adapter-local-directory": "^0.1.1",
     "@rathnasgala2/adapter-protocol": "^0.2.1",
     "@rathnasgala2/publish-kernel": "^0.1.1",
-    "@rathnasgala2/schemas": "3.0.0",
+    "@rathnasgala2/schemas": "3.1.0",
     "yaml": "2.9.0"
   },
   "peerDependencies": {
-    "@rathnasgala2/template": "^3.0.0"
+    "@rathnasgala2/template": "^3.1.0"
   },
   "peerDependenciesMeta": {
     "@rathnasgala2/template": {

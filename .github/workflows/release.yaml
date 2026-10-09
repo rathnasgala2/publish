@@ -42,14 +42,14 @@ jobs:
       # this checkout by path, and its own dependencies installed, for the
       # tests npm run verify's `npm test` runs. Mirrors ci.yml exactly so
       # release verifies against the same inputs CI does. Pinned to the
-      # commit published as template 3.0.1 (P6 pin bump, theme-default
+      # commit published as template 3.1.0 (theme-default
       # 3.0.0 cut against it) rather than a mutable `main`, so a push to the
       # sibling repository cannot change what this job installs and runs.
       - name: Check out the template sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/template
-          ref: 9692eda8f003f7bfbe01a452e8ad9de04a0e7ec1
+          ref: e577ddcd7a54201e1293fa9b5c33c1341e3291cb
           path: .siblings/template
           persist-credentials: false
 

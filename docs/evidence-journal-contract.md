@@ -5,7 +5,7 @@ appends an observation or an attempt to the evidence journal the receipt
 submission (`scripts/workflow/workload-requests.mjs`'s `buildReceiptSubmission`)
 carries to Gala. This document records the audit of every value it can emit
 against two independent statements of the contract — the pinned
-`@rathnasgala2/schemas@3.0.0` schemas (`deployment-observation:2.0.0`,
+`@rathnasgala2/schemas@3.1.0` schemas (`deployment-observation:2.0.0`,
 `deployment-receipt:2.0.0`, and the OpenAPI
 `KernelObservationSubmission`/`KernelAttemptSubmission` component schemas) and
 the API's own database check constraints (`gala_core.deployment_observation` in

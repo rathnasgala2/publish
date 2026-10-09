@@ -101,7 +101,6 @@
       "group": "@rathnasgala2",
       "version": "0.0.0",
       "bom-ref": "@rathnasgala2/publish-workspace@0.0.0",
-      "description": "Galascribe v2 publish workspace: provider-neutral publish safety kernel, in-process deployment adapter protocol and the three S2 adapters.",
       "licenses": [
         {
           "license": {
@@ -112,18 +111,6 @@
       ],
       "purl": "pkg:npm/%40rathnasgala2/publish-workspace@0.0.0",
       "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": "24.18.0"
-        },
-        {
-          "name": "cdx:npm:package:constraint:engine:npm",
-          "value": "11.16.0"
-        },
-        {
-          "name": "cdx:npm:package:private",
-          "value": "true"
-        },
         {
           "name": "cdx:npm:package:path",
           "value": ""
@@ -368,8 +355,8 @@
       "type": "library",
       "name": "template",
       "group": "@rathnasgala2",
-      "version": "3.0.1",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.0.1",
+      "version": "3.1.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.1.0",
       "licenses": [
         {
           "license": {
@@ -378,15 +365,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/template@3.0.1",
+      "purl": "pkg:npm/%40rathnasgala2/template@3.1.0",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/@rathnasgala2/template/-/template-3.0.1.tgz",
+          "url": "https://registry.npmjs.org/@rathnasgala2/template/-/template-3.1.0.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "53497b7fc076b651b5ed0e0c703f07d7194d5cd5c7dca6e5011b7b887e76d7884567495bdb59e477be7e2f33210db5104d56e5408104dfcc31c0e8d88563006f"
+              "content": "ff3a583005f4c77a782c45717a831d3fc1e6368f9b2d8894fc218528eafd95c50d2dc8e02d9fa27d1666af82d3ef5cf18e4096d8bc5c7b18874de0f706dbd62e"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -1432,8 +1419,8 @@
       "type": "library",
       "name": "schemas",
       "group": "@rathnasgala2",
-      "version": "3.0.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0",
+      "version": "3.1.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.1.0",
       "licenses": [
         {
           "license": {
@@ -1442,15 +1429,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/schemas@3.0.0",
+      "purl": "pkg:npm/%40rathnasgala2/schemas@3.1.0",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/@rathnasgala2/schemas/-/schemas-3.0.0.tgz",
+          "url": "https://registry.npmjs.org/@rathnasgala2/schemas/-/schemas-3.1.0.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "767e23f477c348d41e83be1cf4b60f42fcbcbff1c3439501060bc6346a3b5bc40a6be04b3407f32d0310b617b11cd4ae12fc3974a5fda5aa1d42bd8dfcada787"
+              "content": "d5f41175fb20a58b295ea3c6322ed930b47f31da7556ee86f4a07c727dd5c99f9979db9c3e6dcc124793f5f11da406e899c78184668b055a0e392b86c6409ce8"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -17897,7 +17884,7 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.0.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@3.0.0",
         "@rathnasgala2/publish-workspace@0.0.0|@types/node@24.13.4",
         "@rathnasgala2/publish-workspace@0.0.0|ajv@8.20.0",
@@ -17944,7 +17931,7 @@
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.1.0"
       ]
     },
     {
@@ -17952,7 +17939,7 @@
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.1.0"
       ]
     },
     {
@@ -17961,13 +17948,13 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.1.0"
       ]
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.1.0"
       ]
     },
     {
@@ -17976,8 +17963,8 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.0.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.1.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|yaml@2.9.0"
       ]
     },
@@ -17985,15 +17972,15 @@
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.1.0"
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.0.1",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.1.0",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@11ty/eleventy-plugin-syntaxhighlight@5.0.2",
         "@rathnasgala2/publish-workspace@0.0.0|@11ty/eleventy@3.1.6",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|jpeg-js@0.4.4",
         "@rathnasgala2/publish-workspace@0.0.0|markdown-it@14.3.1",
         "@rathnasgala2/publish-workspace@0.0.0|sanitize-html@2.17.7"
@@ -18228,7 +18215,7 @@
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.0.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.1.0",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|ajv-formats@3.0.1",
         "@rathnasgala2/publish-workspace@0.0.0|ajv@8.20.0"
