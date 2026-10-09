@@ -10,6 +10,11 @@ and this project adheres to
 
 ### Added
 
+- Reader interactions intake: `gala/modules/interactions.json` is validated
+  against `interactions-config:2.0.0` and becomes
+  `build-input.modules.interactions` (`{config, apiOrigin, appOrigin}`), with
+  origins from `GALA_API_ORIGIN` / `GALA_APP_ORIGIN` (https, or http
+  localhost/127.0.0.1 only). Requires `@rathnasgala2/schemas` 3.1.0.
 - `THEME_SELECTION_MISMATCH` (`SOURCE_ERROR`, exit 5): repository intake refuses
   when `appearance.json`'s `theme` package differs from `gala.lock.json`'s
   `theme.package`. The finding names both packages; its recovery is "Choose the

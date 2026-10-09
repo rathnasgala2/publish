@@ -1,17 +1,31 @@
 /**
+ * Resolve one interactions origin from an environment value.
+ *
+ * Accepts an `https:` origin, or an `http:` origin only for `localhost` or
+ * `127.0.0.1` (the local stack). The value must be a bare origin: no
+ * credentials, path, query or fragment.
+ *
+ * @param {string} name the environment variable name (for messages)
+ * @param {string | undefined} value the raw environment value
+ * @param {string} fallback the production default
+ * @returns {string} the normalized origin
+ */
+export function resolveInteractionsOrigin(name: string, value: string | undefined, fallback: string): string;
+/**
  * Build one validated `urn:gala:schema:build-input:2.0.0` document from a
  * repository directory (S2-T20 deliverable (1)).
  *
- * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean}} options the absolute repository directory and candidate-render policy
+ * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean, env?: NodeJS.ProcessEnv}} options the absolute repository directory, candidate-render policy and the environment that supplies `GALA_API_ORIGIN`/`GALA_APP_ORIGIN`
  * @returns {Promise<Record<string, unknown>>} the validated build-input
  *   document. `buildInput.packages.theme` (sourced from `lock.json`; the
  *   intake refuses with `THEME_SELECTION_MISMATCH` when `appearance.json`
  *   names a different theme package) is the theme identity provenance building and any other
  *   theme-aware caller should reuse.
  */
-export function buildBuildInputFromRepository({ repositoryDirectory, includeDraftsAsUnlisted, }: {
+export function buildBuildInputFromRepository({ repositoryDirectory, includeDraftsAsUnlisted, env, }: {
     repositoryDirectory: string;
     includeDraftsAsUnlisted?: boolean;
+    env?: NodeJS.ProcessEnv;
 }): Promise<Record<string, unknown>>;
 /**
  * Derive `repositoryId`/`repositoryOwnerId` from the GitHub Actions

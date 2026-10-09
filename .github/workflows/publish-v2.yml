@@ -241,6 +241,10 @@ jobs:
         env:
           REF_KIND: ${{ needs.prep.outputs.ref_kind }}
           GALA_BUILD_EPOCH: ${{ needs.prep.outputs.build_epoch }}
+          # The reader-interactions script in the built pages calls this API
+          # origin; GALA_APP_ORIGIN is left unset so the build uses its
+          # production default.
+          GALA_API_ORIGIN: ${{ inputs.gala_api_origin }}
         run: |
           set -euo pipefail
           publish-toolchain/scripts/sandbox-build.sh \

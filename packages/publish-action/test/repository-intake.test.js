@@ -9,7 +9,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -497,5 +497,230 @@ test('resolveBuildEpoch ignores a malformed GALA_BUILD_EPOCH and non-Actions env
     );
   } finally {
     await cleanup();
+  }
+});
+
+const VALID_INTERACTIONS_CONFIG = {
+  schemaId: 'urn:gala:schema:interactions-config:2.0.0',
+  schemaVersion: '2.0.0',
+  reactions: {
+    enabled: true,
+    definitions: [
+      {
+        key: 'insightful',
+        label: 'Insightful',
+        visual: { kind: 'emoji', token: '💡' },
+        order: 1,
+        enabled: true,
+      },
+    ],
+  },
+  comments: { enabled: true, allowReplies: true, maxDepth: 3 },
+  publicCounts: { reactions: true, comments: true },
+};
+
+/**
+ * @param {string} dir a mutable fixture copy
+ * @param {unknown} document the interactions.json content
+ * @returns {Promise<void>} resolves once written
+ */
+async function writeInteractionsConfig(dir, document) {
+  await mkdir(path.join(dir, 'gala/modules'), { recursive: true });
+  await writeFile(
+    path.join(dir, 'gala/modules/interactions.json'),
+    typeof document === 'string' ? document : JSON.stringify(document),
+  );
+}
+
+test('an absent interactions.json leaves modules empty', async () => {
+  const buildInput = /** @type {any} */ (
+    await buildBuildInputFromRepository({
+      repositoryDirectory: FIXTURE_REPOSITORY,
+      env: { GALA_API_ORIGIN: 'https://ignored.example' },
+    })
+  );
+  assert.deepEqual(buildInput.modules, {});
+});
+
+test('a valid interactions.json sets modules.interactions with default origins', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await writeInteractionsConfig(dir, VALID_INTERACTIONS_CONFIG);
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({
+        repositoryDirectory: dir,
+        env: {},
+      })
+    );
+    assert.deepEqual(buildInput.modules, {
+      interactions: {
+        config: VALID_INTERACTIONS_CONFIG,
+        apiOrigin: 'https://api.galascribe.com',
+        appOrigin: 'https://app.galascribe.com',
+      },
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+test('GALA_API_ORIGIN and GALA_APP_ORIGIN override the defaults, including http localhost', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await writeInteractionsConfig(dir, VALID_INTERACTIONS_CONFIG);
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({
+        repositoryDirectory: dir,
+        env: {
+          GALA_API_ORIGIN: 'http://localhost:8080',
+          GALA_APP_ORIGIN: 'http://127.0.0.1:5173/',
+        },
+      })
+    );
+    assert.equal(
+      buildInput.modules.interactions.apiOrigin,
+      'http://localhost:8080',
+    );
+    assert.equal(
+      buildInput.modules.interactions.appOrigin,
+      'http://127.0.0.1:5173',
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a non-https, non-localhost or non-bare origin is refused', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await writeInteractionsConfig(dir, VALID_INTERACTIONS_CONFIG);
+    for (const bad of [
+      'http://api.example.com',
+      'http://localhost.evil.example',
+      'ftp://api.example.com',
+      'https://api.example.com/v1',
+      'https://api.example.com?x=1',
+      'https://user:pw@api.example.com',
+      'not a url',
+    ]) {
+      await rejectsWithFindingCode(
+        buildBuildInputFromRepository({
+          repositoryDirectory: dir,
+          env: { GALA_API_ORIGIN: bad },
+        }),
+        'INTERACTIONS_ORIGIN_INVALID',
+      );
+      await rejectsWithFindingCode(
+        buildBuildInputFromRepository({
+          repositoryDirectory: dir,
+          env: { GALA_APP_ORIGIN: bad },
+        }),
+        'INTERACTIONS_ORIGIN_INVALID',
+      );
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+test('an unparseable interactions.json is a build error naming the path', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await writeInteractionsConfig(dir, '{ not json');
+    await assert.rejects(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+      (/** @type {RepositoryIntakeError} */ error) => {
+        assert.ok(error instanceof RepositoryIntakeError);
+        assert.match(error.message, /gala\/modules\/interactions\.json/u);
+        return true;
+      },
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+/** @type {[string, (config: any) => void][]} */
+const INVALID_INTERACTIONS_MUTATIONS = [
+  ['unknown top-level property', (c) => (c.extra = true)],
+  ['reserved key "like"', (c) => (c.reactions.definitions[0].key = 'like')],
+  ['key pattern', (c) => (c.reactions.definitions[0].key = 'Not Valid')],
+  [
+    'emoji outside the approved list',
+    (c) => (c.reactions.definitions[0].visual.token = '🦄'),
+  ],
+  [
+    'label longer than 32 characters',
+    (c) => (c.reactions.definitions[0].label = 'x'.repeat(33)),
+  ],
+  ['order out of range', (c) => (c.reactions.definitions[0].order = 17)],
+  ['maxDepth above 4', (c) => (c.comments.maxDepth = 5)],
+  ['maxDepth below 1', (c) => (c.comments.maxDepth = 0)],
+  [
+    'more than 16 definitions',
+    (c) => {
+      c.reactions.definitions = Array.from({ length: 17 }, (_, i) => ({
+        key: `reaction-${i}`,
+        label: `R${i}`,
+        visual: { kind: 'emoji', token: '👍' },
+        order: (i % 16) + 1,
+        enabled: true,
+      }));
+    },
+  ],
+  [
+    'missing publicCounts',
+    (c) => {
+      delete c.publicCounts;
+    },
+  ],
+  ['wrong schemaVersion', (c) => (c.schemaVersion = '1.0.0')],
+];
+
+for (const [rule, mutate] of INVALID_INTERACTIONS_MUTATIONS) {
+  test(`interactions.json violating "${rule}" is a build error naming the file`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      const config = structuredClone(VALID_INTERACTIONS_CONFIG);
+      mutate(config);
+      await writeInteractionsConfig(dir, config);
+      await assert.rejects(
+        buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+        (/** @type {SchemaValidationError} */ error) => {
+          assert.ok(error instanceof SchemaValidationError);
+          assert.equal(error.location, 'gala/modules/interactions.json');
+          assert.equal(
+            error.schemaId,
+            'urn:gala:schema:interactions-config:2.0.0',
+          );
+          assert.ok(error.diagnostics.length > 0);
+          return true;
+        },
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+test('duplicate reaction keys and duplicate orders are refused', async () => {
+  for (const field of ['key', 'order']) {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      const config = /** @type {any} */ (
+        structuredClone(VALID_INTERACTIONS_CONFIG)
+      );
+      config.reactions.definitions.push({
+        ...config.reactions.definitions[0],
+        ...(field === 'key' ? { order: 2 } : { key: 'other' }),
+      });
+      await writeInteractionsConfig(dir, config);
+      await rejectsWithFindingCode(
+        buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+        'INTERACTIONS_REACTION_DUPLICATE',
+      );
+    } finally {
+      await cleanup();
+    }
   }
 });

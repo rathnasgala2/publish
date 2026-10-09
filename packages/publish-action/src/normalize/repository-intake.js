@@ -68,14 +68,15 @@
  * `publication.profile`/`footerCard`, content `hero`/`socialImage`,
  * `appearance` brand/word marks and font assets are not supported (a
  * fixture that sets any of them is rejected with a typed finding rather than
- * silently dropped); `modules`/`placements` are always empty, matching S2's
- * closed scope. A future task that needs the fuller author-repository
+ * silently dropped); `placements` is always empty and `modules` carries only
+ * `interactions` (read from `<repository.json "modules">/interactions.json`
+ * when that file exists), matching S2's closed scope. A future task that needs the fuller author-repository
  * surface should replace this module rather than extend it ad hoc.
  *
  * @module
  */
 
-import { readdir } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 
@@ -100,7 +101,11 @@ const SCHEMA = Object.freeze({
   appearance: 'urn:gala:schema:appearance:2.0.0',
   contentFrontmatter: 'urn:gala:schema:content-frontmatter:2.0.0',
   buildInput: 'urn:gala:schema:build-input:2.0.0',
+  interactionsConfig: 'urn:gala:schema:interactions-config:2.0.0',
 });
+
+const DEFAULT_INTERACTIONS_API_ORIGIN = 'https://api.galascribe.com';
+const DEFAULT_INTERACTIONS_APP_ORIGIN = 'https://app.galascribe.com';
 
 /** A typed intake failure: the author repository does not satisfy this package's documented convention or a referenced schema. */
 export class RepositoryIntakeError extends Error {
@@ -181,6 +186,116 @@ async function readValidatedJson(repositoryDirectory, relativePath, schemaId) {
 }
 
 /**
+ * Resolve one interactions origin from an environment value.
+ *
+ * Accepts an `https:` origin, or an `http:` origin only for `localhost` or
+ * `127.0.0.1` (the local stack). The value must be a bare origin: no
+ * credentials, path, query or fragment.
+ *
+ * @param {string} name the environment variable name (for messages)
+ * @param {string | undefined} value the raw environment value
+ * @param {string} fallback the production default
+ * @returns {string} the normalized origin
+ */
+export function resolveInteractionsOrigin(name, value, fallback) {
+  if (value === undefined || value === '') {
+    return fallback;
+  }
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    url = null;
+  }
+  const isLocalHttp =
+    url !== null &&
+    url.protocol === 'http:' &&
+    (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+  const bare =
+    url !== null &&
+    url.username === '' &&
+    url.password === '' &&
+    url.pathname === '/' &&
+    url.search === '' &&
+    url.hash === '' &&
+    !value.endsWith('?') &&
+    !value.endsWith('#');
+  if (url === null || !bare || (url.protocol !== 'https:' && !isLocalHttp)) {
+    throw new RepositoryIntakeError(
+      `${name} must be an https origin (or an http localhost/127.0.0.1 origin) with no path, query or fragment`,
+      [sourceFinding('INTERACTIONS_ORIGIN_INVALID', name)],
+    );
+  }
+  return url.origin;
+}
+
+/**
+ * Read `<modules directory>/interactions.json` when it exists.
+ *
+ * @param {string} repositoryDirectory absolute repository root
+ * @param {string} modulesDirectory `repository.json`'s `modules` path
+ * @param {NodeJS.ProcessEnv} env the process environment
+ * @returns {Promise<{config: unknown, apiOrigin: string, appOrigin: string} | null>}
+ *   the module selection, or `null` when the file is absent
+ */
+async function readInteractionsModule(
+  repositoryDirectory,
+  modulesDirectory,
+  env,
+) {
+  const relativePath = path.posix.join(
+    modulesDirectory.replace(/\\/gu, '/'),
+    'interactions.json',
+  );
+  try {
+    await stat(path.join(repositoryDirectory, relativePath));
+  } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT') {
+      return null;
+    }
+    throw error;
+  }
+  const doc = await readValidatedJson(
+    repositoryDirectory,
+    relativePath,
+    SCHEMA.interactionsConfig,
+  );
+  // JSON Schema cannot express "unique by property"; spec section 3 requires
+  // unique reaction keys and unique orders.
+  for (const field of ['key', 'order']) {
+    const seen = new Set();
+    for (const definition of doc.document.reactions.definitions) {
+      if (seen.has(definition[field])) {
+        throw new RepositoryIntakeError(
+          `${relativePath}: reactions.definitions[].${field} must be unique (duplicate ${JSON.stringify(definition[field])})`,
+          [
+            sourceFinding(
+              'INTERACTIONS_REACTION_DUPLICATE',
+              `${relativePath}: duplicate ${field}`,
+              { path: relativePath, field },
+            ),
+          ],
+        );
+      }
+      seen.add(definition[field]);
+    }
+  }
+  return {
+    config: doc.document,
+    apiOrigin: resolveInteractionsOrigin(
+      'GALA_API_ORIGIN',
+      env.GALA_API_ORIGIN,
+      DEFAULT_INTERACTIONS_API_ORIGIN,
+    ),
+    appOrigin: resolveInteractionsOrigin(
+      'GALA_APP_ORIGIN',
+      env.GALA_APP_ORIGIN,
+      DEFAULT_INTERACTIONS_APP_ORIGIN,
+    ),
+  };
+}
+
+/**
  * Split one `content/*.md` file into its bounded YAML frontmatter block's
  * raw text and the raw Markdown body, per DEC-006's "UTF-8 Markdown with a
  * bounded YAML frontmatter block" (the `---`/`---` fence is the near-
@@ -218,7 +333,7 @@ function splitFrontmatterFence(text, relativePath) {
  * Build one validated `urn:gala:schema:build-input:2.0.0` document from a
  * repository directory (S2-T20 deliverable (1)).
  *
- * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean}} options the absolute repository directory and candidate-render policy
+ * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean, env?: NodeJS.ProcessEnv}} options the absolute repository directory, candidate-render policy and the environment that supplies `GALA_API_ORIGIN`/`GALA_APP_ORIGIN`
  * @returns {Promise<Record<string, unknown>>} the validated build-input
  *   document. `buildInput.packages.theme` (sourced from `lock.json`; the
  *   intake refuses with `THEME_SELECTION_MISMATCH` when `appearance.json`
@@ -228,6 +343,7 @@ function splitFrontmatterFence(text, relativePath) {
 export async function buildBuildInputFromRepository({
   repositoryDirectory,
   includeDraftsAsUnlisted = false,
+  env = process.env,
 }) {
   if (!path.isAbsolute(repositoryDirectory)) {
     throw new RepositoryIntakeError(
@@ -561,6 +677,13 @@ export async function buildBuildInputFromRepository({
     });
   }
 
+  // --- modules ---------------------------------------------------------------
+  const interactions = await readInteractionsModule(
+    repositoryDirectory,
+    repository.document.modules,
+    env,
+  );
+
   // --- repository / rootDigest -----------------------------------------------
   const repositoryFiles = await listRepositoryFiles(repositoryDirectory);
   const rootEntries = [];
@@ -594,7 +717,7 @@ export async function buildBuildInputFromRepository({
     content,
     navigation,
     appearance,
-    modules: {},
+    modules: interactions ? { interactions } : {},
     buildEpoch,
     baseUrl: publication.canonicalBase,
     basePath: '/',

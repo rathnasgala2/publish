@@ -108,7 +108,9 @@ if [ -n "${TOOLCHAIN}" ]; then
     GITHUB_WORKFLOW \
     GITHUB_RUN_ID \
     GITHUB_RUN_ATTEMPT \
-    GALA_BUILD_EPOCH
+    GALA_BUILD_EPOCH \
+    GALA_API_ORIGIN \
+    GALA_APP_ORIGIN
   do
     FACT_VALUE="$(printenv "${FACT_NAME}" 2>/dev/null || true)"
     if [ -n "${FACT_VALUE}" ]; then

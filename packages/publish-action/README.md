@@ -113,10 +113,30 @@ and report an unrelated "invalid" package there — the same friction point
 This package instead resolves `v2/template`'s package root directly from
 `src/template-bridge.js`'s own file path and dynamically imports its published
 entry (`src/core/index.js`) — the second option the task packet sanctions — so
-the SBOM gate stays clean. `renderPublication`'s public entry point does not yet
-expose a way to compute the current render-policy identity; this package reaches
-that one internal module (`internal/content-security.js`'s
-`computeRenderPolicyIdentity`) the same documented way the S2-T17 e2e test does.
+the SBOM gate stays clean. The current render-policy identity is never
+hard-coded here: `currentRenderPolicyIdentity()` calls the template's public
+`computeRenderPolicyIdentity()`, so it follows whatever production
+Content-Security-Policy the template ships (which always allows
+`https://api.galascribe.com` in `connect-src`, and appends a non-production
+`GALA_API_ORIGIN` for the local stack).
+
+## Reader interactions module
+
+When `<repository.json "modules">/interactions.json` (normally
+`gala/modules/interactions.json`) exists, intake validates it against
+`urn:gala:schema:interactions-config:2.0.0` (a failure is a build error naming
+the file and the failing rule; reaction `key` and `order` uniqueness, which JSON
+Schema cannot express, is checked by intake) and sets
+`build-input.modules.interactions = {config, apiOrigin, appOrigin}`. With no
+file, `modules` stays `{}`.
+
+| Variable          | Default                      | Rule                                                                      |
+| ----------------- | ---------------------------- | ------------------------------------------------------------------------- |
+| `GALA_API_ORIGIN` | `https://api.galascribe.com` | https origin, or http `localhost`/`127.0.0.1`; no path, query or fragment |
+| `GALA_APP_ORIGIN` | `https://app.galascribe.com` | same                                                                      |
+
+The managed workflow passes `GALA_API_ORIGIN` from its `gala_api_origin` input,
+and `scripts/sandbox-build.sh` forwards both variables into the sandbox.
 
 ## Theme resolution (S2-T20b)
 

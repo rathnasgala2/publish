@@ -544,6 +544,7 @@ test('the build job runs the pinned Galascribe toolchain against the declarative
     build.env.GALA_BUILD_EPOCH,
     '${{ needs.prep.outputs.build_epoch }}',
   );
+  assert.equal(build.env.GALA_API_ORIGIN, '${{ inputs.gala_api_origin }}');
   assert.match(
     String(build.run),
     /--toolchain "\$\{GITHUB_WORKSPACE\}\/publish-toolchain"/u,

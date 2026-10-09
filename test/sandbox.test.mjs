@@ -180,6 +180,8 @@ test(
           GITHUB_SHA: '0123456789abcdef0123456789abcdef01234567',
           GITHUB_TOKEN: 'must-not-enter-the-sandbox',
           GALA_BUILD_EPOCH: '2026-09-30T17:31:50.000Z',
+          GALA_API_ORIGIN: 'https://api.example.test',
+          GALA_APP_ORIGIN: 'https://app.example.test',
         },
       },
     );
@@ -200,6 +202,14 @@ test(
       /^GITHUB_SHA=0123456789abcdef0123456789abcdef01234567$/mu,
     );
     assert.match(environment, /^GALA_BUILD_EPOCH=2026-09-30T17:31:50\.000Z$/mu);
+    assert.match(
+      environment,
+      /^GALA_API_ORIGIN=https:\/\/api\.example\.test$/mu,
+    );
+    assert.match(
+      environment,
+      /^GALA_APP_ORIGIN=https:\/\/app\.example\.test$/mu,
+    );
     assert.doesNotMatch(environment, /must-not-enter-the-sandbox/u);
   },
 );
