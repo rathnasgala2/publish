@@ -28,17 +28,20 @@ and this project adheres to
   all reported together, naming the document and the path) and
   `MEDIA_LIMIT_EXCEEDED`. `CONTENT_MEDIA_UNSUPPORTED` now applies to
   `socialImageRef` only. The preview server serves `.gif`. Requires
-  `@rathnasgala2/schemas` 3.3.0.
+  `@rathnasgala2/schemas` 3.3.0 to validate the build input and
+  `@rathnasgala2/template` 3.2.0 to render it.
 - Appearance attribution: `appearance.json`'s optional `attribution`
   (`{showMadeWith}`) is copied into `build-input.appearance`; absent stays
-  absent.
+  absent. The template 3.2.0 footer shows or hides its "Made with Galascribe"
+  line by it.
 - Prism editions. A `kind: edition` document is kept only when the article its
   `edition.of` slug names is part of the build and `edition.sourceDigest` equals
   the SHA-256 of that article's Markdown body (the text after the closing front
   matter fence, `\r\n` read as `\n`, nothing else changed). Otherwise it is left
   out of the build input with a `WARNING` finding, `EDITION_SOURCE_MISSING` or
   `EDITION_STALE`. A kept edition carries its `edition` front matter into the
-  build input.
+  build input, and `@rathnasgala2/template` 3.2.0 renders it on its own route
+  beside its article.
 - `buildBuildInputFromRepository` accepts an optional `warnings` array that
   receives non-blocking findings. `validate`, `build`, `preview` and the Action
   return them as `findings` on a successful result (`SUCCESS`, exit `0`).

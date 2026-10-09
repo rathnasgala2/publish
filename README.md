@@ -58,10 +58,11 @@ resolve relative to the checkout and need a hand from a worktree:
   LOCAL-38) so the default resolution works; setting
   `WORKSPACE_ROOT=/path/to/v2` overrides it instead when the symlinks are absent
   (CI has no siblings at all).
-- **Schema pin.** Every manifest pins `@rathnasgala2/schemas` to an exact
-  registry version (`3.0.0`), resolved from `registry.npmjs.org`. The LOCAL-1
-  local-tarball convention (`file:../../local-packages/<tarball>`) is retired
-  for this package now that it publishes; no worktree symlink is needed for it.
+- **Schema pin.** Every manifest pins `@rathnasgala2/schemas` to the same exact
+  registry version (`package.json` is the source of truth), resolved from
+  `registry.npmjs.org`. The LOCAL-1 local-tarball convention
+  (`file:../../local-packages/<tarball>`) is retired for this package now that
+  it publishes; no worktree symlink is needed for it.
 
 ## SBOM reproducibility (`sbom:check`)
 

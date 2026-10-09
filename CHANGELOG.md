@@ -19,6 +19,13 @@ and this project adheres to
 - `publish-action` intake lists content images (`content[].media[]`), admits a
   `hero`, copies the appearance attribution switch and keeps Prism editions only
   while their article is unchanged. See `packages/publish-action/CHANGELOG.md`.
+- This toolchain is released for `@rathnasgala2/schemas` 3.3.0 and
+  `@rathnasgala2/template` 3.2.0 together. The build-input fields intake now
+  writes (`content[].media[]`, `frontmatter.hero.file`, `appearance.attribution`
+  and `kind: edition` with `edition`) are validated by schemas 3.3.0 and
+  rendered by template 3.2.0 (the image pipeline, edition routes and the footer
+  attribution switch). A repository takes the change when its caller's pin moves
+  to the release commit.
 
 ### Fixed
 
