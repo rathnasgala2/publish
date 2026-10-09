@@ -173,7 +173,7 @@ export async function runAction(env = process.env) {
           command: 'publish',
           resultCode: 'SUCCESS',
           exitCode: 0,
-          findings: [],
+          findings: buildResult.findings,
           ...(buildResult.manifestPath !== undefined
             ? { manifestPath: buildResult.manifestPath }
             : {}),

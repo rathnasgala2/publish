@@ -18,12 +18,14 @@ import { buildResultEnvelope, classifyFindings } from '../result.js';
  */
 export async function runValidate({ repositoryDirectory }) {
   try {
-    await buildBuildInputFromRepository({ repositoryDirectory });
+    /** @type {import('../types.js').PublishActionFinding[]} */
+    const warnings = [];
+    await buildBuildInputFromRepository({ repositoryDirectory, warnings });
     return buildResultEnvelope({
       command: 'validate',
       resultCode: 'SUCCESS',
       exitCode: 0,
-      findings: [],
+      findings: warnings,
     });
   } catch (error) {
     const findings = findingsFromError(error);

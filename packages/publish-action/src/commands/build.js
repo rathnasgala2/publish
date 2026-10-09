@@ -46,9 +46,14 @@ export async function runBuild({
   routeNormalizationProfile,
 }) {
   try {
+    // Non-blocking findings from intake (a Prism edition that was left out)
+    // travel with the successful result instead of failing the build.
+    /** @type {import('../types.js').PublishActionFinding[]} */
+    const warnings = [];
     const buildInput = await buildBuildInputFromRepository({
       repositoryDirectory,
       includeDraftsAsUnlisted,
+      warnings,
     });
     const packages =
       /** @type {{theme: {package: string, version: string, integrity: string, registry: string}}} */ (
@@ -159,7 +164,7 @@ export async function runBuild({
         command: 'build',
         resultCode: 'SUCCESS',
         exitCode: 0,
-        findings: [],
+        findings: warnings,
         manifestPath,
         manifestDigest: /** @type {string} */ (
           rendered.manifest.manifestDigest

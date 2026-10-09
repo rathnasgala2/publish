@@ -15,17 +15,18 @@ export function resolveInteractionsOrigin(name: string, value: string | undefine
  * Build one validated `urn:gala:schema:build-input:2.0.0` document from a
  * repository directory (S2-T20 deliverable (1)).
  *
- * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean, env?: NodeJS.ProcessEnv}} options the absolute repository directory, candidate-render policy and the environment that supplies `GALA_API_ORIGIN`/`GALA_APP_ORIGIN`
+ * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean, env?: NodeJS.ProcessEnv, warnings?: import('../types.js').PublishActionFinding[]}} options the absolute repository directory, candidate-render policy, the environment that supplies `GALA_API_ORIGIN`/`GALA_APP_ORIGIN`, and an optional array that receives the non-blocking findings (a dropped Prism edition is the only source today); without it they are discarded
  * @returns {Promise<Record<string, unknown>>} the validated build-input
  *   document. `buildInput.packages.theme` (sourced from `lock.json`; the
  *   intake refuses with `THEME_SELECTION_MISMATCH` when `appearance.json`
  *   names a different theme package) is the theme identity provenance building and any other
  *   theme-aware caller should reuse.
  */
-export function buildBuildInputFromRepository({ repositoryDirectory, includeDraftsAsUnlisted, env, }: {
+export function buildBuildInputFromRepository({ repositoryDirectory, includeDraftsAsUnlisted, env, warnings, }: {
     repositoryDirectory: string;
     includeDraftsAsUnlisted?: boolean;
     env?: NodeJS.ProcessEnv;
+    warnings?: import("../types.js").PublishActionFinding[];
 }): Promise<Record<string, unknown>>;
 /**
  * Derive `repositoryId`/`repositoryOwnerId` from the GitHub Actions

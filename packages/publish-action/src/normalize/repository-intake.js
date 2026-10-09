@@ -62,16 +62,38 @@
  * `renderPublication`).
  *
  * **Documented scope reductions** (this package's own, not a DEC-006/
- * DEC-097 shortfall): `repository.json`'s `contentRoots`/`assetRoots`/
+ * DEC-097 shortfall): `repository.json`'s `contentRoots`/
  * `generatedSourceRoots` globs are schema-validated but not evaluated as
  * globs — every `content/*.md` file is read directly, sorted by file name;
- * `publication.profile`/`footerCard`, content `hero`/`socialImage`,
+ * `publication.profile`/`footerCard`, content `socialImageRef`,
  * `appearance` brand/word marks and font assets are not supported (a
  * fixture that sets any of them is rejected with a typed finding rather than
  * silently dropped); `placements` is always empty and `modules` carries only
  * `interactions` (read from `<repository.json "modules">/interactions.json`
  * when that file exists), matching S2's closed scope. A future task that needs the fuller author-repository
  * surface should replace this module rather than extend it ad hoc.
+ *
+ * **Content media** (`content-media.js`): every repository file that a
+ * document body image (`![alt](path)`) or a front matter `hero.path` names
+ * is checked (a path from the repository root, under an `assetRoots` entry,
+ * a regular file, within the media limits), digested, and listed once in
+ * `build-input.assets[]` as `{path, sourceDigest}`; the bytes stay on disk
+ * for the template's media pipeline. A hero also becomes
+ * `frontmatter.hero = {file: {path, sourceDigest}, alt, role}`. An
+ * unusable reference fails the build with `MEDIA_REFERENCE_UNRESOLVED`, an
+ * over-limit one with `MEDIA_LIMIT_EXCEEDED`. Only documents that are part
+ * of the build are looked at.
+ *
+ * **Appearance attribution**: `appearance.json`'s optional `attribution`
+ * (`{showMadeWith}`) is copied into the build-input appearance; absent stays
+ * absent.
+ *
+ * **Prism editions** (`content-editions.js`): a `kind: edition` document is
+ * kept only when the article it is `of` is part of the build and its
+ * `edition.sourceDigest` still equals the digest of that article's body;
+ * otherwise it is left out with an `EDITION_SOURCE_MISSING` or
+ * `EDITION_STALE` warning (see `options.warnings`). A kept edition carries
+ * its `edition` front matter into the build input.
  *
  * @module
  */
@@ -91,6 +113,8 @@ import { resolveBuildEpoch, resolveSourceRevision } from './source-revision.js';
 import { parseConstrainedYamlFrontmatter } from './frontmatter.js';
 import { REPOSITORY_ROOT_DOMAIN } from '../constants.js';
 import { themePackageNameOf } from '../theme-catalog.js';
+import { findImageSources, resolveMediaReferences } from './content-media.js';
+import { evaluateEditions } from './content-editions.js';
 
 const SCHEMA = Object.freeze({
   repository: 'urn:gala:schema:repository:2.0.0',
@@ -304,7 +328,11 @@ async function readInteractionsModule(
  *
  * @param {string} text the file's UTF-8 text
  * @param {string} relativePath repository-relative path, for error messages
- * @returns {{frontmatterText: string, body: string}} the split parts
+ * @returns {{frontmatterText: string, body: string, rawBody: string}} the
+ *   split parts. `body` is what is rendered (leading empty lines removed);
+ *   `rawBody` is everything after the closing fence line, unmodified, which
+ *   is what an edition's `sourceDigest` is taken over (see
+ *   `content-editions.js`).
  */
 function splitFrontmatterFence(text, relativePath) {
   const lines = text.split('\n');
@@ -322,18 +350,62 @@ function splitFrontmatterFence(text, relativePath) {
     );
   }
   const frontmatterText = lines.slice(1, closingIndex).join('\n');
-  const body = lines
-    .slice(closingIndex + 1)
-    .join('\n')
-    .replace(/^\n+/u, '');
-  return { frontmatterText, body };
+  const rawBody = lines.slice(closingIndex + 1).join('\n');
+  return { frontmatterText, body: rawBody.replace(/^\n+/u, ''), rawBody };
+}
+
+/**
+ * The part of one document's front matter that becomes
+ * `build-input.content[].frontmatter`.
+ *
+ * @param {Record<string, any>} frontmatter the validated front matter
+ * @param {ReadonlyMap<string, string>} mediaDigests `sourceDigest` of every
+ *   inventoried asset, by repository-relative path
+ * @returns {Record<string, unknown>} the normalized front matter
+ */
+function normalizeContentFrontmatter(frontmatter, mediaDigests) {
+  return {
+    id: frontmatter.id,
+    kind: frontmatter.kind,
+    title: frontmatter.title,
+    ...(frontmatter.description
+      ? { description: frontmatter.description }
+      : {}),
+    language: frontmatter.language,
+    authorIds: frontmatter.authors,
+    tags: frontmatter.tags,
+    ...(frontmatter.series ? { series: frontmatter.series } : {}),
+    ...(frontmatter.seriesOrder
+      ? { seriesOrder: frontmatter.seriesOrder }
+      : {}),
+    status: frontmatter.status === 'draft' ? 'unlisted' : frontmatter.status,
+    createdAt: frontmatter.createdAt,
+    publishedAt: frontmatter.publishedAt ?? frontmatter.createdAt,
+    ...(frontmatter.updatedAt ? { updatedAt: frontmatter.updatedAt } : {}),
+    slug: frontmatter.slug,
+    ...(frontmatter.route ? { route: frontmatter.route } : {}),
+    ...(frontmatter.hero
+      ? {
+          hero: {
+            file: {
+              path: frontmatter.hero.path,
+              sourceDigest: mediaDigests.get(frontmatter.hero.path),
+            },
+            alt: frontmatter.hero.alt,
+            role: frontmatter.hero.role,
+          },
+        }
+      : {}),
+    redirects: frontmatter.redirects,
+    ...(frontmatter.edition ? { edition: frontmatter.edition } : {}),
+  };
 }
 
 /**
  * Build one validated `urn:gala:schema:build-input:2.0.0` document from a
  * repository directory (S2-T20 deliverable (1)).
  *
- * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean, env?: NodeJS.ProcessEnv}} options the absolute repository directory, candidate-render policy and the environment that supplies `GALA_API_ORIGIN`/`GALA_APP_ORIGIN`
+ * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean, env?: NodeJS.ProcessEnv, warnings?: import('../types.js').PublishActionFinding[]}} options the absolute repository directory, candidate-render policy, the environment that supplies `GALA_API_ORIGIN`/`GALA_APP_ORIGIN`, and an optional array that receives the non-blocking findings (a dropped Prism edition is the only source today); without it they are discarded
  * @returns {Promise<Record<string, unknown>>} the validated build-input
  *   document. `buildInput.packages.theme` (sourced from `lock.json`; the
  *   intake refuses with `THEME_SELECTION_MISMATCH` when `appearance.json`
@@ -344,6 +416,7 @@ export async function buildBuildInputFromRepository({
   repositoryDirectory,
   includeDraftsAsUnlisted = false,
   env = process.env,
+  warnings = [],
 }) {
   if (!path.isAbsolute(repositoryDirectory)) {
     throw new RepositoryIntakeError(
@@ -545,6 +618,9 @@ export async function buildBuildInputFromRepository({
     headerComposition: appearanceDoc.document.headerComposition,
     footerComposition: appearanceDoc.document.footerComposition,
     typeScale: appearanceDoc.document.typeScale,
+    ...(appearanceDoc.document.attribution === undefined
+      ? {}
+      : { attribution: { ...appearanceDoc.document.attribution } }),
     fontAssets: [],
     tokens: {},
     source: {
@@ -580,17 +656,21 @@ export async function buildBuildInputFromRepository({
   const sourceRevision = await resolveSourceRevision(repositoryDirectory);
   const buildEpoch = await resolveBuildEpoch(repositoryDirectory);
 
-  /** @type {Record<string, unknown>[]} */
-  const content = [];
+  // Pass 1: read, split, parse and validate every document. An edition sorts
+  // before its article by file name (`post.edition.quick-read.md` <
+  // `post.md`), so no document can be judged until every document is read.
+  /** @type {{relativePath: string, sourceDigest: string, frontmatter: Record<string, any>, markdownBody: string, rawBody: string}[]} */
+  const documents = [];
   for (const fileName of contentFileNames) {
     const relativePath = `content/${fileName}`;
     const absolutePath = path.join(repositoryDirectory, relativePath);
     const { bytes, digest: sourceDigest } =
       await readFileWithDigest(absolutePath);
-    const { frontmatterText, body: markdownBody } = splitFrontmatterFence(
-      bytes.toString('utf8'),
-      relativePath,
-    );
+    const {
+      frontmatterText,
+      body: markdownBody,
+      rawBody,
+    } = splitFrontmatterFence(bytes.toString('utf8'), relativePath);
 
     let frontmatter;
     try {
@@ -613,24 +693,43 @@ export async function buildBuildInputFromRepository({
       );
     }
     assertValidDocument(SCHEMA.contentFrontmatter, frontmatter, relativePath);
-    if (frontmatter.hero || frontmatter.socialImageRef) {
+    if (frontmatter.socialImageRef) {
       throw new RepositoryIntakeError(
-        'content hero/socialImageRef are not supported (documented scope reduction)',
+        'content socialImageRef is not supported (documented scope reduction)',
         [sourceFinding('CONTENT_MEDIA_UNSUPPORTED', relativePath)],
       );
     }
-    // The author-repository contract also admits `draft` and `archived`, but
-    // build-input intentionally contains only material that may enter a
-    // generated publication. Keep those source files covered by the verified
-    // repository digest while omitting them from the render input.
-    if (
-      frontmatter.status === 'archived' ||
-      (frontmatter.status === 'draft' && !includeDraftsAsUnlisted)
-    ) {
-      continue;
-    }
-    const resolvedAuthorIds = /** @type {string[]} */ (frontmatter.authors);
-    for (const authorId of resolvedAuthorIds) {
+    documents.push({
+      relativePath,
+      sourceDigest,
+      frontmatter,
+      markdownBody,
+      rawBody,
+    });
+  }
+
+  // The author-repository contract also admits `draft` and `archived`, but
+  // build-input intentionally contains only material that may enter a
+  // generated publication. Keep those source files covered by the verified
+  // repository digest while omitting them from the render input.
+  const inBuild = documents.filter(
+    ({ frontmatter }) =>
+      frontmatter.status !== 'archived' &&
+      (frontmatter.status !== 'draft' || includeDraftsAsUnlisted),
+  );
+  // Editions whose article is missing from the build, or has changed since the
+  // edition was made, are left out with a warning (never a failure).
+  const editions = evaluateEditions(inBuild);
+  warnings.push(...editions.warnings);
+  const built = inBuild.filter(
+    ({ relativePath }) => !editions.dropped.has(relativePath),
+  );
+
+  // Pass 2: authors, Markdown, and the list of images the documents refer to.
+  /** @type {import('./content-media.js').MediaReference[]} */
+  const mediaReferences = [];
+  const prepared = built.map(({ relativePath, frontmatter, markdownBody }) => {
+    for (const authorId of /** @type {string[]} */ (frontmatter.authors)) {
       if (!knownAuthorIds.has(authorId)) {
         throw new RepositoryIntakeError(
           `${relativePath} references author ${authorId}, which is not one of publication.json's authors`,
@@ -638,44 +737,63 @@ export async function buildBuildInputFromRepository({
         );
       }
     }
-
     const normalized = normalizeAuthoredMarkdown(markdownBody);
+    for (const image of findImageSources(normalized.html)) {
+      mediaReferences.push({
+        document: relativePath,
+        origin: 'body',
+        path: image.src,
+        alt: image.alt,
+      });
+    }
+    if (frontmatter.hero) {
+      mediaReferences.push({
+        document: relativePath,
+        origin: 'hero',
+        path: frontmatter.hero.path,
+        alt: frontmatter.hero.alt,
+      });
+    }
+    return normalized;
+  });
 
-    const frontmatterNormalized = {
-      id: frontmatter.id,
-      kind: frontmatter.kind,
-      title: frontmatter.title,
-      ...(frontmatter.description
-        ? { description: frontmatter.description }
-        : {}),
-      language: frontmatter.language,
-      authorIds: resolvedAuthorIds,
-      tags: frontmatter.tags,
-      ...(frontmatter.series ? { series: frontmatter.series } : {}),
-      ...(frontmatter.seriesOrder
-        ? { seriesOrder: frontmatter.seriesOrder }
-        : {}),
-      status: frontmatter.status === 'draft' ? 'unlisted' : frontmatter.status,
-      createdAt: frontmatter.createdAt,
-      publishedAt: frontmatter.publishedAt ?? frontmatter.createdAt,
-      ...(frontmatter.updatedAt ? { updatedAt: frontmatter.updatedAt } : {}),
-      slug: frontmatter.slug,
-      ...(frontmatter.route ? { route: frontmatter.route } : {}),
-      redirects: frontmatter.redirects,
-    };
+  // Every referenced image is checked, digested and listed once; the bytes
+  // stay on disk for the template's media pipeline.
+  const media = await resolveMediaReferences({
+    repositoryDirectory,
+    assetRoots: repository.document.assetRoots,
+    references: mediaReferences,
+  });
+  if (media.findings.length > 0) {
+    throw new RepositoryIntakeError(
+      `${media.findings.length} problem(s) with images referenced from content`,
+      media.findings,
+    );
+  }
+  const mediaDigests = new Map(
+    media.assets.map((asset) => [asset.path, asset.sourceDigest]),
+  );
 
-    content.push({
-      frontmatter: frontmatterNormalized,
+  /** @type {Record<string, unknown>[]} */
+  const content = built.map((document, index) => {
+    const normalized = /** @type {{html: string, bodyDigest: string}} */ (
+      prepared[index]
+    );
+    return {
+      frontmatter: normalizeContentFrontmatter(
+        document.frontmatter,
+        mediaDigests,
+      ),
       body: normalized.html,
       bodyMediaType: 'text/html',
       bodyDigest: normalized.bodyDigest,
       renderPolicy: { ...renderPolicy },
-      sourcePath: relativePath,
+      sourcePath: document.relativePath,
       sourceRevision,
-      sourceDigest,
-      resolvedAuthorIds,
-    });
-  }
+      sourceDigest: document.sourceDigest,
+      resolvedAuthorIds: document.frontmatter.authors,
+    };
+  });
 
   // --- modules ---------------------------------------------------------------
   const interactions = await readInteractionsModule(
@@ -715,6 +833,7 @@ export async function buildBuildInputFromRepository({
     publication,
     authors,
     content,
+    ...(media.assets.length > 0 ? { assets: media.assets } : {}),
     navigation,
     appearance,
     modules: interactions ? { interactions } : {},

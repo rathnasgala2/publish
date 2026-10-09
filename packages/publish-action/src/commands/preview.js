@@ -29,6 +29,7 @@ const CONTENT_TYPES = Object.freeze({
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.avif': 'image/avif',
+  '.gif': 'image/gif',
   '.woff2': 'font/woff2',
 });
 
