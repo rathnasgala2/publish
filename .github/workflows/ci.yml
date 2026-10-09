@@ -122,14 +122,14 @@ jobs:
       # packages/publish-action's template-bridge.js (TEMPLATE_ROOT) needs
       # this checkout by path, and its own dependencies installed, for the
       # S2-T20/S2-T20b build/publish tests `npm test` runs. Pinned to the
-      # commit published as template 3.1.0 (theme-default
-      # 3.0.0 cut against it) rather than a mutable `main`, so a push to the
+      # commit published as template 3.2.0 (theme-default stays at
+      # its own 3.0.0 pin below) rather than a mutable `main`, so a push to the
       # sibling repository cannot silently change what this job tests against.
       - name: Check out the template sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/template
-          ref: e577ddcd7a54201e1293fa9b5c33c1341e3291cb
+          ref: 9b0a311d1016d83217dac0f8f433f337aaa57764
           path: .siblings/template
           persist-credentials: false
 
@@ -228,7 +228,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/template
-          ref: e577ddcd7a54201e1293fa9b5c33c1341e3291cb
+          ref: 9b0a311d1016d83217dac0f8f433f337aaa57764
           path: .siblings/template
           persist-credentials: false
 
