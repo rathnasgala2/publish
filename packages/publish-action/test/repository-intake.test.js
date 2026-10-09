@@ -25,6 +25,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
 
+import { runAction } from '../src/action/run.js';
 import { runBuild } from '../src/commands/build.js';
 import { runValidate } from '../src/commands/validate.js';
 import {
@@ -1749,6 +1750,65 @@ test('validate and build report a dropped edition as a warning on a successful r
       repositoryDirectory: FIXTURE_REPOSITORY,
     });
     assert.deepEqual(clean.findings, []);
+  } finally {
+    await cleanup();
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('the Action keeps a dropped edition as a warning on its successful result', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  const work = await mkdtemp(path.join(tmpdir(), 'gala-edition-action-'));
+  try {
+    await addArticleWithEdition(dir, { digestOfBody: 'other text' });
+    const destinationRoot = path.join(work, 'site');
+    await mkdir(destinationRoot);
+    const adapterConfigPath = path.join(work, 'adapter-config.json');
+    await writeFile(
+      adapterConfigPath,
+      JSON.stringify({ root: destinationRoot }),
+    );
+    const githubOutputPath = path.join(work, 'github-output.txt');
+    await writeFile(githubOutputPath, '');
+
+    // The Action writes its result envelope to stdout as one JSON line.
+    /** @type {string[]} */
+    const written = [];
+    const originalWrite = process.stdout.write;
+    process.stdout.write = /** @type {typeof process.stdout.write} */ (
+      (/** @type {string | Uint8Array} */ chunk) => {
+        written.push(String(chunk));
+        return true;
+      }
+    );
+    /** @type {number} */
+    let exitCode;
+    try {
+      exitCode = await runAction({
+        ...process.env,
+        'INPUT_REPOSITORY-DIRECTORY': dir,
+        'INPUT_OUTPUT-DIRECTORY': path.join(work, 'output'),
+        'INPUT_WORK-DIRECTORY': path.join(work, 'work'),
+        INPUT_ADAPTER: 'local-directory',
+        'INPUT_ADAPTER-CONFIG-PATH': adapterConfigPath,
+        GITHUB_OUTPUT: githubOutputPath,
+        GITHUB_ACTIONS: undefined,
+      });
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+    assert.equal(exitCode, 0, written.join(''));
+    const envelope = JSON.parse(
+      written.join('').trim().split('\n').at(-1) ?? '',
+    );
+    assert.equal(envelope.resultCode, 'SUCCESS');
+    assert.equal(envelope.exitCode, 0);
+    assert.deepEqual(
+      envelope.findings.map(
+        (/** @type {{code: string}} */ finding) => finding.code,
+      ),
+      ['EDITION_STALE'],
+    );
   } finally {
     await cleanup();
     await rm(work, { recursive: true, force: true });
