@@ -167,15 +167,20 @@ regular file, and stay inside that root after resolving directory symbolic links
 (a symbolic link is never followed). It must start with the signature of a PNG,
 JPEG, WebP, AVIF or GIF image; SVG is refused.
 
-| Code                         | Severity       | Meaning                                                                                                                                                                                                                                                                                                             |
-| ---------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MEDIA_REFERENCE_UNRESOLVED` | `SOURCE_ERROR` | A reference cannot be used. One finding per reference, all reported together in reading order, each naming the document and the path; `evidence.reason` is `NO_SOURCE`, `EXTERNAL_ADDRESS`, `NOT_A_REPOSITORY_PATH`, `OUTSIDE_ASSET_ROOTS`, `FILE_MISSING`, `NOT_A_REGULAR_FILE` or `UNSUPPORTED_FORMAT`.           |
-| `MEDIA_LIMIT_EXCEEDED`       | `SOURCE_ERROR` | One image over 10 MiB (`evidence.limit` `IMAGE_BYTES`), more than 2048 distinct images (`IMAGE_COUNT`), more than 256 MiB of source bytes together (`TOTAL_BYTES`), or more than 200 distinct body images in one document (`DOCUMENT_IMAGES`, the length of `media[]`). Judged only when every reference is usable. |
+| Code                         | Severity       | Meaning                                                                                                                                                                                                                                                                                                                                                              |
+| ---------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MEDIA_REFERENCE_UNRESOLVED` | `SOURCE_ERROR` | A reference cannot be used. One finding per reference, all reported together in reading order, each naming the document and the path; `evidence.reason` is `NO_SOURCE`, `EXTERNAL_ADDRESS`, `NOT_A_REPOSITORY_PATH`, `OUTSIDE_ASSET_ROOTS`, `FILE_MISSING`, `NOT_A_REGULAR_FILE` or `UNSUPPORTED_FORMAT`.                                                            |
+| `MEDIA_LIMIT_EXCEEDED`       | `SOURCE_ERROR` | One image over 10 MiB (`evidence.limit` `IMAGE_BYTES`); a body image over 5 MiB (`BODY_IMAGE_BYTES`; a hero may be up to 10 MiB); more than 2048 distinct images (`IMAGE_COUNT`); more than 256 MiB of source bytes together (`TOTAL_BYTES`); or more than 200 distinct body images in one document (`DOCUMENT_IMAGES`). Judged only when every reference is usable. |
 
-The first three limits are `template`'s (`src/core/internal/media/limits.js`);
-`test/content-media.test.js` keeps them equal. The template applies its own,
-stricter decode ceilings (dimensions, pixel count) when it reads the file.
-`socialImageRef` is still refused with `CONTENT_MEDIA_UNSUPPORTED`.
+The 10 MiB, 2048 and 256 MiB limits are `template`'s
+(`src/core/internal/media/limits.js`). The 5 MiB and 200 are `build-input`'s own
+bounds for an entry of `media[]` (`byteLength` of an image, and the length of
+the array), so a body image is held to the smaller of 5 MiB and the template's
+10 MiB; a hero is not in `media[]` and may be up to 10 MiB.
+`test/content-media.test.js` keeps every number equal to the template's or to
+the installed schema's. The template applies its own, stricter decode ceilings
+(dimensions, pixel count) when it reads the file. `socialImageRef` is still
+refused with `CONTENT_MEDIA_UNSUPPORTED`.
 
 ## Appearance attribution
 

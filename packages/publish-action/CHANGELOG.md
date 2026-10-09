@@ -20,8 +20,9 @@ and this project adheres to
   `assetRoots` entry of `gala/repository.json`, a regular file inside that root
   (symbolic links are not followed), and a PNG, JPEG, WebP, AVIF or GIF image
   (the type is read from its bytes; SVG is refused). At most 10 MiB per image,
-  2048 distinct images and 256 MiB together (the template's media limits), and
-  200 per document. A hero is admitted and becomes
+  2048 distinct images and 256 MiB together (the template's media limits), and,
+  because `media[]` cannot say more, 5 MiB per body image and 200 body images
+  per document (a hero may be up to 10 MiB). A hero is admitted and becomes
   `frontmatter.hero = {file: {path, sourceDigest}, alt, role}`. New findings,
   both `SOURCE_ERROR`: `MEDIA_REFERENCE_UNRESOLVED` (one per unusable reference,
   all reported together, naming the document and the path) and

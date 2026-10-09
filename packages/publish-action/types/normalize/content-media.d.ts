@@ -93,12 +93,17 @@ export function resolveMediaReferences({ repositoryDirectory, assetRoots, refere
  * @property {number} maxDistinctImages most distinct image files one publication may reference
  * @property {number} maxTotalBytes most source bytes all referenced images may add up to
  * @property {number} maxImagesPerDocument most distinct body images one document's `media[]` may list
+ * @property {number} maxBodyImageBytes largest image a document's `media[]` may list, in bytes
  */
 /**
  * Media ceilings. The first three equal `template`'s `limits.js`
  * (`MAX_IMAGE_SOURCE_BYTES`, `MAX_IMAGES_PER_PUBLICATION`,
- * `MAX_TOTAL_MEDIA_BYTES_PER_PUBLICATION`); the last is the maximum length of
- * `build-input`'s `content[].media[]`.
+ * `MAX_TOTAL_MEDIA_BYTES_PER_PUBLICATION`). The last two are the build
+ * input's own: the maximum length of `content[].media[]`, and the largest
+ * `byteLength` an image entry of `media[]` may state (5 MiB), so a body image
+ * is held to the smaller of that and the template's 10 MiB. A hero is not
+ * listed in `media[]`, so it may be as large as the template allows.
+ * `test/content-media.test.js` keeps this one equal to the installed schema.
  *
  * @type {Readonly<MediaLimits>}
  */
@@ -174,4 +179,8 @@ export type MediaLimits = {
      * most distinct body images one document's `media[]` may list
      */
     maxImagesPerDocument: number;
+    /**
+     * largest image a document's `media[]` may list, in bytes
+     */
+    maxBodyImageBytes: number;
 };

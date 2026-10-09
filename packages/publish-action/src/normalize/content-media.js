@@ -46,9 +46,11 @@
  * **Limits** mirror `template`'s media pipeline
  * (`src/core/internal/media/limits.js`): one source image at most 10 MiB, at
  * most 2048 distinct images, at most 256 MiB of source bytes together; and the
- * build input's own bound of 200 images per document. The template re-checks
- * its stricter decode ceilings (dimensions, pixels) when it reads the file.
- * A test keeps the template's numbers equal to these.
+ * build input's own bounds: 200 images per document, and 5 MiB for an image
+ * listed in a document's `media[]` (a hero, which is not listed there, may be
+ * up to the template's 10 MiB). The template re-checks its stricter decode
+ * ceilings (dimensions, pixels) when it reads the file. Tests keep these
+ * numbers equal to the template's and to the installed schema's.
  *
  * @module
  */
@@ -63,13 +65,18 @@ import path from 'node:path';
  * @property {number} maxDistinctImages most distinct image files one publication may reference
  * @property {number} maxTotalBytes most source bytes all referenced images may add up to
  * @property {number} maxImagesPerDocument most distinct body images one document's `media[]` may list
+ * @property {number} maxBodyImageBytes largest image a document's `media[]` may list, in bytes
  */
 
 /**
  * Media ceilings. The first three equal `template`'s `limits.js`
  * (`MAX_IMAGE_SOURCE_BYTES`, `MAX_IMAGES_PER_PUBLICATION`,
- * `MAX_TOTAL_MEDIA_BYTES_PER_PUBLICATION`); the last is the maximum length of
- * `build-input`'s `content[].media[]`.
+ * `MAX_TOTAL_MEDIA_BYTES_PER_PUBLICATION`). The last two are the build
+ * input's own: the maximum length of `content[].media[]`, and the largest
+ * `byteLength` an image entry of `media[]` may state (5 MiB), so a body image
+ * is held to the smaller of that and the template's 10 MiB. A hero is not
+ * listed in `media[]`, so it may be as large as the template allows.
+ * `test/content-media.test.js` keeps this one equal to the installed schema.
  *
  * @type {Readonly<MediaLimits>}
  */
@@ -78,6 +85,7 @@ export const MEDIA_LIMITS = Object.freeze({
   maxDistinctImages: 2048,
   maxTotalBytes: 268_435_456,
   maxImagesPerDocument: 200,
+  maxBodyImageBytes: 5_242_880,
 });
 
 /** Most findings one intake failure reports; the rest are counted, not listed. */
@@ -694,8 +702,12 @@ function limitFindings(sizes, byPath, limits) {
   let total = 0;
   for (const [relativePath, size] of sizes) {
     total += size;
+    const references = byPath.get(relativePath) ?? [];
+    const body = references.find(
+      ({ reference }) => reference.origin === 'body',
+    );
     if (size > limits.maxSourceBytes) {
-      const document = byPath.get(relativePath)?.[0]?.reference.document;
+      const document = references[0]?.reference.document;
       exceeded.push(
         mediaFinding(
           'MEDIA_LIMIT_EXCEEDED',
@@ -707,6 +719,23 @@ function limitFindings(sizes, byPath, limits) {
             path: relativePath,
             bytes: size,
             max: limits.maxSourceBytes,
+          },
+          'Resize or compress the image, or replace it with a smaller file.',
+        ),
+      );
+    } else if (body !== undefined && size > limits.maxBodyImageBytes) {
+      const document = body.reference.document;
+      exceeded.push(
+        mediaFinding(
+          'MEDIA_LIMIT_EXCEEDED',
+          `${document}: the image "${relativePath}" is ${size} bytes; an image in the body of a document may be at most ${limits.maxBodyImageBytes} bytes (5 MiB). Only a hero image may be larger, up to ${limits.maxSourceBytes} bytes (10 MiB).`,
+          document,
+          {
+            limit: 'BODY_IMAGE_BYTES',
+            document,
+            path: relativePath,
+            bytes: size,
+            max: limits.maxBodyImageBytes,
           },
           'Resize or compress the image, or replace it with a smaller file.',
         ),

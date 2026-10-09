@@ -1268,6 +1268,57 @@ test('an image over 10 MiB fails the build with MEDIA_LIMIT_EXCEEDED naming the 
   }
 });
 
+test('a body image over 5 MiB fails the build, because media[] cannot list it; as a hero the same file is accepted', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await addFile(dir, 'assets/large.jpg', imageBytes('jpeg'));
+    const large = path.join(dir, 'assets/large.jpg');
+    await truncate(large, 6 * 1024 * 1024);
+    await addDocument(
+      dir,
+      'body.md',
+      { slug: 'body', id: '01912345-6789-7abc-89ab-0123456789b1' },
+      '![large](assets/large.jpg)\n',
+    );
+    const [finding] = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+    );
+    assert.equal(finding?.code, 'MEDIA_LIMIT_EXCEEDED');
+    assert.deepEqual(finding?.evidence, {
+      limit: 'BODY_IMAGE_BYTES',
+      document: 'content/body.md',
+      path: 'assets/large.jpg',
+      bytes: 6 * 1024 * 1024,
+      max: 5 * 1024 * 1024,
+    });
+
+    await addDocument(
+      dir,
+      'body.md',
+      {
+        slug: 'body',
+        id: '01912345-6789-7abc-89ab-0123456789b1',
+        hero: {
+          path: 'assets/large.jpg',
+          alt: 'A large photo',
+          role: 'informative',
+        },
+      },
+      'No body image this time.\n',
+    );
+    const { buildInput } = await buildWithWarnings(dir);
+    const record = recordOf(buildInput, 'content/body.md');
+    assert.equal('media' in record, false);
+    assert.equal(
+      record.frontmatter.hero.file.sourceDigest,
+      digestOf(await readFile(large)),
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
 test('only documents that are part of the build are looked at for images', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {

@@ -37,6 +37,7 @@ import {
   TEMPLATE_ROOT,
   importTemplatePublicEntry,
 } from '../src/template-bridge.js';
+import buildInputSchema from '@rathnasgala2/schemas/schemas/build-input.schema.json' with { type: 'json' };
 import { MEDIA_TYPE_OF, imageBytes } from './image-bytes.js';
 
 /**
@@ -104,6 +105,7 @@ const SMALL_LIMITS = {
   maxDistinctImages: 3,
   maxTotalBytes: 100,
   maxImagesPerDocument: 2,
+  maxBodyImageBytes: 40,
 };
 
 test('findImageSources lists images in document order with decoded attributes', () => {
@@ -358,7 +360,25 @@ test('the media limits equal the template media pipeline limits', async () => {
       maxTotalBytes: 256 * 1024 * 1024,
       // The maximum length of build-input's content[].media[].
       maxImagesPerDocument: 200,
+      // The largest byteLength build-input allows an image entry of media[].
+      maxBodyImageBytes: 5 * 1024 * 1024,
     },
+  );
+});
+
+test('the media limits that are the build input own equal the installed schema', () => {
+  const definitions = /** @type {any} */ (buildInputSchema).$defs;
+  const imageRule = definitions.contentBuildMediaFile.allOf.find(
+    (/** @type {any} */ rule) =>
+      rule.if.properties.mediaType.enum.includes('image/png'),
+  );
+  assert.equal(
+    MEDIA_LIMITS.maxBodyImageBytes,
+    imageRule.then.properties.byteLength.maximum,
+  );
+  assert.equal(
+    MEDIA_LIMITS.maxImagesPerDocument,
+    definitions.contentBuildRecord.properties.media.maxItems,
   );
 });
 
@@ -755,7 +775,11 @@ test('the total size limit counts each distinct file once', async () => {
     const base = {
       repositoryDirectory: directory,
       assetRoots: [{ path: 'assets' }],
-      limits: { ...SMALL_LIMITS, maxTotalBytes: each * 2 + 1 },
+      limits: {
+        ...SMALL_LIMITS,
+        maxTotalBytes: each * 2 + 1,
+        maxBodyImageBytes: 50,
+      },
     };
     const together = await resolveMediaReferences({
       ...base,
@@ -859,7 +883,74 @@ test('one document may list at most 200 distinct body images', async () => {
   });
 });
 
-test('a sparse 10 MiB + 1 byte file is over the default limit and is not read', async () => {
+test('an image listed in a document media[] is held to the smaller body bound; a hero is not', async () => {
+  await withRepository(async (directory) => {
+    // 45 bytes: over the body bound (40), under the source bound (50).
+    const middle = Buffer.concat([imageBytes('png', ''), Buffer.alloc(37)]);
+    assert.equal(middle.byteLength, 45);
+    await writeFile(path.join(directory, 'assets/mid.png'), middle);
+    const base = {
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      limits: SMALL_LIMITS,
+    };
+
+    const body = await resolveMediaReferences({
+      ...base,
+      references: [reference('content/a.md', 'assets/mid.png')],
+    });
+    assert.deepEqual(reasons(body), ['BODY_IMAGE_BYTES']);
+    assert.equal(body.findings[0]?.code, 'MEDIA_LIMIT_EXCEEDED');
+    assert.equal(body.findings[0]?.location, 'content/a.md');
+    assert.deepEqual(body.findings[0]?.evidence, {
+      limit: 'BODY_IMAGE_BYTES',
+      document: 'content/a.md',
+      path: 'assets/mid.png',
+      bytes: 45,
+      max: 40,
+    });
+    assert.match(
+      body.findings[0]?.detail ?? '',
+      /content\/a\.md: the image "assets\/mid\.png" is 45 bytes; an image in the body of a document may be at most 40 bytes \(5 MiB\)\. Only a hero image may be larger, up to 50 bytes/u,
+    );
+
+    // A hero is not listed in media[], so only the template's bound applies.
+    const hero = await resolveMediaReferences({
+      ...base,
+      references: [reference('content/a.md', 'assets/mid.png', 'hero')],
+    });
+    assert.deepEqual(hero.findings, []);
+    assert.equal(hero.files.get('assets/mid.png')?.byteLength, 45);
+    assert.equal(hero.documents.size, 0);
+
+    // The same file as a hero and in a body is listed in media[], so it is
+    // held to the body bound, and the body's document is the one named.
+    const both = await resolveMediaReferences({
+      ...base,
+      references: [
+        reference('content/hero.md', 'assets/mid.png', 'hero'),
+        reference('content/body.md', 'assets/mid.png'),
+      ],
+    });
+    assert.deepEqual(reasons(both), ['BODY_IMAGE_BYTES']);
+    assert.equal(both.findings[0]?.location, 'content/body.md');
+
+    // Over the template's bound the one bound is reported, for either origin.
+    await writeFile(
+      path.join(directory, 'assets/big.png'),
+      Buffer.concat([imageBytes('png', ''), Buffer.alloc(60)]),
+    );
+    for (const origin of /** @type {const} */ (['body', 'hero'])) {
+      const over = await resolveMediaReferences({
+        ...base,
+        references: [reference('content/a.md', 'assets/big.png', origin)],
+      });
+      assert.deepEqual(reasons(over), ['IMAGE_BYTES'], origin);
+    }
+  });
+});
+
+test('a sparse file one byte over 10 MiB is over the default limit and is not read; a hero may be exactly 10 MiB', async () => {
   await withRepository(async (directory) => {
     const file = path.join(directory, 'assets/huge.png');
     await writeFile(file, imageBytes('png'));
@@ -867,7 +958,7 @@ test('a sparse 10 MiB + 1 byte file is over the default limit and is not read', 
     const result = await resolveMediaReferences({
       repositoryDirectory: directory,
       assetRoots: [{ path: 'assets' }],
-      references: [reference('content/a.md', 'assets/huge.png')],
+      references: [reference('content/a.md', 'assets/huge.png', 'hero')],
     });
     assert.deepEqual(reasons(result), ['IMAGE_BYTES']);
 
@@ -875,12 +966,32 @@ test('a sparse 10 MiB + 1 byte file is over the default limit and is not read', 
     const atLimit = await resolveMediaReferences({
       repositoryDirectory: directory,
       assetRoots: [{ path: 'assets' }],
-      references: [reference('content/a.md', 'assets/huge.png')],
+      references: [reference('content/a.md', 'assets/huge.png', 'hero')],
     });
     assert.deepEqual(atLimit.findings, []);
     assert.equal(
       atLimit.files.get('assets/huge.png')?.byteLength,
       MEDIA_LIMITS.maxSourceBytes,
+    );
+
+    // As a body image the same file is over the 5 MiB bound of media[].
+    const asBody = await resolveMediaReferences({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [reference('content/a.md', 'assets/huge.png')],
+    });
+    assert.deepEqual(reasons(asBody), ['BODY_IMAGE_BYTES']);
+
+    await truncate(file, MEDIA_LIMITS.maxBodyImageBytes);
+    const bodyAtLimit = await resolveMediaReferences({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [reference('content/a.md', 'assets/huge.png')],
+    });
+    assert.deepEqual(bodyAtLimit.findings, []);
+    assert.equal(
+      bodyAtLimit.documents.get('content/a.md')?.[0]?.byteLength,
+      MEDIA_LIMITS.maxBodyImageBytes,
     );
   });
 });
