@@ -375,8 +375,11 @@ test('resolveRepositoryIdentity: real GitHub Actions environment facts are used 
 test('resolveSourceRevision: falls back to a deterministic local stand-in outside a git working tree', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {
-    const first = await resolveSourceRevision(dir);
-    const second = await resolveSourceRevision(dir);
+    // An empty environment, not the process's own: on a GitHub Actions runner
+    // GITHUB_ACTIONS and GITHUB_SHA are set, and then the commit the runner
+    // checked out is the revision, not the local stand-in this test is about.
+    const first = await resolveSourceRevision(dir, {});
+    const second = await resolveSourceRevision(dir, {});
     assert.equal(first, second);
     assert.match(first, /^sha256:[0-9a-f]{64}$/u);
   } finally {
