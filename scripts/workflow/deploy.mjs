@@ -399,7 +399,7 @@ async function main() {
       );
     }
     throw new Error(
-      `DEPLOY_NOT_ACTIVATED: the ${adapterId} run ended ${outcome.decision} with verified=${String(outcome.verified)}; the kernel journal is written and reportable`,
+      `DEPLOY_NOT_ACTIVATED: the ${adapterId} run ended ${outcome.decision} with verified=${String(outcome.verified)}; the kernel journal is written and this job fails; the report job submits it as a failure report`,
     );
   }
   process.stdout.write(

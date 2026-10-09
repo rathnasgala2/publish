@@ -717,6 +717,7 @@ jobs:
 
       - name: Upload the kernel journal
         id: upload
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path:
@@ -728,6 +729,7 @@ jobs:
 
       - name: Re-observe the kernel journal by exact ID
         id: journal
+        if: ${{ !cancelled() }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -867,15 +869,23 @@ jobs:
   report:
     name: Submit the preliminary report and kernel journal
     needs: [authorize, deploy-do-spaces, deploy-github-pages]
-    # DEC-097 section 6's literal guard: exactly one successful deploy job
-    # and exactly one skipped deploy job.
+    # DEC-097 section 6's guard, widened so a failed deploy still reports:
+    # authorize succeeded, the selected deploy job ended success or failure,
+    # and the other deploy job was skipped. A failed deploy is reported only
+    # when it uploaded its kernel journal (the journal output is non-empty);
+    # the API interprets the failure from that journal, so no outcome value
+    # is sent. A cancelled deploy is not reported.
     if:
       ${{ always() && needs.authorize.result == 'success' &&
       ((needs.authorize.outputs.adapter_id == 'do-spaces' &&
-      needs['deploy-do-spaces'].result == 'success' &&
+      (needs['deploy-do-spaces'].result == 'success' ||
+      (needs['deploy-do-spaces'].result == 'failure' &&
+      needs['deploy-do-spaces'].outputs.journal_id != '')) &&
       needs['deploy-github-pages'].result == 'skipped') ||
       (needs.authorize.outputs.adapter_id == 'github-pages' &&
-      needs['deploy-github-pages'].result == 'success' &&
+      (needs['deploy-github-pages'].result == 'success' ||
+      (needs['deploy-github-pages'].result == 'failure' &&
+      needs['deploy-github-pages'].outputs.journal_id != '')) &&
       needs['deploy-do-spaces'].result == 'skipped')) }}
     permissions:
       actions: read

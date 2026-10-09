@@ -85,7 +85,7 @@ const SPACES_DEPLOY_CONDITION =
 const PAGES_DEPLOY_CONDITION =
   "${{ always() && needs.authorize.result == 'success' && needs.freeze.result == 'success' && needs.authorize.outputs.adapter_id == 'github-pages' }}";
 const REPORT_CONDITION =
-  "${{ always() && needs.authorize.result == 'success' && ((needs.authorize.outputs.adapter_id == 'do-spaces' && needs['deploy-do-spaces'].result == 'success' && needs['deploy-github-pages'].result == 'skipped') || (needs.authorize.outputs.adapter_id == 'github-pages' && needs['deploy-github-pages'].result == 'success' && needs['deploy-do-spaces'].result == 'skipped')) }}";
+  "${{ always() && needs.authorize.result == 'success' && ((needs.authorize.outputs.adapter_id == 'do-spaces' && (needs['deploy-do-spaces'].result == 'success' || (needs['deploy-do-spaces'].result == 'failure' && needs['deploy-do-spaces'].outputs.journal_id != '')) && needs['deploy-github-pages'].result == 'skipped') || (needs.authorize.outputs.adapter_id == 'github-pages' && (needs['deploy-github-pages'].result == 'success' || (needs['deploy-github-pages'].result == 'failure' && needs['deploy-github-pages'].outputs.journal_id != '')) && needs['deploy-do-spaces'].result == 'skipped')) }}";
 
 test('publish-v2 declares exactly the nine jobs, in order', () => {
   assert.deepEqual(Object.keys(PUBLISH.jobs), EXPECTED_JOBS);
@@ -132,6 +132,22 @@ test('the four gated job conditions are byte-equal to DEC-097 section 6', () => 
   assert.equal(PUBLISH.jobs['deploy-do-spaces'].if, SPACES_DEPLOY_CONDITION);
   assert.equal(PUBLISH.jobs['deploy-github-pages'].if, PAGES_DEPLOY_CONDITION);
   assert.equal(PUBLISH.jobs.report.if, REPORT_CONDITION);
+});
+
+test('a failed deploy still reports, and a cancelled one does not', () => {
+  for (const job of ['deploy-do-spaces', 'deploy-github-pages']) {
+    assert.ok(REPORT_CONDITION.includes(`needs['${job}'].result == 'failure'`));
+    assert.ok(!REPORT_CONDITION.includes('cancelled'));
+    for (const name of [
+      'Upload the kernel journal',
+      'Re-observe the kernel journal by exact ID',
+    ]) {
+      const step = PUBLISH.jobs[job].steps.find(
+        (/** @type {{name: string}} */ st) => st.name === name,
+      );
+      assert.equal(step.if, '${{ !cancelled() }}', `${job}: ${name}`);
+    }
+  }
 });
 
 test('the two deploy conditions are mutually exclusive on adapter_id', () => {
