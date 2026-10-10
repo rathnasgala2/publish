@@ -42,26 +42,26 @@ jobs:
       # this checkout by path, and its own dependencies installed, for the
       # tests npm run verify's `npm test` runs. Mirrors ci.yml exactly so
       # release verifies against the same inputs CI does. Pinned to the
-      # commit published as template 3.2.0 (theme-default stays at
-      # its own 3.0.0 pin below) rather than a mutable `main`, so a push to the
+      # commit published as template 3.2.1 (theme-default is pinned at
+      # its own 3.0.1 pin below) rather than a mutable `main`, so a push to the
       # sibling repository cannot change what this job installs and runs.
       - name: Check out the template sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/template
-          ref: 9b0a311d1016d83217dac0f8f433f337aaa57764
+          ref: 9d952cbac5304449563a7aa33ddc9c97aa28b0c2
           path: .siblings/template
           persist-credentials: false
 
       # packages/publish-action's theme-bridge.js (LOCAL-only sibling
       # fallback step) needs this checkout by path for the same tests.
-      # Pinned to the commit published as theme-default 3.0.0 (P6 pin
+      # Pinned to the commit published as theme-default 3.0.1 (P6 pin
       # bump, cut against template 3.0.1), rather than a mutable `main`.
       - name: Check out the theme-default sibling repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/theme-default
-          ref: d737f1843b82f84c776c9515b5e6838ff75dc424
+          ref: 737f9206f4b2029b8092646646326cd6ca8bb2ee
           path: .siblings/theme-default
           persist-credentials: false
 

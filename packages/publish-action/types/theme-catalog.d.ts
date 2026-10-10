@@ -26,7 +26,8 @@ export function themePackageNameOf(themeSpecifier: string): string;
  * provenance and the authorization input unchanged. The workspace test
  * `theme-catalog.test.js` keeps this table equal to the installed packages.
  *
- * The catalog is `theme-default` only. `contractVersion` is the theme CONTRACT
+ * The catalog is `theme-default`, `theme-flashy`, `theme-minimal` and
+ * `theme-zebra`. `contractVersion` is the theme CONTRACT
  * version (`theme.json` `contractVersion`, which the pinned template compares
  * with its published styling contract), never the package version; the
  * package version and the contract version are independent.

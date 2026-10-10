@@ -62,9 +62,16 @@ async function fixtureSelecting(lockPackage, appearancePackage) {
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
-test('the catalog is exactly the one installed theme package (theme-default)', async () => {
-  assert.equal(THEME_CATALOG.length, 1);
-  assert.equal(THEME_CATALOG[0]?.package, '@rathnasgala2/theme-default');
+test('the catalog is exactly the four installed theme packages', async () => {
+  assert.deepEqual(
+    THEME_CATALOG.map((entry) => entry.package),
+    [
+      '@rathnasgala2/theme-default',
+      '@rathnasgala2/theme-flashy',
+      '@rathnasgala2/theme-minimal',
+      '@rathnasgala2/theme-zebra',
+    ],
+  );
   for (const entry of THEME_CATALOG) {
     const directory = path.join(
       INSTALLED_SCOPE,

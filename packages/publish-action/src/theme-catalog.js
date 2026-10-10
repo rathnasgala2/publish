@@ -13,7 +13,8 @@
  * provenance and the authorization input unchanged. The workspace test
  * `theme-catalog.test.js` keeps this table equal to the installed packages.
  *
- * The catalog is `theme-default` only. `contractVersion` is the theme CONTRACT
+ * The catalog is `theme-default`, `theme-flashy`, `theme-minimal` and
+ * `theme-zebra`. `contractVersion` is the theme CONTRACT
  * version (`theme.json` `contractVersion`, which the pinned template compares
  * with its published styling contract), never the package version; the
  * package version and the contract version are independent.
@@ -39,9 +40,27 @@ export const THEME_CATALOG = Object.freeze(
   [
     [
       'default',
+      '3.0.1',
+      '3.0.0',
+      '2d197e270e6e63636e2cac0c6823c215b63933930248533118868eae3ce17869',
+    ],
+    [
+      'flashy',
       '3.0.0',
       '3.0.0',
-      '14cd28618f8f726a319782ca3a126845df5472cb76e2f778e7016ba5f1f56e42',
+      '17587b37798a7ab0ac1707d51537287a0fb25765431f8b2ba9a043f764acf71d',
+    ],
+    [
+      'minimal',
+      '3.0.0',
+      '3.0.0',
+      'fcbae44196d2d14786b0f8822bd9a2265c4fcb3b229f167fdc396239032f7edb',
+    ],
+    [
+      'zebra',
+      '3.0.0',
+      '3.0.0',
+      '6eb28b304fbc5216f224dce7480863ea21d02c6ed5723cef75a7168dfddf9c52',
     ],
   ].map(([slug, version, contractVersion, hex]) =>
     Object.freeze({
