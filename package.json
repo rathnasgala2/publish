@@ -63,7 +63,7 @@
     "@cyclonedx/cyclonedx-npm": "6.0.1",
     "@eslint/js": "10.0.1",
     "@rathnasgala2/template": "3.2.1",
-    "@rathnasgala2/theme-default": "3.0.1",
+    "@rathnasgala2/theme-default": "3.0.0",
     "@rathnasgala2/theme-flashy": "3.0.0",
     "@rathnasgala2/theme-minimal": "3.0.0",
     "@rathnasgala2/theme-zebra": "3.0.0",

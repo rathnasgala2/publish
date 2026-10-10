@@ -40,9 +40,9 @@ export const THEME_CATALOG = Object.freeze(
   [
     [
       'default',
-      '3.0.1',
       '3.0.0',
-      '2d197e270e6e63636e2cac0c6823c215b63933930248533118868eae3ce17869',
+      '3.0.0',
+      '14cd28618f8f726a319782ca3a126845df5472cb76e2f778e7016ba5f1f56e42',
     ],
     [
       'flashy',

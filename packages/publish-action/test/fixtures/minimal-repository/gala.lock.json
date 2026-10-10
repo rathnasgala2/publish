@@ -28,7 +28,7 @@
   },
   "theme": {
     "package": "@rathnasgala2/theme-default",
-    "version": "3.0.1",
+    "version": "3.0.0",
     "integrity": "sha256:0000000000000000000000000000000000000000000000000000000000000004",
     "registry": "https://local-development.invalid/rathnasgala2/",
     "contractVersion": "3.0.0",

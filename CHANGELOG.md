@@ -10,7 +10,7 @@ and this project adheres to
 
 ### Changed
 
-- The toolchain ships `theme-default` 3.0.1, `theme-flashy`, `theme-minimal` and
+- The toolchain ships `theme-default` 3.0.0, `theme-flashy`, `theme-minimal` and
   `theme-zebra` 3.0.0 (all theme contract 3.0.0) and pins
   `@rathnasgala2/template` 3.2.1 (distinct enabled, disabled and working states
   for the interaction buttons). The sibling checkouts in CI, nightly and release

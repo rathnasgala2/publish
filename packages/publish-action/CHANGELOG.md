@@ -65,7 +65,7 @@ and this project adheres to
 
 ### Changed
 
-- The theme catalog lists `theme-default` 3.0.1, `theme-flashy`, `theme-minimal`
+- The theme catalog lists `theme-default` 3.0.0, `theme-flashy`, `theme-minimal`
   and `theme-zebra` 3.0.0, each with the SHA-256 of its registry tarball; the
   optional `template` peer range starts at 3.2.1.
 
