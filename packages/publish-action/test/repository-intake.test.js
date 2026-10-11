@@ -24,6 +24,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
+import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
 
 import { runAction } from '../src/action/run.js';
 import { runBuild } from '../src/commands/build.js';
@@ -33,7 +34,10 @@ import {
   buildBuildInputFromRepository,
   resolveRepositoryIdentity,
 } from '../src/normalize/repository-intake.js';
-import { ADAPTER_PACKAGES } from '../src/normalize/destination-capabilities.js';
+import {
+  ADAPTER_ARTIFACT_CATALOG,
+  ADAPTER_PACKAGES,
+} from '../src/adapter-artifact-catalog.js';
 import {
   resolveBuildEpoch,
   resolveSourceRevision,
@@ -101,26 +105,36 @@ test('the fixture repository normalizes to a schema-valid build-input', async ()
   );
 });
 
-test('destinationCapabilities.adapter byte-equals the lock-selected adapter for all three adapters (DEC-097 sections 3 and 5)', async () => {
-  for (const [adapterPackage, adapterId] of Object.entries(ADAPTER_PACKAGES)) {
+test('destinationCapabilities.adapter byte-equals each exact catalog adapter (DEC-097 sections 3 and 5)', async () => {
+  for (const artifact of ADAPTER_ARTIFACT_CATALOG) {
     const { dir, cleanup } = await mutableFixtureCopy();
     try {
       const lockPath = path.join(dir, 'gala.lock.json');
       const lock = JSON.parse(await readFile(lockPath, 'utf8'));
       lock.publisher = lock.publisher.map((/** @type {any} */ row) =>
         Object.hasOwn(ADAPTER_PACKAGES, row.package)
-          ? { ...row, package: adapterPackage, version: '3.1.4' }
+          ? {
+              package: artifact.package,
+              version: artifact.version,
+              integrity: artifact.integrity,
+              registry: artifact.registry,
+              contractVersion: artifact.contractVersion,
+              compatibleWith: artifact.compatibleWith,
+            }
           : row,
+      );
+      lock.lockDigest = /** @type {any} */ (ACTIVE_DIGEST_PROFILES.lock).digest(
+        lock,
       );
       await writeFile(lockPath, JSON.stringify(lock, null, 2));
       const buildInput = /** @type {any} */ (
         await buildBuildInputFromRepository({ repositoryDirectory: dir })
       );
       const row = lock.publisher.find(
-        (/** @type {any} */ entry) => entry.package === adapterPackage,
+        (/** @type {any} */ entry) => entry.package === artifact.package,
       );
       assert.deepEqual(buildInput.destinationCapabilities.adapter, {
-        adapterId,
+        adapterId: artifact.adapterId,
         adapterVersion: row.version,
         adapterDigest: row.integrity,
       });
@@ -136,6 +150,60 @@ test('destinationCapabilities.adapter byte-equals the lock-selected adapter for 
     } finally {
       await cleanup();
     }
+  }
+});
+
+test('every member of the selected adapter row is bound to the closed catalog', async () => {
+  for (const [member, tampered] of Object.entries({
+    version: '9.9.9',
+    integrity: `sha256:${'f'.repeat(64)}`,
+    registry: 'https://registry.invalid/',
+    contractVersion: '9.9.9',
+    compatibleWith: '^9.9.9',
+  })) {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      const lockPath = path.join(dir, 'gala.lock.json');
+      const lock = JSON.parse(await readFile(lockPath, 'utf8'));
+      const row = lock.publisher.find((/** @type {any} */ candidate) =>
+        Object.hasOwn(ADAPTER_PACKAGES, candidate.package),
+      );
+      row[member] = tampered;
+      lock.lockDigest = /** @type {any} */ (ACTIVE_DIGEST_PROFILES.lock).digest(
+        lock,
+      );
+      await writeFile(lockPath, JSON.stringify(lock, null, 2));
+
+      await assert.rejects(
+        buildBuildInputFromRepository({ repositoryDirectory: dir }),
+        /LOCK_ADAPTER_IDENTITY_INVALID/u,
+      );
+    } finally {
+      await cleanup();
+    }
+  }
+});
+
+test('the lock schema rejects an extra selected-adapter member', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const lockPath = path.join(dir, 'gala.lock.json');
+    const lock = JSON.parse(await readFile(lockPath, 'utf8'));
+    const row = lock.publisher.find((/** @type {any} */ candidate) =>
+      Object.hasOwn(ADAPTER_PACKAGES, candidate.package),
+    );
+    row.unapproved = true;
+    lock.lockDigest = /** @type {any} */ (ACTIVE_DIGEST_PROFILES.lock).digest(
+      lock,
+    );
+    await writeFile(lockPath, JSON.stringify(lock, null, 2));
+
+    await assert.rejects(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      SchemaValidationError,
+    );
+  } finally {
+    await cleanup();
   }
 });
 

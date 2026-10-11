@@ -1,32 +1,47 @@
 /**
- * The toolchain's shipped theme catalog: every theme package the lock may
- * name is installed in the toolchain root, `THEME_CATALOG` states exactly what
- * is installed, a build with each theme selected consistently renders that
- * theme's CSS, and a lock/appearance disagreement is refused with
+ * The toolchain's generation-4 theme catalog: every local candidate may be selected,
+ * each candidate package agrees with `THEME_CATALOG`, a consistent build
+ * renders its CSS, and a lock/appearance disagreement is refused with
  * `THEME_SELECTION_MISMATCH`.
  *
  * Resolution mirrors the sandbox (`scripts/sandbox-build.sh`):
- * `WORKSPACE_ROOT` is the toolchain's own `node_modules/@rathnasgala2`, set
- * before any module that reads it is imported.
+ * `WORKSPACE_ROOT` points at the v2 sibling checkouts before any module that
+ * reads it is imported.
  */
 
 import assert from 'node:assert/strict';
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import {
+  cp,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixtures/minimal-repository');
-const INSTALLED_SCOPE = path.resolve(
-  HERE,
-  '../../../node_modules/@rathnasgala2',
-);
-process.env.WORKSPACE_ROOT = INSTALLED_SCOPE;
+const WORKSPACE_ROOT =
+  process.env.WORKSPACE_ROOT ?? path.resolve(HERE, '../../../..');
+process.env.WORKSPACE_ROOT = WORKSPACE_ROOT;
+const execFileAsync = promisify(execFile);
 
-const { THEME_CATALOG, findThemeCatalogEntry, themePackageNameOf } =
-  await import('../src/theme-catalog.js');
+const {
+  THEME_CATALOG,
+  findThemeCatalogEntry,
+  requireThemeArtifact,
+  themePackageNameOf,
+} = await import('../src/theme-catalog.js');
+const { ACTIVE_DIGEST_PROFILES } =
+  await import('@rathnasgala2/schemas/digest-profiles');
+const LOCK_DIGEST_PROFILE = /** @type {any} */ (ACTIVE_DIGEST_PROFILES.lock);
 const { runBuild } = await import('../src/commands/build.js');
 const { buildBuildInputFromRepository, RepositoryIntakeError } =
   await import('../src/normalize/repository-intake.js');
@@ -55,27 +70,26 @@ async function fixtureSelecting(lockPackage, appearancePackage) {
   const entry = /** @type {any} */ (findThemeCatalogEntry(lockPackage));
   await editJson(dir, 'gala.lock.json', (lock) => {
     lock.theme = { ...entry };
+    lock.lockDigest = LOCK_DIGEST_PROFILE.digest(lock);
   });
   await editJson(dir, 'gala/appearance.json', (doc) => {
-    doc.theme = `${appearancePackage}@^3.0.0`;
+    doc.theme = `${appearancePackage}@^4.0.0`;
   });
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
-test('the catalog is exactly the five installed theme packages', async () => {
-  assert.deepEqual(
-    THEME_CATALOG.map((entry) => entry.package),
-    [
-      '@rathnasgala2/theme-default',
-      '@rathnasgala2/theme-amaze',
-      '@rathnasgala2/theme-flashy',
-      '@rathnasgala2/theme-minimal',
-      '@rathnasgala2/theme-zebra',
-    ],
-  );
+test('the catalog is exactly the six local generation-4 candidate packages', async () => {
+  assert.deepEqual(THEME_CATALOG.map((entry) => entry.package).sort(), [
+    '@rathnasgala2/theme-amaze',
+    '@rathnasgala2/theme-default',
+    '@rathnasgala2/theme-editorial',
+    '@rathnasgala2/theme-flashy',
+    '@rathnasgala2/theme-minimal',
+    '@rathnasgala2/theme-zebra',
+  ]);
   for (const entry of THEME_CATALOG) {
     const directory = path.join(
-      INSTALLED_SCOPE,
+      WORKSPACE_ROOT,
       entry.package.replace('@rathnasgala2/', ''),
     );
     const packageJson = JSON.parse(
@@ -90,13 +104,127 @@ test('the catalog is exactly the five installed theme packages', async () => {
     assert.match(entry.integrity, /^sha256:[0-9a-f]{64}$/u);
   }
   assert.equal(
-    themePackageNameOf('@rathnasgala2/theme-zebra@^2.0.0'),
-    '@rathnasgala2/theme-zebra',
+    themePackageNameOf('@rathnasgala2/theme-editorial@^4.0.0'),
+    '@rathnasgala2/theme-editorial',
   );
   assert.equal(
-    themePackageNameOf('@rathnasgala2/theme-zebra'),
-    '@rathnasgala2/theme-zebra',
+    themePackageNameOf('@rathnasgala2/theme-editorial'),
+    '@rathnasgala2/theme-editorial',
   );
+});
+
+test('catalog and fixture integrities equal the locally packed candidate tarball SHA-256', async () => {
+  const fixtureLock = JSON.parse(
+    await readFile(path.join(FIXTURE, 'gala.lock.json'), 'utf8'),
+  );
+  for (const catalogEntry of THEME_CATALOG) {
+    const temporaryDirectory = await mkdtemp(
+      path.join(tmpdir(), 'gala-theme-pack-'),
+    );
+    try {
+      const themeDirectory = path.join(
+        WORKSPACE_ROOT,
+        catalogEntry.package.replace('@rathnasgala2/', ''),
+      );
+      await execFileAsync(
+        'npm',
+        [
+          'pack',
+          themeDirectory,
+          '--json',
+          '--pack-destination',
+          temporaryDirectory,
+        ],
+        {
+          env: {
+            ...process.env,
+            npm_config_cache: path.join(temporaryDirectory, 'npm-cache'),
+          },
+        },
+      );
+      const tarballs = (await readdir(temporaryDirectory)).filter((name) =>
+        name.endsWith('.tgz'),
+      );
+      assert.equal(tarballs.length, 1);
+      const tarball = tarballs[0];
+      assert.ok(tarball);
+      const bytes = await readFile(path.join(temporaryDirectory, tarball));
+      const digest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+      assert.equal(catalogEntry.integrity, digest, catalogEntry.package);
+      if (fixtureLock.theme.package === catalogEntry.package) {
+        assert.equal(fixtureLock.theme.integrity, digest);
+      }
+    } finally {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  }
+});
+
+test('catalog admission binds every value and the exact six-member row shape', () => {
+  const entry = THEME_CATALOG[0];
+  assert.ok(entry !== undefined);
+  assert.equal(requireThemeArtifact({ ...entry }, 'TEST_THEME_INVALID'), entry);
+
+  for (const [member, tampered] of Object.entries({
+    package: '@rathnasgala2/theme-unknown',
+    version: '9.9.9',
+    integrity: `sha256:${'f'.repeat(64)}`,
+    registry: 'https://registry.invalid/',
+    contractVersion: '9.9.9',
+    compatibleWith: '^9.9.9',
+  })) {
+    assert.throws(
+      () =>
+        requireThemeArtifact(
+          { ...entry, [member]: tampered },
+          'TEST_THEME_INVALID',
+        ),
+      /TEST_THEME_INVALID/u,
+      member,
+    );
+  }
+
+  const { compatibleWith, ...incomplete } = entry;
+  assert.throws(
+    () => requireThemeArtifact(incomplete, 'TEST_THEME_INVALID'),
+    /TEST_THEME_INVALID/u,
+  );
+  assert.throws(
+    () =>
+      requireThemeArtifact(
+        { ...incomplete, compatibleWith, unapproved: true },
+        'TEST_THEME_INVALID',
+      ),
+    /TEST_THEME_INVALID/u,
+  );
+});
+
+test('repository intake rejects every schema-admitted catalog value drift before projection', async () => {
+  for (const [member, tampered] of Object.entries({
+    version: '9.9.9',
+    integrity: `sha256:${'f'.repeat(64)}`,
+    registry: 'https://registry.invalid/',
+    contractVersion: '9.9.9',
+    compatibleWith: '^9.9.9',
+  })) {
+    const { dir, cleanup } = await fixtureSelecting(
+      '@rathnasgala2/theme-editorial',
+      '@rathnasgala2/theme-editorial',
+    );
+    try {
+      await editJson(dir, 'gala.lock.json', (lock) => {
+        lock.theme[member] = tampered;
+        lock.lockDigest = LOCK_DIGEST_PROFILE.digest(lock);
+      });
+      await assert.rejects(
+        buildBuildInputFromRepository({ repositoryDirectory: dir }),
+        /LOCK_THEME_IDENTITY_INVALID/u,
+        member,
+      );
+    } finally {
+      await cleanup();
+    }
+  }
 });
 
 for (const entry of THEME_CATALOG) {
@@ -118,7 +246,7 @@ for (const entry of THEME_CATALOG) {
         JSON.stringify(result.findings),
       );
       const installed = path.join(
-        INSTALLED_SCOPE,
+        WORKSPACE_ROOT,
         entry.package.replace('@rathnasgala2/', ''),
       );
       for (const css of ['tokens.css', 'components.css']) {
@@ -143,8 +271,8 @@ for (const entry of THEME_CATALOG) {
 
 test('appearance.json naming a different theme than the lock is refused with THEME_SELECTION_MISMATCH', async () => {
   const { dir, cleanup } = await fixtureSelecting(
+    '@rathnasgala2/theme-editorial',
     '@rathnasgala2/theme-default',
-    '@rathnasgala2/theme-zebra',
   );
   try {
     await assert.rejects(
@@ -153,8 +281,8 @@ test('appearance.json naming a different theme than the lock is refused with THE
         assert.ok(error instanceof RepositoryIntakeError);
         const finding = /** @type {any} */ (error.findings[0]);
         assert.equal(finding.code, 'THEME_SELECTION_MISMATCH');
-        assert.match(finding.detail, /theme-zebra/u);
         assert.match(finding.detail, /theme-default/u);
+        assert.match(finding.detail, /theme-editorial/u);
         assert.match(finding.recovery, /Settings .* Appearance/u);
         return true;
       },
@@ -176,23 +304,24 @@ test('appearance.json naming a different theme than the lock is refused with THE
   }
 });
 
-test('intake does not validate the lock lockDigest against its theme block (a future enforcement must change this test)', async () => {
+test('intake rejects a lockDigest that does not authenticate the complete lock', async () => {
   const { dir, cleanup } = await fixtureSelecting(
-    '@rathnasgala2/theme-default',
-    '@rathnasgala2/theme-default',
+    '@rathnasgala2/theme-editorial',
+    '@rathnasgala2/theme-editorial',
   );
   try {
-    // The fixture's lockDigest (…0008) was computed for a different theme
-    // block, and is now also set to an unrelated value: intake accepts both.
     await editJson(dir, 'gala.lock.json', (lock) => {
       lock.lockDigest = `sha256:${'f'.repeat(64)}`;
     });
-    const input = await buildBuildInputFromRepository({
-      repositoryDirectory: dir,
-    });
-    assert.equal(
-      /** @type {any} */ (input).packages.theme.package,
-      '@rathnasgala2/theme-default',
+    await assert.rejects(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      (/** @type {any} */ error) => {
+        assert.ok(error instanceof RepositoryIntakeError);
+        const finding = error.findings[0];
+        assert.ok(finding !== undefined);
+        assert.equal(finding.code, 'LOCK_DIGEST_MISMATCH');
+        return true;
+      },
     );
   } finally {
     await cleanup();

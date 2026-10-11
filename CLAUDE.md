@@ -24,6 +24,8 @@ npm run architecture
 npm run duplication
 npm test
 npm run coverage:check
+npm run vendor:check
+npm run source-only:check
 npm run sbom:check     # npm run sbom regenerates sbom.cdx.json; sbom:check proves it is current
 npm run audit
 npm run workflows:check
@@ -81,12 +83,12 @@ control-plane key.
 
 ## Contract sources and generation commands
 
-`@rathnasgala2/schemas@3.3.0` is consumed from the public npm registry (exact
-pin, no range); the LOCAL-1/LOCAL-43 local-tarball convention
-(`file:../../local-packages/rathnasgala2-schemas-*.tgz`, pinned in
-`pins/ledger.json`) is retired for this package now that it publishes. No schema
-is re-authored here. Protocol payloads are validated with the package's exported
-`validateGalaDocument(schemaId, value)` against
+The source manifests target the committed, manifest-verified
+`@rathnasgala2/schemas@3.8.0` tarball (exact pin, no range). Schema, template
+4.0.0 and all six generation-4 themes are delivered from `vendor/packages/`;
+neither npm publication nor a sibling checkout is part of installation. No
+schema is re-authored here. Protocol payloads are validated with the package's
+exported `validateGalaDocument(schemaId, value)` against
 `urn:gala:schema:adapter-capability:2.0.0`,
 `urn:gala:schema:deployment-intent:2.0.0`,
 `urn:gala:schema:deployment-observation:2.0.0` and
@@ -99,14 +101,12 @@ command in this repository; a schema change lands upstream in `schema` first.
 native test runner (`node --test`) per package. `adapter-protocol` has no
 external service dependency; its tests are pure unit and property tests.
 `packages/publish-action`'s build/theme tests (`test/theme-bridge.test.js`,
-`test/e2e-npx-and-action.test.js`) resolve a real `rathnasgala2/template` and
-`rathnasgala2/theme-default` checkout as siblings (`WORKSPACE_ROOT`, DEC-015;
-`../../../../` from `packages/publish-action/src/` by default) and fail in a
-checkout of this repository alone: `ci.yml`/`nightly.yml`/`release.yaml` provide
-both siblings, pinned by commit SHA, as a checkout step before `npm test` runs.
-There is no local no-sibling fallback today (PUB-H5); running just `npm test`
-from a bare clone of this repository fails those two files until
-`WORKSPACE_ROOT` points at real `template`/`theme-default` checkouts.
+`test/e2e-npx-and-action.test.js`) resolve installed `rathnasgala2/template` and
+generation-4 `rathnasgala2/theme-*` packages by setting
+`WORKSPACE_ROOT="$PWD/node_modules/@rathnasgala2"`. CI, nightly and release
+verification set that path. `npm run vendor:check` is the isolated fail-closed
+gate; `npm run vendor:source-check` additionally proves that two fresh packs
+from the adjacent `v2` source tree are byte-identical to the committed set.
 
 ## Review checklist
 

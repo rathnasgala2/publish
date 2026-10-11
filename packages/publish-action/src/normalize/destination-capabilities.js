@@ -32,16 +32,13 @@
 import { createHash } from 'node:crypto';
 
 import { getCapabilityRow } from '@rathnasgala2/adapter-protocol';
+import {
+  ADAPTER_PACKAGES,
+  findAdapterArtifact,
+  requireAdapterArtifact,
+} from '../adapter-artifact-catalog.js';
 
-/**
- * The closed DEC-097 section 3 package-to-adapter-id mapping. The selected
- * row must match in both directions; no alias is admitted.
- */
-export const ADAPTER_PACKAGES = Object.freeze({
-  '@rathnasgala2/adapter-local-directory': 'local-directory',
-  '@rathnasgala2/adapter-github-pages': 'github-pages',
-  '@rathnasgala2/adapter-do-spaces': 'do-spaces',
-});
+export { ADAPTER_PACKAGES } from '../adapter-artifact-catalog.js';
 
 /**
  * @param {string} value value to digest
@@ -73,6 +70,10 @@ export function selectLockedAdapterRow(lock) {
         .join(', ')})`,
     );
   }
+  requireAdapterArtifact(
+    /** @type {Record<string, unknown>} */ (rows[0]),
+    'LOCK_ADAPTER_IDENTITY_INVALID',
+  );
   return /** @type {{package: string, version: string, integrity: string}} */ (
     rows[0]
   );
@@ -93,10 +94,13 @@ export function selectLockedAdapterRow(lock) {
  */
 export function destinationCapabilitiesFromLock(input) {
   const row = selectLockedAdapterRow(input.lock);
-  const adapterId =
-    ADAPTER_PACKAGES[
-      /** @type {keyof typeof ADAPTER_PACKAGES} */ (row.package)
-    ];
+  const artifact = findAdapterArtifact(row.package);
+  if (artifact === undefined) {
+    throw new Error(
+      `LOCK_ADAPTER_SELECTION_INVALID: ${row.package} is not cataloged`,
+    );
+  }
+  const adapterId = artifact.adapterId;
   const capabilityRow = getCapabilityRow(adapterId);
   if (capabilityRow === undefined) {
     throw new Error(

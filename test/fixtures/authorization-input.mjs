@@ -208,19 +208,19 @@ export function authorizationInput(options) {
       },
       schemas: {
         package: '@rathnasgala2/schemas',
-        version: '2.9.0',
+        version: '3.8.0',
         integrity: digestOf('schemas'),
         registry: 'https://registry.npmjs.org/',
       },
       template: {
         package: '@rathnasgala2/template',
-        version: '0.1.0',
+        version: '4.0.0',
         integrity: digestOf('template'),
         registry: 'https://registry.npmjs.org/',
       },
       theme: {
-        package: '@rathnasgala2/theme-default',
-        version: '0.1.0',
+        package: '@rathnasgala2/theme-editorial',
+        version: '4.0.0',
         integrity: digestOf('theme'),
         registry: 'https://registry.npmjs.org/',
       },

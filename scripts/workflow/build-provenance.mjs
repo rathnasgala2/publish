@@ -21,9 +21,8 @@
  * @module
  */
 
-import { validateGalaDocument } from '@rathnasgala2/schemas';
-
 import { taggedCommit } from './build-authorization-input.mjs';
+import { validateGalaDocument } from './schema-runtime.mjs';
 
 /** The constant schema identity of the record. */
 export const BUILD_PROVENANCE_SCHEMA_ID =

@@ -5,19 +5,20 @@ Author-facing publish orchestration entry: GitHub Action plus local `npx`
 
 ## Status
 
-Implemented (S2-T20, extended by S2-T20b's theme wiring) and **unpublished**:
-`package.json` sets `"private": true` (PUB-H8), so `npm publish` refuses this
-package regardless of `release.yaml`'s exclusion list. This package is the
-workspace's sole composition root: it normalizes an author repository into a
-validated `build-input:2.0.0` document, resolves and verifies the
+Implemented (S2-T20, extended by S2-T20b's theme wiring) and **source-only**:
+every workspace package is private and `release.yaml` is verification-only. The
+publish repository installs this package's template/theme dependencies from its
+manifest-verified `vendor/packages/` set, without npm publication. This package
+is the workspace's sole composition root: it normalizes an author repository
+into a validated `build-input:2.0.0` document, resolves and verifies the
 `gala.lock.json`-pinned theme package (see "Theme resolution" below), calls
 `@rathnasgala2/template`'s `renderPublication`, and drives
 `@rathnasgala2/publish-kernel` plus the selected `@rathnasgala2/adapter-*`
 implementation.
 
 `adapter-github-pages` and `adapter-do-spaces` are themselves fully implemented
-and published (S4-T04/S4-T05) — the gap is in this package's own wiring, not in
-those adapters: `assertImplementedAdapter` (`src/adapter-select.js`) only admits
+(S4-T04/S4-T05) — the gap is in this package's own wiring, not in those
+adapters: `assertImplementedAdapter` (`src/adapter-select.js`) only admits
 `local-directory` today, and `github-pages`/`do-spaces` selection fails closed
 with `TARGET_CAPABILITY_UNAVAILABLE` until S2-T18/S2-T19 wire them into this
 composition root.
@@ -251,19 +252,15 @@ and `scripts/sandbox-build.sh` forwards both variables into the sandbox.
 
 `gala.lock.json`'s `theme` entry (`buildInput.packages.theme`, the sole
 authority for the theme selection) names a real theme package
-(`@rathnasgala2/theme-<name>@<version>`), but this workspace never installs one
-as an npm dependency (the same reasoning `template-bridge.js` documents for
-`@rathnasgala2/template`: a theme package is a full sibling repository with its
-own independently installed `node_modules`, and adding it as a `file:`
-dependency would pollute this workspace's own `npm ls`/SBOM output).
-`src/theme-bridge.js`'s `resolveThemeDirectory` instead locates the theme
-package directory on disk, in this fixed order — the first candidate directory
-that actually exists wins:
+(`@rathnasgala2/theme-<name>@<version>`). This workspace installs all six
+generation-4 themes and template 4.0.0 from the manifest-verified
+`vendor/packages/` tarballs. `src/theme-bridge.js`'s `resolveThemeDirectory`
+locates the selected theme package directory on disk, in this fixed order — the
+first candidate directory that actually exists wins:
 
 1. **Installed package** —
    `<repositoryDirectory>/node_modules/<theme package name>`. This is the
-   eventual real path once an author repository declares the theme package as an
-   ordinary npm dependency and a real registry publish exists.
+   author-owned override when an author repository declares the theme package.
 2. **`GALA_THEME_DIR` override** — an absolute or cwd-relative path to an
    extracted theme package directory.
 3. **LOCAL-only sibling checkout** —
@@ -302,10 +299,11 @@ copies the theme's declared stylesheets (and any declared passive assets) into
 the candidate output's `assets/theme/` and links them, in `cssLayers` order, in
 every generated page's `<head>` (see `v2/template`'s README, S2-T12 section, for
 that consuming side's own path-containment and `basePath`-joining guarantees).
-The fixture repository's `gala.lock.json` pins
-`@rathnasgala2/theme-default@2.0.0`; `test/e2e-npx-and-action.test.js` asserts
+The vendor gate and catalog test pack every generation-4 candidate. The fixture
+repository's `gala.lock.json` pins the committed candidate
+`@rathnasgala2/theme-editorial@4.0.0`; `test/e2e-npx-and-action.test.js` asserts
 the rendered `assets/theme/tokens.css`/`components.css`/`print.css` are
-byte-equal to the real `theme-default` sibling package's own files, and that the
+byte-equal to the installed `theme-editorial` package's own files, and that the
 rendered `<link>` order matches `theme.json`'s `cssLayers`.
 
 ## Sibling-repository resolution and `WORKSPACE_ROOT` (FOLLOW-UP SUPPLY-CHAIN-JS)
@@ -322,14 +320,16 @@ containing the sibling repositories makes both resolve as
 for running from a location where the fixed relative default cannot reach the
 siblings, such as a git worktree one level deeper than the real checkout
 (LOCAL-38: `WORKSPACE_ROOT=/Users/anand/ws/galascribe/v2` from a worktree under
-`v2/.worktrees/<name>`). A single-repository CI checkout has no sibling
-repositories at all either way; resolution there fails closed with a
-`WorkspaceSiblingNotFoundError` that names `WORKSPACE_ROOT` in its message
-rather than a raw module-not-found error. `GALA_THEME_DIR` (theme-bridge step 2)
-is unaffected and still takes precedence over the `WORKSPACE_ROOT`-resolved
-local-sibling step for a theme-package override that is not itself a
-`v2/theme-<name>` sibling checkout. `test/theme-bridge.test.js` covers the
-resolution-order precedence and every fail-closed path.
+`v2/.worktrees/<name>`). The reusable workflow and repository CI instead set
+`WORKSPACE_ROOT` to `<toolchain>/node_modules/@rathnasgala2`, where
+`npm ci --ignore-scripts` installs the committed template and themes. A missing
+package fails closed with a `WorkspaceSiblingNotFoundError` that names
+`WORKSPACE_ROOT` in its message rather than a raw module-not-found error.
+`GALA_THEME_DIR` (theme-bridge step 2) is unaffected and still takes precedence
+over the `WORKSPACE_ROOT`-resolved local-sibling step for a theme-package
+override that is not itself a `v2/theme-<name>` sibling checkout.
+`test/theme-bridge.test.js` covers the resolution-order precedence and every
+fail-closed path.
 
 ## Provenance
 

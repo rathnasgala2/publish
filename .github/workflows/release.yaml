@@ -1,4 +1,4 @@
-name: Release
+name: Source-only release verification
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
       - packages/**
       - package.json
       - package-lock.json
+      - vendor/**
       - scripts/**
       - pins/**
       - .github/workflows/release.yaml
@@ -22,47 +23,16 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify release inputs
+    name: Verify source-only release inputs
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      # Inside $GITHUB_WORKSPACE, under `.siblings/` — mirrors ci.yml
-      # (actions/checkout refuses a `path:` outside $GITHUB_WORKSPACE).
-      # publish-action's template-bridge.js/theme-bridge.js resolve these
-      # siblings by path, and npm run verify exercises their tests.
-      WORKSPACE_ROOT: ${{ github.workspace }}/.siblings
+      WORKSPACE_ROOT: ${{ github.workspace }}/node_modules/@rathnasgala2
     steps:
       - name: Check out the complete history
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
-          persist-credentials: false
-
-      # packages/publish-action's template-bridge.js (TEMPLATE_ROOT) needs
-      # this checkout by path, and its own dependencies installed, for the
-      # tests npm run verify's `npm test` runs. Mirrors ci.yml exactly so
-      # release verifies against the same inputs CI does. Pinned to the
-      # commit published as template 3.2.1 (theme-default is pinned at
-      # its own 3.0.1 pin below) rather than a mutable `main`, so a push to the
-      # sibling repository cannot change what this job installs and runs.
-      - name: Check out the template sibling repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          repository: rathnasgala2/template
-          ref: 9d952cbac5304449563a7aa33ddc9c97aa28b0c2
-          path: .siblings/template
-          persist-credentials: false
-
-      # packages/publish-action's theme-bridge.js (LOCAL-only sibling
-      # fallback step) needs this checkout by path for the same tests.
-      # Pinned to the commit published as theme-default 3.0.1 (P6 pin
-      # bump, cut against template 3.0.1), rather than a mutable `main`.
-      - name: Check out the theme-default sibling repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          repository: rathnasgala2/theme-default
-          ref: 737f9206f4b2029b8092646646326cd6ca8bb2ee
-          path: .siblings/theme-default
           persist-credentials: false
 
       - name: Install the pinned Node.js distribution
@@ -81,117 +51,5 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Install the template sibling's own dependencies
-        working-directory: .siblings/template
-        run: npm ci --ignore-scripts
-
       - name: Run the complete release gate
         run: npm run verify
-
-  publish:
-    name: Publish bumped packages
-    needs: verify
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    environment: npm
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      # No sibling checkout and no foreign install in this job: it holds
-      # the npm publish credential (OIDC token via `environment: npm`), and
-      # the `verify` job above already proved this exact commit against the
-      # sibling repositories with no publish authority in scope. Installing
-      # untrusted-input steps and holding credentials never happen in the
-      # same job (PUB-C3).
-      - name: Check out the release commit
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-
-      - name: Install the pinned Node.js distribution
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .node-version
-          cache: npm
-          registry-url: https://registry.npmjs.org
-
-      - name: Install locked dependencies
-        run: npm ci
-
-      # Publish order follows the six packages' dependency graph:
-      # adapter-protocol has no in-repo dependents below it, publish-kernel
-      # depends on it, and the three concrete adapters plus the conformance
-      # kit sit above both. packages/publish-action is implemented but
-      # carries "private": true (PUB-H8) and is deliberately excluded from
-      # this list -- npm would refuse to publish it even if it were not.
-      # Its composition root still wires only local-directory of the three
-      # adapters (see packages/publish-action/README.md "Status"), which is
-      # the remaining reason it stays unpublished.
-      - name: Publish bumped packages in dependency order
-        shell: bash
-        env:
-          PACKAGE_DIRS: >-
-            adapter-protocol publish-kernel adapter-conformance-kit
-            adapter-local-directory adapter-github-pages adapter-do-spaces
-        run: |
-          set -euo pipefail
-
-          for package_dir in ${PACKAGE_DIRS}; do
-            manifest="packages/${package_dir}/package.json"
-            package_name="$(node --input-type=module -e "
-              import definition from './${manifest}' with { type: 'json' };
-              process.stdout.write(definition.name);
-            ")"
-            package_version="$(node --input-type=module -e "
-              import definition from './${manifest}' with { type: 'json' };
-              process.stdout.write(definition.version);
-            ")"
-
-            echo "== ${package_name}@${package_version} (${package_dir}) =="
-
-            npm pack --dry-run -w "${package_name}"
-
-            # PUB-M13: `npm view` exits non-zero for a 404 *and* for a
-            # registry 5xx, a network timeout, an auth failure or a rate
-            # limit. Treating every non-zero exit as "not published" turns a
-            # transient blip into an attempted republish, which fails with
-            # EPUBLISHCONFLICT partway through this dependency-ordered loop.
-            # scripts/release/npm-view-status.mjs captures npm view's
-            # stdout and stderr as two separate streams (merging them with
-            # `2>&1` used to put stderr's human-readable "npm error" prose
-            # ahead of the --json document on stdout, which broke the
-            # JSON.parse this discrimination depends on) and classifies the
-            # outcome as published/unpublished/error; see
-            # test/release-npm-view.test.mjs for the regression this fixes.
-            set +e
-            status_json="$(node scripts/release/npm-view-status.mjs "${package_name}" "${package_version}")"
-            status_exit=$?
-            set -e
-
-            if [ "${status_exit}" -ne 0 ]; then
-              echo "npm-view-status.mjs failed for ${package_name}@${package_version}:" >&2
-              echo "${status_json}" >&2
-              exit 1
-            fi
-
-            status="$(node --input-type=module -e "
-              const parsed = JSON.parse(process.argv[1]);
-              process.stdout.write(parsed.status);
-            " -- "${status_json}")"
-
-            case "${status}" in
-              published)
-                echo "${package_name}@${package_version} is already published, skipping."
-                continue
-                ;;
-              unpublished)
-                echo "${package_name}@${package_version} is not yet published; publishing."
-                npm publish -w "${package_name}" --access public --provenance
-                ;;
-              *)
-                echo "scripts/release/npm-view-status.mjs reported an unexpected status '${status}' for ${package_name}@${package_version}." >&2
-                exit 1
-                ;;
-            esac
-          done

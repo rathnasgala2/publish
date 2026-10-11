@@ -85,7 +85,9 @@ jobs:
 
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: |
+          node scripts/vendor-source-packages.mjs --check
+          npm ci --ignore-scripts
 
       - name: Submit the deployment-intent exchange
         id: exchange

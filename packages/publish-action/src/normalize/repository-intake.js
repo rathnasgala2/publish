@@ -104,6 +104,8 @@ import { readdir, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 
+import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
+
 import { assertValidDocument } from '../schema.js';
 import { listRepositoryFiles, readFileWithDigest } from '../fs-util.js';
 import {
@@ -114,7 +116,7 @@ import { destinationCapabilitiesFromLock } from './destination-capabilities.js';
 import { resolveBuildEpoch, resolveSourceRevision } from './source-revision.js';
 import { parseConstrainedYamlFrontmatter } from './frontmatter.js';
 import { REPOSITORY_ROOT_DOMAIN } from '../constants.js';
-import { themePackageNameOf } from '../theme-catalog.js';
+import { requireThemeArtifact, themePackageNameOf } from '../theme-catalog.js';
 import { findImageSources, resolveMediaReferences } from './content-media.js';
 import { evaluateEditions } from './content-editions.js';
 
@@ -132,6 +134,22 @@ const SCHEMA = Object.freeze({
 
 const DEFAULT_INTERACTIONS_API_ORIGIN = 'https://api.galascribe.com';
 const DEFAULT_INTERACTIONS_APP_ORIGIN = 'https://app.galascribe.com';
+
+const LOCK_DIGEST_PROFILE = requireDigestProfile('lock');
+
+/**
+ * @param {string} name exported Schema digest-profile name
+ * @returns {{digest: (value: unknown) => string}} the required profile
+ */
+function requireDigestProfile(name) {
+  const profile = ACTIVE_DIGEST_PROFILES[name];
+  if (profile === undefined) {
+    throw new Error(
+      `REPOSITORY_INTAKE_DIGEST_PROFILE_MISSING: @rathnasgala2/schemas/digest-profiles exports no ${name} profile`,
+    );
+  }
+  return profile;
+}
 
 /** A typed intake failure: the author repository does not satisfy this package's documented convention or a referenced schema. */
 export class RepositoryIntakeError extends Error {
@@ -441,6 +459,35 @@ export async function buildBuildInputFromRepository({
     'gala.lock.json',
     SCHEMA.lock,
   );
+  const expectedLockDigest = LOCK_DIGEST_PROFILE.digest(lock.document);
+  if (lock.document.lockDigest !== expectedLockDigest) {
+    throw new RepositoryIntakeError(
+      'gala.lock.json lockDigest does not authenticate the complete lock',
+      [
+        sourceFinding(
+          'LOCK_DIGEST_MISMATCH',
+          'gala.lock.json: lockDigest is not the GALA-LOCK-V2 digest of the complete lock',
+          {
+            claimedLockDigest: lock.document.lockDigest,
+            expectedLockDigest,
+          },
+        ),
+      ],
+    );
+  }
+  try {
+    requireThemeArtifact(
+      /** @type {Record<string, unknown>} */ (lock.document.theme),
+      'LOCK_THEME_IDENTITY_INVALID',
+    );
+  } catch (mismatch) {
+    const detail = /** @type {Error} */ (mismatch).message;
+    throw new RepositoryIntakeError(detail, [
+      sourceFinding('LOCK_THEME_IDENTITY_INVALID', detail, {
+        themePackage: lock.document.theme?.package,
+      }),
+    ]);
+  }
   const publicationDoc = await readValidatedJson(
     repositoryDirectory,
     repository.document.publication,

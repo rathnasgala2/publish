@@ -23,8 +23,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildBuildInputFromRepository } from '@rathnasgala2/publish-action';
+import { findAdapterArtifact } from '../../packages/publish-action/src/adapter-artifact-catalog.js';
 import { resolveWorkspaceSibling } from '../../packages/publish-action/src/workspace-siblings.js';
-import { validateGalaDocument } from '@rathnasgala2/schemas';
 import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
 
 import { buildProvenanceRecord } from '../../scripts/workflow/build-provenance.mjs';
@@ -37,12 +37,14 @@ import {
   manifestInventory,
 } from '../../scripts/workflow/frozen-envelope.mjs';
 import { buildSbom } from '../../scripts/workflow/sbom.mjs';
+import { validateGalaDocument } from '../../scripts/workflow/schema-runtime.mjs';
 import { deriveStableId } from '../../scripts/workflow/workload-identity.mjs';
 
 const LOCK_FIXTURE = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../../packages/publish-action/test/fixtures/minimal-repository/gala.lock.json',
 );
+const LOCK_DIGEST_PROFILE = /** @type {any} */ (ACTIVE_DIGEST_PROFILES.lock);
 
 /** The closed extension projections the fixture manifest uses. */
 const ROUTE_CLASSES = Object.freeze({
@@ -100,14 +102,28 @@ function digestOf(text) {
 export function fixtureLock(adapterPackage, mutate) {
   const lock = JSON.parse(readFileSync(LOCK_FIXTURE, 'utf8'));
   if (adapterPackage !== undefined) {
+    const artifact = findAdapterArtifact(adapterPackage);
+    if (artifact === undefined) {
+      throw new Error(
+        `fixture adapter is absent from the catalog: ${adapterPackage}`,
+      );
+    }
     lock.publisher = lock.publisher.map((/** @type {any} */ row) =>
       row.package.startsWith('@rathnasgala2/adapter-') &&
       row.package !== '@rathnasgala2/adapter-protocol'
-        ? { ...row, package: adapterPackage }
+        ? {
+            package: artifact.package,
+            version: artifact.version,
+            integrity: artifact.integrity,
+            registry: artifact.registry,
+            contractVersion: artifact.contractVersion,
+            compatibleWith: artifact.compatibleWith,
+          }
         : row,
     );
   }
   mutate?.(lock);
+  lock.lockDigest = LOCK_DIGEST_PROFILE.digest(lock);
   return lock;
 }
 
@@ -291,7 +307,7 @@ export function manifestFor(files, options = {}) {
  * (`build-facts.mjs`): the real `build-input:2.0.0` `publish-action`'s own
  * normalizer produces from the minimal repository with its lock re-pointed
  * at one adapter, and the real `theme-contract:2.0.0` of the theme package
- * that lock pins (the `theme-default` sibling). Computed once per adapter;
+ * that lock pins (the `theme-editorial` sibling). Computed once per adapter;
  * a manifest tied to them is `manifestFor(files, {buildInputDigest})`.
  *
  * @param {string} [adapterPackage] the adapter package the lock selects
@@ -316,7 +332,7 @@ export async function fixtureBuildFacts(adapterPackage) {
     );
     const themeContract = JSON.parse(
       await readFile(
-        path.join(resolveWorkspaceSibling('theme-default'), 'theme.json'),
+        path.join(resolveWorkspaceSibling('theme-editorial'), 'theme.json'),
         'utf8',
       ),
     );

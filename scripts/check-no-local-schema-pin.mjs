@@ -1,13 +1,10 @@
 #!/usr/bin/env node
 /**
- * CI guard (contract re-pin packet, 2026-09-22): fails the build if
- * `@rathnasgala2/schemas` is ever pinned back to the LOCAL-1 local-tarball
- * convention (`file:../../../../local-packages/rathnasgala2-schemas-*.tgz`)
- * in the workspace root manifest/lockfile or in any workspace package's own
- * `package.json`. That convention was retired once `@rathnasgala2/schemas`
- * published to the registry; a GitHub Actions runner has no
- * `local-packages` directory, so a regression here previously surfaced only
- * as an opaque `ENOENT` in CI. This check fails loudly and locally instead.
+ * Source-delivery guard: generation 4 is intentionally not published to npm.
+ * Every schema-consuming workspace package therefore resolves the one
+ * committed, manifest-verified tarball owned by this repository. Mutable
+ * sibling directories, registry ranges and the old untracked
+ * `local-packages/*.tgz` convention remain forbidden.
  */
 import { readFile, readdir } from 'node:fs/promises';
 
@@ -16,7 +13,10 @@ import { runIfMain } from './run-if-main.mjs';
 const FORBIDDEN = [
   /file:.*local-packages/u,
   /local-packages\/rathnasgala2-schemas-/u,
+  /file:\.\.\/\.\.\/\.\.\/schema/u,
 ];
+const EXPECTED_SPECIFIER =
+  'file:../../vendor/packages/rathnasgala2-schemas-3.8.0.tgz';
 
 /**
  * @param {string} path the file to scan
@@ -30,8 +30,8 @@ async function checkFile(path) {
     if (pattern.test(text)) {
       diagnostics.push(
         `${path}: found a local-tarball schema reference (${pattern}). ` +
-          '@rathnasgala2/schemas must be pinned to a registry version; ' +
-          'the file:../local-packages/... convention (LOCAL-1) is retired.',
+          '@rathnasgala2/schemas must resolve the committed publish-owned ' +
+          'vendor tarball; sibling and local-packages references are forbidden.',
       );
     }
   }
@@ -49,11 +49,24 @@ async function main() {
     ...packageNames.map((name) => `packages/${name}/package.json`),
   ];
   const diagnostics = (await Promise.all(files.map(checkFile))).flat();
+  for (const name of packageNames) {
+    const path = `packages/${name}/package.json`;
+    const manifest = JSON.parse(await readFile(path, 'utf8'));
+    const schemaSpecifier = manifest.dependencies?.['@rathnasgala2/schemas'];
+    if (
+      schemaSpecifier !== undefined &&
+      schemaSpecifier !== EXPECTED_SPECIFIER
+    ) {
+      diagnostics.push(
+        `${path}: @rathnasgala2/schemas must be ${EXPECTED_SPECIFIER} for source-only generation-4 delivery.`,
+      );
+    }
+  }
   if (diagnostics.length > 0) {
     throw new Error(diagnostics.join('\n'));
   }
   console.log(
-    `no local-tarball @rathnasgala2/schemas reference found across ${files.length} file(s).`,
+    `schema consumers use the committed 3.8.0 vendor tarball; no sibling or untracked local tarball found across ${files.length} file(s).`,
   );
 }
 

@@ -9,6 +9,8 @@
  * @returns {unknown} the same document, once validated
  */
 export function assertValidDocument(schemaId: string, document: unknown, location: string): unknown;
+/** The active schema validator, optionally loaded from the schema sibling. */
+export const validateGalaDocument: typeof import("@rathnasgala2/schemas").validateGalaDocument;
 /** A validation failure against one named `urn:gala:schema:*` document. */
 export class SchemaValidationError extends Error {
     /**

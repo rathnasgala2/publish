@@ -6,22 +6,10 @@
  * lifecycle calls, and the result is checked for a valid public generation
  * marker plus byte-identical served output.
  *
- * `@rathnasgala2/template` is consumed **by invoking it via its package
- * entry** (the task packet's second sanctioned option), not as a `file:`
- * dev dependency: `v2/template` is a full sibling repository with its own
- * independently installed `node_modules` (including its own copy of
- * `@rathnasgala2/schemas`), and adding it as an npm `file:` dependency here
- * makes `npm ls`/`cyclonedx-npm` (this workspace's SBOM generator) crawl
- * into that foreign `node_modules` tree and report an unrelated "invalid"
- * package there — a real, reproduced friction point of mixing an npm-linked
- * sibling-repo dependency with this workspace's own dependency graph, not
- * something worth working around by weakening the SBOM gate. Instead this
- * test resolves `v2/template`'s package root directly from this file's own
- * path (four directories up: `test/` -> `adapter-local-directory/` ->
- * `packages/` -> `publish/` -> `v2/`, then into `template/`) and dynamically
- * imports exactly the module `template`'s own `package.json` `exports` map
- * publishes for `.` (`src/core/index.js`) — its package entry, reached
- * without an npm-managed symlink or lockfile edge.
+ * `@rathnasgala2/template` is consumed through its package entry. In an
+ * isolated publish checkout, `WORKSPACE_ROOT` points at the source-vendored
+ * packages installed under `node_modules/@rathnasgala2`; local development
+ * may still use the adjacent v2 source tree.
  *
  * `template@2.1.0` publishes `computeRenderPolicyIdentity` and
  * `computeBodyDigest` from its public entry point (`src/core/index.js`), so
@@ -77,6 +65,10 @@ const TEMPLATE_ROOT =
         '../../../../template',
       );
 
+const THEME_ROOT = process.env.GALA_THEME_DIR
+  ? path.resolve(process.env.GALA_THEME_DIR)
+  : path.resolve(TEMPLATE_ROOT, '../theme-editorial');
+
 /**
  * Resolve one `@rathnasgala2/template` module by absolute path, rooted at
  * `TEMPLATE_ROOT` (see module documentation above for why this test does
@@ -99,9 +91,11 @@ async function importTemplateModule(relativePath) {
  * @returns {Promise<Record<string, unknown>>} the renderable build input
  */
 async function loadRenderableBuildInput() {
-  const schemasPkgUrl = await import.meta
-    .resolve('@rathnasgala2/schemas/package.json');
-  const schemasRoot = path.dirname(fileURLToPath(schemasPkgUrl));
+  const schemaSibling = path.resolve(TEMPLATE_ROOT, '../schema');
+  const schemasRoot = await fs
+    .access(path.join(schemaSibling, 'package.json'))
+    .then(() => schemaSibling)
+    .catch(() => path.resolve(TEMPLATE_ROOT, '../schemas'));
   const text = await readFile(
     path.join(schemasRoot, 'examples/valid/build-input/canonical.json'),
     'utf8',
@@ -116,6 +110,16 @@ async function loadRenderableBuildInput() {
   // `test/helpers/schema-fixtures.js` `loadCanonicalBuildInput` does, since
   // this test does not exercise the S2-T05 media pipeline.
   buildInput.appearance.fontAssets = [];
+  buildInput.appearance.theme = '@rathnasgala2/theme-editorial@4.0.0';
+  buildInput.packages.schemas.version = '3.8.0';
+  buildInput.packages.template.version = '4.0.0';
+  buildInput.packages.theme = {
+    ...buildInput.packages.theme,
+    package: '@rathnasgala2/theme-editorial',
+    version: '4.0.0',
+    integrity:
+      'sha256:e3d466a6e579406289a6916e3891b8575119c0cc3a3271dacbf12bbe066b3c5a',
+  };
 
   const { computeBodyDigest, computeRenderPolicyIdentity } =
     await importTemplateModule('src/core/index.js');
@@ -176,19 +180,19 @@ function testProvenance() {
       {
         kind: 'package',
         package: '@rathnasgala2/schemas',
-        version: '2.0.0',
+        version: '3.8.0',
         digest: digest(3),
       },
       {
         kind: 'package',
         package: '@rathnasgala2/template',
-        version: '2.0.0',
+        version: '4.0.0',
         digest: digest(4),
       },
       {
         kind: 'package',
-        package: '@rathnasgala2/theme-default',
-        version: '2.0.0',
+        package: '@rathnasgala2/theme-editorial',
+        version: '4.0.0',
         digest: digest(5),
       },
       {
@@ -236,6 +240,7 @@ test('E2E: renderPublication -> kernel preflight/stage/activate/observe/cleanup 
       workDirectory: path.join(renderRoot, 'work'),
       sourceDirectory,
       provenance: testProvenance(),
+      themeDirectory: THEME_ROOT,
     });
     assert.ok(Array.isArray(manifest.routes) && manifest.routes.length > 0);
 

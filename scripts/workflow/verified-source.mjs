@@ -18,21 +18,39 @@
  * @module
  */
 
+import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
+import {
+  ADAPTER_PACKAGES,
+  requireAdapterArtifact,
+} from '../../packages/publish-action/src/adapter-artifact-catalog.js';
+import { requireThemeArtifact } from '../../packages/publish-action/src/theme-catalog.js';
+
 /** The fixed lockfile path inside the carrier (DEC-006). */
 export const LOCK_PATH = 'source/gala.lock.json';
 
 /** The fixed publication document path inside the carrier. */
 export const PUBLICATION_PATH = 'source/gala/publication.json';
 
-/** DEC-097 section 3's closed locked-package to `adapterId` mapping. */
-export const ADAPTER_PACKAGES = Object.freeze({
-  '@rathnasgala2/adapter-local-directory': 'local-directory',
-  '@rathnasgala2/adapter-github-pages': 'github-pages',
-  '@rathnasgala2/adapter-do-spaces': 'do-spaces',
-});
+export { ADAPTER_PACKAGES } from '../../packages/publish-action/src/adapter-artifact-catalog.js';
 
 /** The publisher package the lock must pin. */
 export const PUBLISHER_PACKAGE = '@rathnasgala2/publish-action';
+
+const LOCK_DIGEST_PROFILE = requireDigestProfile('lock');
+
+/**
+ * @param {string} name exported Schema digest-profile name
+ * @returns {{digest: (value: unknown) => string}} the required profile
+ */
+function requireDigestProfile(name) {
+  const profile = ACTIVE_DIGEST_PROFILES[name];
+  if (profile === undefined) {
+    throw new Error(
+      `VERIFIED_SOURCE_DIGEST_PROFILE_MISSING: @rathnasgala2/schemas/digest-profiles exports no ${name} profile`,
+    );
+  }
+  return profile;
+}
 
 /**
  * @param {readonly {path: string, bytes: Buffer}[]} files the carrier files
@@ -92,6 +110,23 @@ export function readLockDocument(files) {
       `VERIFIED_SOURCE_LOCK_INVALID: ${LOCK_PATH} does not declare urn:gala:schema:lock:2.0.0`,
     );
   }
+  if (
+    typeof lock.lockDigest !== 'string' ||
+    !/^sha256:[0-9a-f]{64}$/u.test(lock.lockDigest)
+  ) {
+    throw new Error(
+      'VERIFIED_SOURCE_LOCK_INVALID: lockDigest is absent or not a tagged sha256 digest',
+    );
+  }
+  if (lock.lockDigest !== LOCK_DIGEST_PROFILE.digest(lock)) {
+    throw new Error(
+      'VERIFIED_SOURCE_LOCK_DIGEST_MISMATCH: lockDigest does not authenticate the complete lock',
+    );
+  }
+  requireThemeArtifact(
+    /** @type {Record<string, unknown>} */ (lock.theme),
+    'VERIFIED_SOURCE_THEME_IDENTITY_INVALID',
+  );
   return lock;
 }
 
@@ -109,14 +144,6 @@ export function readLockDocument(files) {
  */
 export function readLockFacts(files) {
   const lock = readLockDocument(files);
-  if (
-    typeof lock.lockDigest !== 'string' ||
-    !/^sha256:[0-9a-f]{64}$/u.test(lock.lockDigest)
-  ) {
-    throw new Error(
-      'VERIFIED_SOURCE_LOCK_INVALID: lockDigest is absent or not a tagged sha256 digest',
-    );
-  }
   const rows = Array.isArray(lock.publisher) ? lock.publisher : [];
   const publisherRows = rows.filter(
     (/** @type {any} */ row) => row?.package === PUBLISHER_PACKAGE,
@@ -139,14 +166,15 @@ export function readLockFacts(files) {
     );
   }
   const adapter = packageIdentity(adapterRows[0], 'selected adapter');
+  const artifact = requireAdapterArtifact(
+    /** @type {Record<string, unknown>} */ (adapterRows[0]),
+    'VERIFIED_SOURCE_ADAPTER_IDENTITY_INVALID',
+  );
   return {
     lockDigest: lock.lockDigest,
     publisher: packageIdentity(publisherRows[0], 'publisher'),
     adapter: {
-      adapterId:
-        ADAPTER_PACKAGES[
-          /** @type {keyof typeof ADAPTER_PACKAGES} */ (adapter.package)
-        ],
+      adapterId: artifact.adapterId,
       adapterVersion: adapter.version,
       // DEC-097 section 3: the adapter digest byte-equals the locked
       // package's integrity.

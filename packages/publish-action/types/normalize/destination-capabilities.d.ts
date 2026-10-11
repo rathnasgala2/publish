@@ -48,12 +48,4 @@ export function destinationCapabilitiesFromLock(input: {
     baseUrl: string;
     capabilityDigest: string;
 };
-/**
- * The closed DEC-097 section 3 package-to-adapter-id mapping. The selected
- * row must match in both directions; no alias is admitted.
- */
-export const ADAPTER_PACKAGES: Readonly<{
-    '@rathnasgala2/adapter-local-directory': "local-directory";
-    '@rathnasgala2/adapter-github-pages': "github-pages";
-    '@rathnasgala2/adapter-do-spaces': "do-spaces";
-}>;
+export { ADAPTER_PACKAGES } from "../adapter-artifact-catalog.js";

@@ -22,7 +22,7 @@
  * @module
  */
 
-import { validateGalaDocument } from '@rathnasgala2/schemas';
+import { validateGalaDocument } from './schema-runtime.mjs';
 
 /** The carrier member the normalized build input travels at. */
 export const BUILD_INPUT_MEMBER = 'metadata/build-input.json';

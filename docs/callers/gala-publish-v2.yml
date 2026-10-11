@@ -9,8 +9,9 @@
 # to generate or patch one.
 #
 # Replace only the marked values: the same full `rathnasgala2/publish` commit
-# SHA in both pin fields, and the signed service-origin catalog URL Gala gives
-# you. Change nothing else.
+# SHA in both pin fields, the signed service-origin catalog URL Gala gives you,
+# and the Gala API origin used for authorization and reporting. Change nothing
+# else.
 name: Gala preview and publish
 
 on:
@@ -41,7 +42,7 @@ jobs:
     # REPLACE the 40-character lowercase hexadecimal commit SHA below with
     # the `rathnasgala2/publish` revision Gala tells you to pin. The value
     # below is rathnasgala2/publish's own main HEAD at the time this example
-    # was last reconciled (2026-09-30) -- a real, resolvable commit, not a
+    # was last reconciled (2026-10-11) -- a real, resolvable commit, not a
     # placeholder -- so replacing it exercises exactly the sha you must
     # actually type in, rather than an all-zero sentinel.
     uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@2f5b3e684ef1d1273cbbb4a00053d8727a8f8b9e

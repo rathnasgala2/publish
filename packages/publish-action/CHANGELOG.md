@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Source-only delivery installs schemas 3.8.0, template 4.0.0 and all six theme
+  4.0.0 packages from the publish repository's manifest-verified vendor
+  tarballs. An isolated reusable-workflow checkout no longer needs npm
+  publications or sibling repositories to build a new site.
+
 ### Added
 
 - Content images. Intake checks every repository file a document body image

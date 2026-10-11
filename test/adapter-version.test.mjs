@@ -18,10 +18,12 @@ import { fileURLToPath } from 'node:url';
 import * as localDirectory from '@rathnasgala2/adapter-local-directory';
 import * as pages from '@rathnasgala2/adapter-github-pages';
 import * as spaces from '@rathnasgala2/adapter-do-spaces';
+import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
 
 import { describeCapabilities as describeSpaces } from '../packages/adapter-do-spaces/src/capability.js';
 import { describeCapabilities as describePages } from '../packages/adapter-github-pages/src/capability.js';
 import { describeCapabilities as describeLocal } from '../packages/adapter-local-directory/src/capability.js';
+import { findAdapterArtifact } from '../packages/publish-action/src/adapter-artifact-catalog.js';
 import { requireAdapterVersionAgreement } from '../scripts/workflow/deploy.mjs';
 import {
   ADAPTER_PACKAGES,
@@ -30,6 +32,7 @@ import {
 } from '../scripts/workflow/verified-source.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const LOCK_DIGEST_PROFILE = /** @type {any} */ (ACTIVE_DIGEST_PROFILES.lock);
 
 /** The three adapters, keyed by their locked package name. */
 const ADAPTERS = Object.freeze({
@@ -61,6 +64,8 @@ async function manifestOf(packageName) {
  * @returns {Promise<{path: string, bytes: Buffer}[]>} the verified-inputs members
  */
 async function lockedAt(packageName, version) {
+  const artifact = findAdapterArtifact(packageName);
+  assert.ok(artifact !== undefined);
   const lock = JSON.parse(
     await readFile(
       path.join(
@@ -72,9 +77,17 @@ async function lockedAt(packageName, version) {
   );
   lock.publisher = lock.publisher.map((/** @type {any} */ row) =>
     Object.hasOwn(ADAPTER_PACKAGES, row.package)
-      ? { ...row, package: packageName, version }
+      ? {
+          package: artifact.package,
+          version,
+          integrity: artifact.integrity,
+          registry: artifact.registry,
+          contractVersion: artifact.contractVersion,
+          compatibleWith: artifact.compatibleWith,
+        }
       : row,
   );
+  lock.lockDigest = LOCK_DIGEST_PROFILE.digest(lock);
   return [{ path: LOCK_PATH, bytes: Buffer.from(JSON.stringify(lock)) }];
 }
 
@@ -94,15 +107,13 @@ for (const [packageName, adapter] of Object.entries(ADAPTERS)) {
       ],
     );
     assert.equal(facts.adapter.adapterVersion, adapter.ADAPTER_VERSION);
-    // deploy.mjs binds the installed adapter to the intent's lock-derived
-    // version: a lock pinning this package at its installed version passes,
-    // any other pin is refused by name.
+    // Both intake and deploy bind the same exact version: a catalog row at
+    // the installed version passes, while a different lock pin is refused
+    // before deployment facts can be derived.
     requireAdapterVersionAgreement(adapter.ADAPTER_VERSION, facts.adapter);
-    const other = readLockFacts(await lockedAt(packageName, '9.9.9'));
-    assert.throws(
-      () =>
-        requireAdapterVersionAgreement(adapter.ADAPTER_VERSION, other.adapter),
-      /DEPLOY_ADAPTER_VERSION_MISMATCH/u,
+    await assert.rejects(
+      async () => readLockFacts(await lockedAt(packageName, '9.9.9')),
+      /VERIFIED_SOURCE_ADAPTER_IDENTITY_INVALID/u,
     );
   });
 }

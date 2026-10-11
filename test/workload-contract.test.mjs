@@ -7,14 +7,15 @@
  * header for why it is not an ajv run over the document). That is only
  * defensible while it is *proved* to agree with the contract, so this test
  * reads the pinned document itself and compares, by exact set and value
- * equality, every declared member set, every required member set and every
- * numeric bound the validator enforces. A contract change that this
- * repository has not caught up with fails here rather than at a live
+ * equality, every structural member set, required member set and numeric
+ * bound the validator enforces. The schema's theme enum intentionally stays
+ * broader for historical records; the new-site workflow policy is tested as
+ * the Editorial-only subset. Contract drift fails here rather than at a live
  * exchange.
  */
 
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -23,11 +24,33 @@ import YAML from 'yaml';
 
 import * as contract from '../scripts/workflow/workload-contract.mjs';
 
-const schemasRoot = path.dirname(
-  fileURLToPath(
-    await import.meta.resolve('@rathnasgala2/schemas/package.json'),
-  ),
-);
+/**
+ * Resolve either the development sibling (`schema`) or the source-vendored
+ * installed package (`schemas`) under WORKSPACE_ROOT.
+ *
+ * @returns {Promise<string>} schema package root
+ */
+async function resolveSchemasRoot() {
+  if (process.env.WORKSPACE_ROOT) {
+    const workspaceRoot = path.resolve(process.env.WORKSPACE_ROOT);
+    for (const name of ['schema', 'schemas']) {
+      const candidate = path.join(workspaceRoot, name);
+      try {
+        await access(path.join(candidate, 'package.json'));
+        return candidate;
+      } catch {
+        // Try the other exact supported layout before falling back to Node.
+      }
+    }
+  }
+  return path.dirname(
+    fileURLToPath(
+      await import.meta.resolve('@rathnasgala2/schemas/package.json'),
+    ),
+  );
+}
+
+const schemasRoot = await resolveSchemasRoot();
 const document = YAML.parse(
   await readFile(path.join(schemasRoot, 'openapi/openapi.yaml'), 'utf8'),
 );
@@ -352,10 +375,17 @@ test('the request-side rebuildRecord (2.9.0) declares the retained record’s me
     record.properties.template.allOf[1].properties.package['x-gala-const'],
     '@rathnasgala2/template',
   );
-  assertSameMembers(
-    record.properties.theme.allOf[1].properties.package.enum,
-    contract.ADMITTED_THEME_PACKAGES,
-  );
+  assert.deepEqual(contract.ADMITTED_THEME_PACKAGES, [
+    '@rathnasgala2/theme-editorial',
+  ]);
+  for (const packageName of contract.ADMITTED_THEME_PACKAGES) {
+    assert.ok(
+      record.properties.theme.allOf[1].properties.package.enum.includes(
+        packageName,
+      ),
+      `${packageName} must remain schema-admitted`,
+    );
+  }
 });
 
 test('the receipt submission declares 21 members and requires exactly 19', () => {

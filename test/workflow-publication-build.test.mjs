@@ -27,10 +27,14 @@ import YAML from 'yaml';
 import { carrierDigest } from '../scripts/workflow/carrier.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT
-  ? path.resolve(process.env.WORKSPACE_ROOT)
-  : path.resolve(ROOT, '..');
-const USER_TEMPLATE_ROOT = path.join(WORKSPACE_ROOT, 'user-template');
+const ADJACENT_USER_TEMPLATE = path.resolve(ROOT, '../user-template');
+const PUBLICATION_SOURCE_ROOT =
+  !process.env.WORKSPACE_ROOT && existsSync(ADJACENT_USER_TEMPLATE)
+    ? ADJACENT_USER_TEMPLATE
+    : path.join(
+        ROOT,
+        'packages/publish-action/test/fixtures/minimal-repository',
+      );
 
 const DOCKER_PROBE = spawnSync(
   'docker',
@@ -75,6 +79,9 @@ function publishContent(repository) {
   // is published here so the build has public content either way.
   for (const name of ['about.md', 'welcome-to-your-publication.md']) {
     const contentPath = path.join(repository, 'content', name);
+    if (!existsSync(contentPath)) {
+      continue;
+    }
     const before = readFileSync(contentPath, 'utf8');
     if (before.includes('status: published\n')) {
       continue;
@@ -110,7 +117,7 @@ function managedBuildCommand() {
 }
 
 test(
-  'the package-free user template builds through the real carrier and production sandbox command',
+  'a package-free publication source builds through the real carrier and production sandbox command',
   { skip: SKIP },
   () => {
     const temporaryRoot = mkdtempSync(
@@ -123,10 +130,10 @@ test(
       const output = path.join(temporaryRoot, 'output');
       const carrier = path.join(inbox, 'verified-inputs-v2.bin');
 
-      cpSync(USER_TEMPLATE_ROOT, generatedRepository, {
+      cpSync(PUBLICATION_SOURCE_ROOT, generatedRepository, {
         recursive: true,
         filter(source) {
-          const relative = path.relative(USER_TEMPLATE_ROOT, source);
+          const relative = path.relative(PUBLICATION_SOURCE_ROOT, source);
           return relative !== '.git' && !relative.startsWith(`.git${path.sep}`);
         },
       });
@@ -208,7 +215,12 @@ test(
       );
       assert.ok(manifest.routes.length > 0);
       assert.ok(existsSync(path.join(output, 'artifact/index.html')));
-      assert.ok(existsSync(path.join(output, 'artifact/about/index.html')));
+      const expectedArticle = existsSync(
+        path.join(generatedRepository, 'content/about.md'),
+      )
+        ? 'about/index.html'
+        : 'hello-world/index.html';
+      assert.ok(existsSync(path.join(output, 'artifact', expectedArticle)));
     } finally {
       rmSync(temporaryRoot, { recursive: true, force: true });
     }

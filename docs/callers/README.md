@@ -2,7 +2,7 @@
 
 `gala-publish-v2.yml` in this directory is the fixed caller contract. Copy it
 verbatim to `.github/workflows/gala-publish-v2.yml` in your publication
-repository and change only the two marked values.
+repository and change only the three marked values.
 
 Gala never writes this file for you. S3 reads your repository's declared
 workflow graph at the exact candidate or trigger commit and admits the caller
@@ -17,12 +17,16 @@ updating the file — never permission for Gala to generate or patch one.
 | ---------------------------- | ------------------------------------------------------- |
 | the 40-hex pin after `@`     | the `rathnasgala2/publish` commit Gala tells you to pin |
 | `service_origin_catalog_url` | the signed Gala service-origin catalog location         |
+| `gala_api_origin`            | the Gala API origin for authorization and reporting     |
 
-The file in this directory pins `ac7112dca2cbf3994b28439b8380fced35a4bdaa` in
-both fields. That is the commit the starter repository
-(`rathnasgala2/user-template`) pins, and the starter's own check requires its
-`.github/workflows/gala-publish-v2.yml` to be byte-identical to this file, so
-the two are changed together. `pins/ledger.json` records the same commit.
+The file in this directory pins `2f5b3e684ef1d1273cbbb4a00053d8727a8f8b9e` in
+both fields. As reconciled on 2026-10-11, that same pre-generation-4 commit is
+pinned by the starter repository (`rathnasgala2/user-template`) and its API
+import fixture; the starter's own check requires its
+`.github/workflows/gala-publish-v2.yml` to be byte-identical to this file.
+`pins/ledger.json` records the same commit. The generation-4 source delivery
+must be committed before all copies can be rotated together to its real,
+immutable Publish commit.
 
 ## What you must not change
 

@@ -1,6 +1,7 @@
 {
   "name": "@rathnasgala2/publish-kernel",
   "version": "0.1.1",
+  "private": true,
   "description": "Provider-neutral, non-disableable publish safety kernel: the ten kernel duties over explicit inputs (DEC-016).",
   "license": "Apache-2.0",
   "type": "module",
@@ -32,7 +33,7 @@
   },
   "dependencies": {
     "@rathnasgala2/adapter-protocol": "^0.2.1",
-    "@rathnasgala2/schemas": "3.3.0"
+    "@rathnasgala2/schemas": "file:../../vendor/packages/rathnasgala2-schemas-3.8.0.tgz"
   },
   "publishConfig": {
     "access": "public",

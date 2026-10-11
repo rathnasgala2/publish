@@ -479,13 +479,9 @@ export const REBUILD_RECORD_REQUIRED = Object.freeze(
   ),
 );
 
-/** The closed `rebuildRecord.theme.package` vocabulary. */
+/** The generation-4 new-site `rebuildRecord.theme.package` policy. */
 export const ADMITTED_THEME_PACKAGES = Object.freeze([
-  '@rathnasgala2/theme-default',
-  '@rathnasgala2/theme-amaze',
-  '@rathnasgala2/theme-flashy',
-  '@rathnasgala2/theme-minimal',
-  '@rathnasgala2/theme-zebra',
+  '@rathnasgala2/theme-editorial',
 ]);
 
 /**

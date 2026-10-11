@@ -48,13 +48,17 @@
     "workflows:check": "node scripts/check-workflow-pins.mjs",
     "workflows:drift": "node scripts/check-workflow-drift.mjs",
     "schema-pin:check": "node scripts/check-no-local-schema-pin.mjs",
+    "vendor:refresh": "node scripts/vendor-source-packages.mjs --refresh",
+    "vendor:check": "node scripts/vendor-source-packages.mjs --check",
+    "vendor:source-check": "node scripts/vendor-source-packages.mjs --check-source",
+    "source-only:check": "node scripts/check-source-only-delivery.mjs",
     "license:check": "node scripts/check-license-files.mjs",
     "provenance:check": "node scripts/check-provenance-config.mjs",
     "manifest:check": "node scripts/check-manifest-conformance.mjs",
     "changelog:check": "node scripts/check-changelog-versions.mjs",
     "coverage:check": "node scripts/check-coverage.mjs",
     "placeholder:check": "node scripts/check-placeholder-markers.mjs",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run architecture && npm run duplication && npm test && npm run coverage:check && npm run sbom:check && npm run audit && npm run workflows:check && npm run workflows:drift && npm run pins:check && npm run schema-pin:check && npm run license:check && npm run provenance:check && npm run declarations:check && npm run manifest:check && npm run changelog:check && npm run placeholder:check",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run architecture && npm run duplication && npm test && npm run coverage:check && npm run vendor:check && npm run source-only:check && npm run sbom:check && npm run audit && npm run workflows:check && npm run workflows:drift && npm run pins:check && npm run schema-pin:check && npm run license:check && npm run provenance:check && npm run declarations:check && npm run manifest:check && npm run changelog:check && npm run placeholder:check",
     "test:repo": "node --test 'test/*.test.mjs'",
     "test:repo:unit": "node --test $(ls test/*.test.mjs | grep -v '/sandbox.test.mjs$')",
     "pins:check": "node scripts/check-pins.mjs"
@@ -62,11 +66,6 @@
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "6.0.1",
     "@eslint/js": "10.0.1",
-    "@rathnasgala2/template": "3.2.1",
-    "@rathnasgala2/theme-default": "3.0.1",
-    "@rathnasgala2/theme-flashy": "3.0.0",
-    "@rathnasgala2/theme-minimal": "3.0.0",
-    "@rathnasgala2/theme-zebra": "3.0.0",
     "@types/node": "24.13.4",
     "ajv": "8.20.0",
     "dependency-cruiser": "18.2.0",
@@ -78,8 +77,5 @@
     "typescript": "5.9.3",
     "typescript-eslint": "8.70.0",
     "yaml": "2.9.0"
-  },
-  "dependencies": {
-    "@rathnasgala2/theme-amaze": "3.0.0"
   }
 }

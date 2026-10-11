@@ -53,7 +53,7 @@ function lockWithDependencies() {
       },
     ];
     lock.dependencyDag = [
-      { from: '@rathnasgala2/template@3.0.1', to: 'left-pad@1.3.0' },
+      { from: '@rathnasgala2/template@4.0.0', to: 'left-pad@1.3.0' },
       { from: 'left-pad@1.3.0', to: 'right-pad@2.0.0' },
       { from: '@rathnasgala2/publish-action@0.1.0', to: 'left-pad@1.3.0' },
     ];
@@ -91,7 +91,7 @@ test('the SBOM is the closed projection: root members, package order and IDs, fi
       ['SPDXRef-Package-Artifact', `galascribe-artifact-${artifactHex}`],
       ['SPDXRef-Package-Direct-00', '@rathnasgala2/schemas'],
       ['SPDXRef-Package-Direct-01', '@rathnasgala2/template'],
-      ['SPDXRef-Package-Direct-02', '@rathnasgala2/theme-default'],
+      ['SPDXRef-Package-Direct-02', '@rathnasgala2/theme-editorial'],
       ['SPDXRef-Package-Direct-03', '@rathnasgala2/publish-action'],
       ['SPDXRef-Package-Direct-04', '@rathnasgala2/publish-kernel'],
       ['SPDXRef-Package-Direct-05', '@rathnasgala2/adapter-protocol'],
@@ -252,7 +252,7 @@ test('the official SPDX 2.3 schema accepts the exact bytes, and a reserialized o
 test('a DAG edge naming a package the lock does not carry, and an empty file set, are refused', () => {
   const lock = fixtureLock(undefined, (document) => {
     document.dependencyDag = [
-      { from: '@rathnasgala2/template@3.0.1', to: 'ghost@1.0.0' },
+      { from: '@rathnasgala2/template@4.0.0', to: 'ghost@1.0.0' },
     ];
   });
   const manifest = manifestFor(FILES, { lock });

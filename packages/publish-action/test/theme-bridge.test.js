@@ -15,11 +15,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
 
 import {
   resolveThemeDirectory,
   ThemeResolutionError,
 } from '../src/theme-bridge.js';
+import { findThemeCatalogEntry } from '../src/theme-catalog.js';
 import { resolveWorkspaceSibling } from '../src/workspace-siblings.js';
 import { runBuild } from '../src/commands/build.js';
 
@@ -28,16 +30,14 @@ const FIXTURE_REPOSITORY = path.resolve(
   'fixtures/minimal-repository',
 );
 
-const REAL_THEME = Object.freeze({
-  package: '@rathnasgala2/theme-default',
-  version: '3.0.1',
-  integrity:
-    'sha256:0000000000000000000000000000000000000000000000000000000000000004',
-  registry: 'https://local-development.invalid/rathnasgala2/',
-});
+const REAL_THEME = Object.freeze(
+  /** @type {import('../src/theme-catalog.js').ThemeCatalogEntry} */ (
+    findThemeCatalogEntry('@rathnasgala2/theme-editorial')
+  ),
+);
 
 /**
- * The real `theme-default` sibling checkout on disk, resolved through the
+ * The real `theme-editorial` sibling checkout on disk, resolved through the
  * same production resolver (`resolveWorkspaceSibling`, step 3 of
  * `resolveThemeDirectory`) `theme-bridge.js` itself uses, reading the
  * ambient `process.env` (so `WORKSPACE_ROOT` still redirects this to the
@@ -45,7 +45,7 @@ const REAL_THEME = Object.freeze({
  * instead of a hardcoded path that would silently drift from the resolver
  * it is meant to exercise.
  */
-const REAL_THEME_DIRECTORY = resolveWorkspaceSibling('theme-default');
+const REAL_THEME_DIRECTORY = resolveWorkspaceSibling('theme-editorial');
 
 /**
  * @returns {Promise<{tmp: string, cleanup: () => Promise<void>}>} a fresh
@@ -58,7 +58,7 @@ async function freshTempDir() {
 
 /**
  * Write a real, `theme-contract:2.0.0`-conformant fixture into `directory`,
- * cloned from the real `theme-default` sibling checkout's own `theme.json`
+ * cloned from the real `theme-editorial` sibling checkout's own `theme.json`
  * (so it validates, unlike a hand-rolled minimal object), with only the
  * package identity overridden.
  *
@@ -86,7 +86,7 @@ async function writeThemeFixture(directory, overrides = {}) {
   );
 }
 
-test('resolveThemeDirectory: finds and verifies the real theme-default sibling checkout by default (LOCAL-only fallback)', async () => {
+test('resolveThemeDirectory: finds and verifies the real theme-editorial sibling checkout by default (LOCAL-only fallback)', async () => {
   const { tmp, cleanup } = await freshTempDir();
   try {
     // No `env` override here: this exercises the resolver's real default
@@ -110,7 +110,7 @@ test('resolveThemeDirectory: an installed node_modules package under the author 
       tmp,
       'node_modules',
       '@rathnasgala2',
-      'theme-default',
+      'theme-editorial',
     );
     await writeThemeFixture(installedDirectory);
     const themeDirectory = await resolveThemeDirectory({
@@ -140,14 +140,14 @@ test('resolveThemeDirectory: GALA_THEME_DIR overrides the local-sibling fallback
   }
 });
 
-test('resolveThemeDirectory: WORKSPACE_ROOT redirects the local-sibling fallback to a fake theme-default checkout', async () => {
+test('resolveThemeDirectory: WORKSPACE_ROOT redirects the local-sibling fallback to a fake theme-editorial checkout', async () => {
   const { tmp: repositoryDirectory, cleanup: cleanupRepository } =
     await freshTempDir();
   const { tmp: workspaceRoot, cleanup: cleanupWorkspaceRoot } =
     await freshTempDir();
   try {
-    const fakeThemeDefaultDirectory = path.join(workspaceRoot, 'theme-default');
-    await writeThemeFixture(fakeThemeDefaultDirectory);
+    const fakeEditorialDirectory = path.join(workspaceRoot, 'theme-editorial');
+    await writeThemeFixture(fakeEditorialDirectory);
     const themeDirectory = await resolveThemeDirectory({
       repositoryDirectory,
       theme: REAL_THEME,
@@ -155,11 +155,11 @@ test('resolveThemeDirectory: WORKSPACE_ROOT redirects the local-sibling fallback
     });
     assert.equal(
       themeDirectory,
-      resolveWorkspaceSibling('theme-default', {
+      resolveWorkspaceSibling('theme-editorial', {
         WORKSPACE_ROOT: workspaceRoot,
       }),
     );
-    assert.equal(themeDirectory, fakeThemeDefaultDirectory);
+    assert.equal(themeDirectory, fakeEditorialDirectory);
   } finally {
     await cleanupRepository();
     await cleanupWorkspaceRoot();
@@ -175,9 +175,11 @@ test('resolveThemeDirectory: fails closed with THEME_PACKAGE_NOT_FOUND when no c
           repositoryDirectory: tmp,
           theme: {
             ...REAL_THEME,
-            package: '@rathnasgala2/theme-does-not-exist',
           },
-          env: { GALA_THEME_DIR: path.join(tmp, 'nope') },
+          env: {
+            GALA_THEME_DIR: path.join(tmp, 'nope'),
+            WORKSPACE_ROOT: path.join(tmp, 'empty-workspace'),
+          },
         }),
       (/** @type {any} */ error) => {
         assert.ok(error instanceof ThemeResolutionError);
@@ -221,7 +223,7 @@ test('resolveThemeDirectory: fails closed with THEME_CONTRACT_IDENTITY_MISMATCH 
   try {
     const overrideDirectory = path.join(tmp, 'mismatched-contract-theme');
     await writeThemeFixture(overrideDirectory, {
-      themePackage: '@rathnasgala2/theme-default@1.0.0',
+      themePackage: '@rathnasgala2/theme-editorial@1.0.0',
     });
     await assert.rejects(
       () =>
@@ -303,6 +305,47 @@ test('resolveThemeDirectory: fails closed with THEME_PACKAGE_NAME_INVALID for a 
   }
 });
 
+test('resolveThemeDirectory: accepts another catalog-pinned generation-4 sibling', async () => {
+  const { tmp, cleanup } = await freshTempDir();
+  try {
+    const defaultTheme = findThemeCatalogEntry('@rathnasgala2/theme-default');
+    assert.ok(defaultTheme);
+    const themeDirectory = await resolveThemeDirectory({
+      repositoryDirectory: tmp,
+      theme: defaultTheme,
+    });
+    assert.equal(themeDirectory, resolveWorkspaceSibling('theme-default'));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('resolveThemeDirectory: rejects a catalog theme with a non-catalog candidate digest', async () => {
+  const { tmp, cleanup } = await freshTempDir();
+  try {
+    await assert.rejects(
+      () =>
+        resolveThemeDirectory({
+          repositoryDirectory: tmp,
+          theme: {
+            ...REAL_THEME,
+            integrity: `sha256:${'0'.repeat(64)}`,
+          },
+          env: {},
+        }),
+      (/** @type {any} */ error) => {
+        assert.ok(error instanceof ThemeResolutionError);
+        const finding = error.findings[0];
+        assert.ok(finding);
+        assert.equal(finding.code, 'THEME_PACKAGE_UNSUPPORTED');
+        return true;
+      },
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
 test('resolveThemeDirectory: an existing-but-wrong candidate fails closed rather than falling through to the next step', async () => {
   const { tmp, cleanup } = await freshTempDir();
   try {
@@ -310,7 +353,7 @@ test('resolveThemeDirectory: an existing-but-wrong candidate fails closed rather
       tmp,
       'node_modules',
       '@rathnasgala2',
-      'theme-default',
+      'theme-editorial',
     );
     await writeThemeFixture(installedDirectory, { version: '9.9.9' });
     // A correct copy exists at GALA_THEME_DIR, but step 1 (the installed
@@ -344,10 +387,12 @@ test('runBuild: fails closed with a SOURCE_ERROR finding (UNSAFE_INPUT, exit 5) 
     await cp(FIXTURE_REPOSITORY, repositoryCopy, { recursive: true });
     const lockPath = path.join(repositoryCopy, 'gala.lock.json');
     const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-    // The real theme-default sibling checkout is version 3.0.1; pinning a
-    // version it does not carry makes every resolution step either not
-    // exist or fail identity verification.
+    // The generation-4 catalog admits Editorial 4 exactly; any other version
+    // is rejected before package resolution.
     lock.theme.version = '9.9.9';
+    lock.lockDigest = /** @type {any} */ (ACTIVE_DIGEST_PROFILES.lock).digest(
+      lock,
+    );
     await writeFile(lockPath, JSON.stringify(lock));
 
     const result = await runBuild({
@@ -359,9 +404,7 @@ test('runBuild: fails closed with a SOURCE_ERROR finding (UNSAFE_INPUT, exit 5) 
     assert.equal(result.exitCode, 5);
     assert.ok(
       result.findings.some(
-        (finding) =>
-          finding.code === 'THEME_PACKAGE_NOT_FOUND' ||
-          finding.code === 'THEME_PACKAGE_IDENTITY_MISMATCH',
+        (finding) => finding.code === 'LOCK_THEME_IDENTITY_INVALID',
       ),
       JSON.stringify(result.findings),
     );

@@ -19,7 +19,7 @@ export function resolveWorkspaceRoot(env?: NodeJS.ProcessEnv): string;
  * {@link WorkspaceSiblingNotFoundError} when it does not).
  *
  * @param {string} siblingName the sibling repository's directory name
- *   (e.g. `template`, `theme-default`)
+ *   (e.g. `template`, `theme-editorial`)
  * @param {NodeJS.ProcessEnv} [env] the process environment (injectable for
  *   tests; defaults to `process.env`)
  * @returns {string} the absolute candidate directory
@@ -46,7 +46,7 @@ export class WorkspaceRootInvalidError extends Error {
 export class WorkspaceSiblingNotFoundError extends Error {
     /**
      * @param {string} siblingName the sibling directory name that was sought
-     *   (e.g. `template`, `theme-default`)
+     *   (e.g. `template`, `theme-editorial`)
      * @param {string} searchedDirectory the absolute directory that was
      *   checked and not found
      */

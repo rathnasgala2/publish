@@ -20,12 +20,9 @@
  */
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { classifyNpmViewResult } from '../scripts/release/npm-view-status.mjs';
-
-const RELEASE_PATH = '.github/workflows/release.yaml';
 
 test('classifyNpmViewResult: exit 0 means published, regardless of body', () => {
   assert.deepEqual(
@@ -131,24 +128,4 @@ test('classifyNpmViewResult: exit non-zero with nothing on either stream still e
     stderr: '',
   });
   assert.equal(result.status, 'error');
-});
-
-test('release.yaml calls scripts/release/npm-view-status.mjs instead of inlining the discrimination', () => {
-  const source = readFileSync(RELEASE_PATH, 'utf8');
-  assert.match(
-    source,
-    /node scripts\/release\/npm-view-status\.mjs "\$\{package_name\}" "\$\{package_version\}"/u,
-    'release.yaml must delegate npm-view discrimination to the tested script',
-  );
-  assert.ok(
-    !/npm view "\$\{package_name\}@\$\{package_version\}" --json 2>&1/u.test(
-      source,
-    ),
-    'release.yaml must not merge stdout and stderr when capturing npm view (PUB-M13)',
-  );
-  assert.match(
-    source,
-    /case "\$\{status\}" in/u,
-    "release.yaml must branch on the script's published/unpublished/error status",
-  );
 });

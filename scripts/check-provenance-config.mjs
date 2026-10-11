@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 /**
- * CI guard (PUB-C4, 2026-09-25): `release.yaml` passes `--provenance` to
- * `npm publish`, but that flag is a workflow argument a manual `npm
- * publish` can simply omit. `publishConfig.provenance: true` in the
- * manifest makes provenance a manifest fact instead: `npm publish` refuses
- * to proceed without it, from any machine, run by anyone.
+ * Dormant publication guard (PUB-C4, 2026-09-25): source-only delivery keeps
+ * every workspace package private and release automation holds no npm publish
+ * credential. If publication is deliberately restored later,
+ * `publishConfig.provenance: true` remains a manifest-level requirement that a
+ * manual command cannot omit.
  *
  * This does not, and cannot, backfill an attestation onto an
  * already-published version -- attestations are per-version and immutable.
- * It only guarantees that every version published from this point forward
- * carries one.
+ * It guarantees that any future version can only be published with provenance.
  */
 import { readFile, readdir } from 'node:fs/promises';
 
@@ -24,7 +23,7 @@ export function provenanceDiagnostics(manifestPath, manifest) {
   if (manifest.publishConfig?.provenance !== true) {
     return [
       `${manifestPath}: publishConfig.provenance must be true so ` +
-        'npm publish structurally refuses to ship an unattested version.',
+        'any future npm publication structurally refuses an unattested version.',
     ];
   }
   return [];

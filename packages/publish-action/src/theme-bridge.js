@@ -9,17 +9,13 @@
  * `components.css`, an optional `utilities.css`, `print.css`, `package.json`,
  * `LICENSE`, `README.md`, an optional `assets/*`).
  *
- * This repository never publishes a real npm package named
- * `@rathnasgala2/theme-<name>` to a registry, and never installs one as an
- * npm dependency of this workspace (the same SBOM-pollution reasoning
- * `template-bridge.js` documents for `@rathnasgala2/template`: a theme
- * package is a full sibling repository with its own independently installed
- * `node_modules`). So the theme package directory is located by one of three
+ * Generation-4 themes are currently unpublished candidate packages. A package
+ * directory is located by one of three
  * documented resolution steps, tried in this fixed order, and the first
  * candidate directory that actually exists on disk wins:
  *
  * 1. **Installed package** — `<repositoryDirectory>/node_modules/<theme
- *    package name>` (e.g. `node_modules/@rathnasgala2/theme-default`). This
+ *    package name>` (e.g. `node_modules/@rathnasgala2/theme-editorial`). This
  *    is the eventual real path once an author repository declares the theme
  *    package as an ordinary npm dependency and a real registry publish
  *    exists; nothing in this repository fabricates that installation, this
@@ -74,8 +70,8 @@
 import { readFile, lstat } from 'node:fs/promises';
 import path from 'node:path';
 
-import { validateGalaDocument } from '@rathnasgala2/schemas';
-
+import { validateGalaDocument } from './schema.js';
+import { findThemeCatalogEntry, THEME_CATALOG } from './theme-catalog.js';
 import { resolveWorkspaceSibling } from './workspace-siblings.js';
 
 const THEME_CONTRACT_SCHEMA_ID = 'urn:gala:schema:theme-contract:2.0.0';
@@ -113,12 +109,11 @@ function themeFinding(code, detail, evidence) {
     severity: 'SOURCE_ERROR',
     detail,
     recovery:
-      "Install the pinned theme package under the repository's own " +
-      'node_modules, set GALA_THEME_DIR to an extracted copy of it, or (LOCAL ' +
-      'only) check out the matching v2/theme-<name> sibling repository at the ' +
-      'pinned version and, if resolving from a non-default location (for ' +
-      'example a git worktree), set WORKSPACE_ROOT to the directory ' +
-      'containing the sibling repositories.',
+      'Select a catalog-pinned generation-4 theme. ' +
+      "Install it under the repository's own node_modules, set " +
+      'GALA_THEME_DIR to an extracted copy, or (LOCAL only) check out the ' +
+      'matching v2/theme-<name> sibling and set WORKSPACE_ROOT when it is ' +
+      'outside the default workspace.',
     overridable: false,
     ...(evidence ? { evidence } : {}),
   };
@@ -179,9 +174,11 @@ async function readJsonOrFail(absolutePath, code) {
  *
  * @param {string} themeDirectory the absolute candidate directory
  * @param {{package: string, version: string}} theme the lock-pinned theme identity
+ * @param {import('./theme-catalog.js').ThemeCatalogEntry} catalogEntry the
+ *   admitted catalog entry
  * @returns {Promise<void>} resolves once verified; throws {@link ThemeResolutionError} otherwise
  */
-async function verifyThemeDirectory(themeDirectory, theme) {
+async function verifyThemeDirectory(themeDirectory, theme, catalogEntry) {
   const packageJson = await readJsonOrFail(
     path.join(themeDirectory, 'package.json'),
     'THEME_PACKAGE_JSON_UNREADABLE',
@@ -241,6 +238,21 @@ async function verifyThemeDirectory(themeDirectory, theme) {
       ],
     );
   }
+  if (themeContract.contractVersion !== catalogEntry.contractVersion) {
+    throw new ThemeResolutionError(
+      `${themeDirectory}/theme.json's contractVersion (${themeContract.contractVersion}) does not match the catalog (${catalogEntry.contractVersion})`,
+      [
+        themeFinding(
+          'THEME_CONTRACT_VERSION_MISMATCH',
+          `${themeDirectory}/theme.json: expected ${catalogEntry.contractVersion}, found ${themeContract.contractVersion}`,
+          {
+            expected: catalogEntry.contractVersion,
+            found: themeContract.contractVersion,
+          },
+        ),
+      ],
+    );
+  }
 }
 
 /**
@@ -280,6 +292,34 @@ export async function resolveThemeDirectory({
       ],
     );
   }
+  const catalogEntry = findThemeCatalogEntry(theme.package);
+  if (
+    !catalogEntry ||
+    theme.version !== catalogEntry.version ||
+    theme.integrity !== catalogEntry.integrity
+  ) {
+    throw new ThemeResolutionError(
+      `theme package ${theme.package}@${theme.version} is not supported by this generation-4 toolchain`,
+      [
+        themeFinding(
+          'THEME_PACKAGE_UNSUPPORTED',
+          `${theme.package}@${theme.version}: expected an exact generation-4 candidate catalog entry`,
+          {
+            expected:
+              catalogEntry ??
+              THEME_CATALOG.map(
+                ({ package: packageName, version, integrity }) => ({
+                  package: packageName,
+                  version,
+                  integrity,
+                }),
+              ),
+            found: theme,
+          },
+        ),
+      ],
+    );
+  }
   const themeSlug = /** @type {string} */ (match[1]);
 
   /** @type {{source: string, directory: string}[]} */
@@ -299,7 +339,7 @@ export async function resolveThemeDirectory({
 
   for (const candidate of candidates) {
     if (await isDirectory(candidate.directory)) {
-      await verifyThemeDirectory(candidate.directory, theme);
+      await verifyThemeDirectory(candidate.directory, theme, catalogEntry);
       return candidate.directory;
     }
   }

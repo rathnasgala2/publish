@@ -35,7 +35,9 @@ import { promisify } from 'node:util';
 
 import * as pages from '@rathnasgala2/adapter-github-pages';
 import * as spaces from '@rathnasgala2/adapter-do-spaces';
+import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
 
+import { findAdapterArtifact } from '../packages/publish-action/src/adapter-artifact-catalog.js';
 import {
   deriveAuthorizationInput,
   deriveRebuildRecord,
@@ -93,6 +95,7 @@ const PAGES = '@rathnasgala2/adapter-github-pages';
 /** The checkout-only commit facts `prep` records (tree id, committer instant). */
 const SOURCE_TREE = `sha1:${'b'.repeat(40)}`;
 const BUILD_EPOCH = '2026-09-17T00:00:00.000Z';
+const LOCK_DIGEST_PROFILE = /** @type {any} */ (ACTIVE_DIGEST_PROFILES.lock);
 
 /** The runner's own bound identity for one publish run. */
 const RUNNER = Object.freeze({
@@ -151,7 +154,7 @@ function factsFor(adapterPackage) {
  * re-pointed at one adapter package (the fixture itself locks
  * `local-directory`), optionally mutated further.
  *
- * @param {keyof typeof ADAPTER_PACKAGES | null} adapterPackage the adapter row
+ * @param {string | null} adapterPackage the adapter row
  *   to substitute for the fixture's, or `null` to drop every adapter row
  * @param {(documents: {lock: any, publication: any}) => void} [mutate] a
  *   further mutation of the two documents
@@ -171,13 +174,32 @@ function verifiedInputs(adapterPackage, mutate, metadata = {}) {
   assert.ok(lockMember !== undefined && publicationMember !== undefined);
   const lock = JSON.parse(lockMember.bytes.toString('utf8'));
   const publication = JSON.parse(publicationMember.bytes.toString('utf8'));
+  const artifact =
+    adapterPackage === null ? undefined : findAdapterArtifact(adapterPackage);
+  if (adapterPackage !== null && artifact === undefined) {
+    throw new Error(
+      `test adapter is absent from the artifact catalog: ${adapterPackage}`,
+    );
+  }
   lock.publisher = lock.publisher.flatMap((/** @type {any} */ row) => {
     if (!Object.hasOwn(ADAPTER_PACKAGES, row.package)) {
       return [row];
     }
-    return adapterPackage === null ? [] : [{ ...row, package: adapterPackage }];
+    return artifact === undefined
+      ? []
+      : [
+          {
+            package: artifact.package,
+            version: artifact.version,
+            integrity: artifact.integrity,
+            registry: artifact.registry,
+            contractVersion: artifact.contractVersion,
+            compatibleWith: artifact.compatibleWith,
+          },
+        ];
   });
   mutate?.({ lock, publication });
+  lock.lockDigest = LOCK_DIGEST_PROFILE.digest(lock);
   lockMember.bytes = Buffer.from(JSON.stringify(lock), 'utf8');
   publicationMember.bytes = Buffer.from(JSON.stringify(publication), 'utf8');
   const bytes = encodeCarrier({
@@ -195,6 +217,22 @@ function verifiedInputs(adapterPackage, mutate, metadata = {}) {
     files,
   });
   return { ...decodeCarrier(bytes), bytes };
+}
+
+/**
+ * Corrupt the already-valid lock bytes without repairing their self-digest.
+ *
+ * @param {ReturnType<typeof verifiedInputs>} inputs verified carrier
+ * @param {(lock: Record<string, any>) => void} mutate corruption to apply
+ * @returns {ReturnType<typeof verifiedInputs>} the same carrier with tampered member bytes
+ */
+function tamperVerifiedLock(inputs, mutate) {
+  const member = inputs.files.find((file) => file.path === LOCK_PATH);
+  assert.ok(member !== undefined);
+  const lock = JSON.parse(member.bytes.toString('utf8'));
+  mutate(lock);
+  member.bytes = Buffer.from(JSON.stringify(lock), 'utf8');
+  return inputs;
 }
 
 /**
@@ -226,7 +264,7 @@ function frozenEnvelope(adapterPackage) {
 }
 
 /**
- * @param {keyof typeof ADAPTER_PACKAGES} adapterPackage the locked adapter
+ * @param {string} adapterPackage the locked adapter
  * @param {Record<string, string | undefined>} [runner] the runner identity
  * @param {{
  *   build?: {buildInput: Record<string, any> | null, themeContract: Record<string, any> | null},
@@ -253,7 +291,7 @@ function derive(adapterPackage, runner = RUNNER, levers = {}) {
  * The rebuild record freeze must send for one adapter: every member from
  * its DEC-097 section 5 owner, and none of the four Gala derives.
  *
- * @param {keyof typeof ADAPTER_PACKAGES} adapterPackage the locked adapter
+ * @param {string} adapterPackage the locked adapter
  * @param {Record<string, any>} manifest the envelope's manifest
  * @returns {Record<string, unknown>} the expected record
  */
@@ -318,6 +356,98 @@ test('the lock is the only source of the adapter, the publisher and the lock dig
   assert.equal(facts.lockDigest, lock.lockDigest);
 });
 
+test('a well-shaped lockDigest that does not authenticate the complete lock is refused', () => {
+  const inputs = tamperVerifiedLock(
+    verifiedInputs('@rathnasgala2/adapter-github-pages'),
+    (lock) => {
+      lock.lockDigest = `sha256:${'f'.repeat(64)}`;
+    },
+  );
+
+  assert.throws(
+    () => readLockFacts(inputs.files),
+    /VERIFIED_SOURCE_LOCK_DIGEST_MISMATCH/u,
+  );
+});
+
+test('freeze binds every selected adapter row member to the closed artifact catalog', () => {
+  for (const [member, tampered] of Object.entries({
+    version: '9.9.9',
+    integrity: `sha256:${'f'.repeat(64)}`,
+    registry: 'https://registry.invalid/',
+    contractVersion: '9.9.9',
+    compatibleWith: '^9.9.9',
+  })) {
+    assert.throws(
+      () =>
+        readLockFacts(
+          verifiedInputs(PAGES, ({ lock }) => {
+            const row = lock.publisher.find(
+              (/** @type {any} */ candidate) => candidate.package === PAGES,
+            );
+            row[member] = tampered;
+          }).files,
+        ),
+      /VERIFIED_SOURCE_ADAPTER_IDENTITY_INVALID/u,
+      member,
+    );
+  }
+
+  assert.throws(
+    () =>
+      readLockFacts(
+        verifiedInputs(PAGES, ({ lock }) => {
+          const row = lock.publisher.find(
+            (/** @type {any} */ candidate) => candidate.package === PAGES,
+          );
+          row.unapproved = true;
+        }).files,
+      ),
+    /VERIFIED_SOURCE_ADAPTER_IDENTITY_INVALID/u,
+  );
+});
+
+test('freeze binds every theme member and the exact six-member row shape to the catalog', () => {
+  for (const [member, tampered] of Object.entries({
+    package: '@rathnasgala2/theme-unknown',
+    version: '9.9.9',
+    integrity: `sha256:${'f'.repeat(64)}`,
+    registry: 'https://registry.invalid/',
+    contractVersion: '9.9.9',
+    compatibleWith: '^9.9.9',
+  })) {
+    assert.throws(
+      () =>
+        readLockDocument(
+          verifiedInputs(PAGES, ({ lock }) => {
+            lock.theme[member] = tampered;
+          }).files,
+        ),
+      /VERIFIED_SOURCE_THEME_IDENTITY_INVALID/u,
+      member,
+    );
+  }
+
+  assert.throws(
+    () =>
+      readLockDocument(
+        verifiedInputs(PAGES, ({ lock }) => {
+          delete lock.theme.compatibleWith;
+        }).files,
+      ),
+    /VERIFIED_SOURCE_THEME_IDENTITY_INVALID/u,
+  );
+  assert.throws(
+    () =>
+      readLockDocument(
+        verifiedInputs(PAGES, ({ lock }) => {
+          lock.theme.unapproved = true;
+        }).files,
+      ),
+    /VERIFIED_SOURCE_THEME_IDENTITY_INVALID/u,
+  );
+});
+
 test('a lock that selects no adapter, two adapters, or no publisher is refused by name', () => {
   assert.throws(
     () => readLockFacts(verifiedInputs(null).files),
@@ -353,9 +483,12 @@ test('a lock that selects no adapter, two adapters, or no publisher is refused b
   assert.throws(
     () =>
       readLockFacts(
-        verifiedInputs('@rathnasgala2/adapter-github-pages', ({ lock }) => {
-          lock.lockDigest = 'not-a-digest';
-        }).files,
+        tamperVerifiedLock(
+          verifiedInputs('@rathnasgala2/adapter-github-pages'),
+          (lock) => {
+            lock.lockDigest = 'not-a-digest';
+          },
+        ).files,
       ),
     /VERIFIED_SOURCE_LOCK_INVALID: lockDigest/u,
   );
@@ -811,6 +944,9 @@ test('freeze.mjs then build-authorization-input.mjs: the envelope is frozen unde
   );
   const env = {
     PATH: process.env.PATH ?? '',
+    ...(process.env.WORKSPACE_ROOT
+      ? { WORKSPACE_ROOT: process.env.WORKSPACE_ROOT }
+      : {}),
     ...RUNNER,
   };
   const handoffArguments = [

@@ -11,15 +11,15 @@ closed adapter-capability contract.
 
 ## Packages
 
-| Package                                 | Status                                                              |
-| --------------------------------------- | ------------------------------------------------------------------- |
-| `@rathnasgala2/publish-kernel`          | implemented (S2-T16)                                                |
-| `@rathnasgala2/adapter-protocol`        | implemented (S2-T15)                                                |
-| `@rathnasgala2/adapter-conformance-kit` | implemented (S2-T17)                                                |
-| `@rathnasgala2/adapter-local-directory` | implemented (S2-T17)                                                |
-| `@rathnasgala2/adapter-github-pages`    | implemented (S4-T04)                                                |
-| `@rathnasgala2/adapter-do-spaces`       | implemented (S4-T05)                                                |
-| `@rathnasgala2/publish-action`          | implemented (S2-T20/S2-T20b), unpublished (`private: true`, PUB-H8) |
+| Package                                 | Status                                                |
+| --------------------------------------- | ----------------------------------------------------- |
+| `@rathnasgala2/publish-kernel`          | implemented (S2-T16), source-only (`private: true`)   |
+| `@rathnasgala2/adapter-protocol`        | implemented (S2-T15), source-only (`private: true`)   |
+| `@rathnasgala2/adapter-conformance-kit` | implemented (S2-T17), source-only (`private: true`)   |
+| `@rathnasgala2/adapter-local-directory` | implemented (S2-T17), source-only (`private: true`)   |
+| `@rathnasgala2/adapter-github-pages`    | implemented (S4-T04), source-only (`private: true`)   |
+| `@rathnasgala2/adapter-do-spaces`       | implemented (S4-T05), source-only (`private: true`)   |
+| `@rathnasgala2/publish-action`          | implemented (S2-T20/S2-T20b), source-only (`private`) |
 
 ## Commands
 
@@ -32,6 +32,13 @@ npm ci
 npm run verify
 ```
 
+`vendor/source-packages.json` binds the committed source tarballs for schemas
+3.8.0, template 4.0.0 and all six generation-4 themes by exact identity, byte
+length, SHA-256 and SHA-512. `npm run vendor:check` verifies that manifest, the
+lockfile and theme catalog without a sibling checkout. Maintainers refresh the
+set from the adjacent `v2` source tree with `npm run vendor:refresh`, then prove
+two fresh packs are byte-identical with `npm run vendor:source-check`.
+
 `npm run verify` runs formatting, lint, `tsc --checkJs --noEmit` per package,
 the dependency-cruiser architecture gate, `jscpd` duplication scan, the Node
 native test suite, the CycloneDX SBOM freshness check, `npm audit`, the workflow
@@ -43,26 +50,13 @@ names a running server (`scripts/minio-spaces.sh up` starts the pinned throwaway
 one and prints the variable); `test/sandbox.test.mjs` needs a Docker daemon. A
 full `verify` is one with both present.
 
-### Working from a git worktree
+### Working from an isolated checkout
 
-Packet worktrees live under `.worktrees/<name>/` (git-ignored). Two things
-resolve relative to the checkout and need a hand from a worktree:
-
-- **Sibling checkouts.** `publish-action`'s bridges resolve exactly two kinds of
-  sibling as directories four levels above `packages/publish-action/src/`, which
-  from a worktree is `.worktrees/`: `template` (`template-bridge.js`'s
-  `TEMPLATE_ROOT`) and `theme-<slug>` for each theme it needs
-  (`theme-bridge.js`'s LOCAL-only fallback). No other repository (`schema`,
-  `api`, `infra`) is resolved this way by any code here. The workspace keeps
-  git-ignored symlinks there (`.worktrees/template -> ../../template` and so on,
-  LOCAL-38) so the default resolution works; setting
-  `WORKSPACE_ROOT=/path/to/v2` overrides it instead when the symlinks are absent
-  (CI has no siblings at all).
-- **Schema pin.** Every manifest pins `@rathnasgala2/schemas` to the same exact
-  registry version (`package.json` is the source of truth), resolved from
-  `registry.npmjs.org`. The LOCAL-1 local-tarball convention
-  (`file:../../local-packages/<tarball>`) is retired for this package now that
-  it publishes; no worktree symlink is needed for it.
+`npm ci --ignore-scripts` installs schemas, template and every generation-4
+theme from `vendor/packages/`; no npm publication or sibling checkout is
+required. Set `WORKSPACE_ROOT="$PWD/node_modules/@rathnasgala2"` when directly
+running tests or commands that use the template/theme bridges. The reusable
+workflow and owned CI workflows set the equivalent path themselves.
 
 ## SBOM reproducibility (`sbom:check`)
 
@@ -475,10 +469,10 @@ incomplete one is refused by name and never written, and a disagreeing build
 fact is refused.
 
 What still needs W4-16 credentials: the Spaces limited-key denial proof, the
-Pages OIDC acquisition, and both providers' live REST surfaces. The
-`publish-action` and workflow suites resolve the `template` and `theme-default`
-siblings through `WORKSPACE_ROOT` (see "Working from a git worktree"): set it to
-the directory containing the sibling checkouts when running from a worktree.
+Pages OIDC acquisition, and both providers' live REST surfaces. The generation-4
+`publish-action` suites resolve the installed `template` and selected `theme-*`
+packages through `WORKSPACE_ROOT`; in an isolated checkout, set it to
+`$PWD/node_modules/@rathnasgala2`.
 
 ## Workflows, sandbox and pins
 

@@ -31,8 +31,6 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { validateGalaDocument } from '@rathnasgala2/schemas';
-
 import { findCarrier } from './decode-carrier.mjs';
 import { UNFROZEN_METADATA_MEMBERS, readBuildFacts } from './build-facts.mjs';
 import {
@@ -53,6 +51,7 @@ import { buildSbom, validateSbomBytes } from './sbom.mjs';
 import { readLockDocument, readLockFacts } from './verified-source.mjs';
 import { jcsBytes } from './frozen-envelope.mjs';
 import { runIfMain } from '../run-if-main.mjs';
+import { validateGalaDocument } from './schema-runtime.mjs';
 
 /** The reserved public-marker coordinate no artifact may carry. */
 const MARKER_PATH = '.well-known/gala-generation.json';

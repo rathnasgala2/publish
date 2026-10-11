@@ -148,7 +148,9 @@ jobs:
 
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: |
+          node scripts/vendor-source-packages.mjs --check
+          npm ci --ignore-scripts
 
       - name: Build the verified-input carrier
         id: verified-source
@@ -223,7 +225,9 @@ jobs:
 
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: |
+          node scripts/vendor-source-packages.mjs --check
+          npm ci --ignore-scripts
 
       - name: Rehash and decode the carrier before use
         shell: bash
@@ -344,7 +348,9 @@ jobs:
 
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: |
+          node scripts/vendor-source-packages.mjs --check
+          npm ci --ignore-scripts
 
       # The two predecessor handoffs (exact ID, name, byte count, digest,
       # expiry, each re-observed by its producing job) are retained in the
@@ -506,7 +512,9 @@ jobs:
 
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: |
+          node scripts/vendor-source-packages.mjs --check
+          npm ci --ignore-scripts
 
       # DEC-097 section 6: attest revalidates the envelope's internal
       # build-provenance record and extracts the exact SBOM record bytes; no
@@ -601,7 +609,9 @@ jobs:
 
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: |
+          node scripts/vendor-source-packages.mjs --check
+          npm ci --ignore-scripts
 
       - name: Perform the two bounded read-only configuration checks
         shell: bash
@@ -689,7 +699,9 @@ jobs:
 
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: |
+          node scripts/vendor-source-packages.mjs --check
+          npm ci --ignore-scripts
 
       - name: Run the kernel and the Spaces adapter
         shell: bash
@@ -782,7 +794,9 @@ jobs:
 
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: |
+          node scripts/vendor-source-packages.mjs --check
+          npm ci --ignore-scripts
 
       - name: Build the deterministic Pages carrier
         shell: bash

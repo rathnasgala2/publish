@@ -8,6 +8,20 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Source-only generation-4 delivery vendors deterministic tarballs for schemas
+  3.8.0, template 4.0.0 and all six theme 4.0.0 packages. A domain-separated
+  manifest binds exact identities, byte lengths, SHA-256 and SHA-512 values;
+  `vendor:check` also proves lockfile and theme-catalog parity.
+
+### Changed
+
+- Isolated reusable-workflow installs consume the committed vendor set with no
+  npm publication or sibling checkout. Every publish workspace package is
+  private, and release automation is verification-only while source delivery is
+  active.
+
 ### Changed
 
 - The toolchain ships `theme-default` 3.0.1, `theme-amaze`, `theme-flashy`,

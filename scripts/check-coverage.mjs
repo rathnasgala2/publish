@@ -16,9 +16,9 @@
  * (`adapter-protocol` from `publish-kernel`'s own tests) and, for
  * `adapter-local-directory`/`publish-action`, the real `v2/template`
  * sibling repository reached by absolute path (`template-bridge.js`) -- so
- * a template/theme-default release that changes how much of *their* code a
+ * a template/theme-editorial release that changes how much of *their* code a
  * test exercises silently moves *this* package's recorded percentage
- * without a single line here changing. Pinning `template`/`theme-default`
+ * without a single line here changing. Pinning `template`/`theme-editorial`
  * to 2.1.0 (PUB-H5) surfaced exactly that: `adapter-local-directory`'s and
  * `publish-action`'s own `src/` coverage were unchanged byte-for-byte
  * (confirmed line-for-line against the pre-bump run), but the unscoped
