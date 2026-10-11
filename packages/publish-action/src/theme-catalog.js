@@ -45,6 +45,12 @@ export const THEME_CATALOG = Object.freeze(
       '14cd28618f8f726a319782ca3a126845df5472cb76e2f778e7016ba5f1f56e42',
     ],
     [
+      'amaze',
+      '3.0.0',
+      '3.0.0',
+      '1bd8e24e111f275cd8e015d3e1c50057c4b18135bddbb1cbfb4a54c6d341a904',
+    ],
+    [
       'flashy',
       '3.0.0',
       '3.0.0',

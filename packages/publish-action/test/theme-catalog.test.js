@@ -62,11 +62,12 @@ async function fixtureSelecting(lockPackage, appearancePackage) {
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
-test('the catalog is exactly the four installed theme packages', async () => {
+test('the catalog is exactly the five installed theme packages', async () => {
   assert.deepEqual(
     THEME_CATALOG.map((entry) => entry.package),
     [
       '@rathnasgala2/theme-default',
+      '@rathnasgala2/theme-amaze',
       '@rathnasgala2/theme-flashy',
       '@rathnasgala2/theme-minimal',
       '@rathnasgala2/theme-zebra',

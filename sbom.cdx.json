@@ -101,7 +101,6 @@
       "group": "@rathnasgala2",
       "version": "0.0.0",
       "bom-ref": "@rathnasgala2/publish-workspace@0.0.0",
-      "description": "Galascribe v2 publish workspace: provider-neutral publish safety kernel, in-process deployment adapter protocol and the three S2 adapters.",
       "licenses": [
         {
           "license": {
@@ -112,18 +111,6 @@
       ],
       "purl": "pkg:npm/%40rathnasgala2/publish-workspace@0.0.0",
       "properties": [
-        {
-          "name": "cdx:npm:package:constraint:engine:node",
-          "value": "24.18.0"
-        },
-        {
-          "name": "cdx:npm:package:constraint:engine:npm",
-          "value": "11.16.0"
-        },
-        {
-          "name": "cdx:npm:package:private",
-          "value": "true"
-        },
         {
           "name": "cdx:npm:package:path",
           "value": ""
@@ -400,6 +387,41 @@
         {
           "name": "cdx:npm:package:path",
           "value": "node_modules/@rathnasgala2/template"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "theme-amaze",
+      "group": "@rathnasgala2",
+      "version": "3.0.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@3.0.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/%40rathnasgala2/theme-amaze@3.0.0",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/@rathnasgala2/theme-amaze/-/theme-amaze-3.0.0.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "f4e2e1e5ffdace67af45c721a072900221cda2c739f0fb7dbd9b2d7cc65df5d96ca592f9c41192451850772f9f5f95168df93e5f96fd74acee166c61bc77862f"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/@rathnasgala2/theme-amaze"
         }
       ]
     },
@@ -18015,6 +18037,7 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@3.2.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@3.0.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@3.0.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-flashy@3.0.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-minimal@3.0.0",
@@ -18118,6 +18141,9 @@
         "@rathnasgala2/publish-workspace@0.0.0|markdown-it@14.3.1",
         "@rathnasgala2/publish-workspace@0.0.0|sanitize-html@2.17.7"
       ]
+    },
+    {
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@3.0.0"
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@3.0.0"

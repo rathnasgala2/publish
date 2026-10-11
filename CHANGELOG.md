@@ -10,11 +10,11 @@ and this project adheres to
 
 ### Changed
 
-- The toolchain ships `theme-default` 3.0.0, `theme-flashy`, `theme-minimal` and
-  `theme-zebra` 3.0.0 (all theme contract 3.0.0) and pins
+- The toolchain ships `theme-default` 3.0.0, `theme-amaze`, `theme-flashy`,
+  `theme-minimal` and `theme-zebra` 3.0.0 (all theme contract 3.0.0) and pins
   `@rathnasgala2/template` 3.2.1 (distinct enabled, disabled and working states
   for the interaction buttons). The sibling checkouts in CI, nightly and release
-  follow the published commits. `theme-amaze` joins once 3.0.0 is on npm.
+  follow the published commits. `theme-amaze` 3.0.0 is installed and offered.
 - The documented caller (`docs/callers/gala-publish-v2.yml`) is byte-identical
   to the starter repository's (`rathnasgala2/user-template` 73a2e33). Its guard
   admits only `gala/publish/` branches (a saved change's `gala/candidate/`

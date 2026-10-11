@@ -78,5 +78,8 @@
     "typescript": "5.9.3",
     "typescript-eslint": "8.70.0",
     "yaml": "2.9.0"
+  },
+  "dependencies": {
+    "@rathnasgala2/theme-amaze": "3.0.0"
   }
 }
