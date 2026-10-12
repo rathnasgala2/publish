@@ -31,6 +31,22 @@ const FILES = Object.freeze([
 ]);
 
 /**
+ * The exact `name@version` identity the lock carries for a publisher package,
+ * so the DAG edges follow the fixture lock instead of hardcoded versions.
+ *
+ * @param {Record<string, any>} lock the lock
+ * @param {string} name the package name
+ * @returns {string} the exact identity
+ */
+function exactIdentity(lock, name) {
+  const row = directPackageRows(lock).find(
+    (/** @type {any} */ entry) => entry.package === name,
+  );
+  assert.ok(row, `the fixture lock carries ${name}`);
+  return `${name}@${row.version}`;
+}
+
+/**
  * A lock with two transitive dependencies and three DAG edges, one of which
  * duplicates an artifact-to-direct row.
  *
@@ -53,7 +69,10 @@ function lockWithDependencies() {
       },
     ];
     lock.dependencyDag = [
-      { from: '@rathnasgala2/template@4.0.0', to: 'left-pad@1.3.0' },
+      {
+        from: exactIdentity(lock, '@rathnasgala2/template'),
+        to: 'left-pad@1.3.0',
+      },
       { from: 'left-pad@1.3.0', to: 'right-pad@2.0.0' },
       { from: '@rathnasgala2/publish-action@0.1.0', to: 'left-pad@1.3.0' },
     ];
@@ -252,7 +271,10 @@ test('the official SPDX 2.3 schema accepts the exact bytes, and a reserialized o
 test('a DAG edge naming a package the lock does not carry, and an empty file set, are refused', () => {
   const lock = fixtureLock(undefined, (document) => {
     document.dependencyDag = [
-      { from: '@rathnasgala2/template@4.0.0', to: 'ghost@1.0.0' },
+      {
+        from: exactIdentity(document, '@rathnasgala2/template'),
+        to: 'ghost@1.0.0',
+      },
     ];
   });
   const manifest = manifestFor(FILES, { lock });
