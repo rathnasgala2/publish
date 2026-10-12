@@ -24,7 +24,6 @@ npm run architecture
 npm run duplication
 npm test
 npm run coverage:check
-npm run vendor:check
 npm run source-only:check
 npm run sbom:check     # npm run sbom regenerates sbom.cdx.json; sbom:check proves it is current
 npm run audit
@@ -83,12 +82,11 @@ control-plane key.
 
 ## Contract sources and generation commands
 
-The source manifests target the committed, manifest-verified
-`@rathnasgala2/schemas@3.8.0` tarball (exact pin, no range). Schema, template
-4.0.0 and all six generation-4 themes are delivered from `vendor/packages/`;
-neither npm publication nor a sibling checkout is part of installation. No
-schema is re-authored here. Protocol payloads are validated with the package's
-exported `validateGalaDocument(schemaId, value)` against
+`@rathnasgala2/schemas@3.8.0` is consumed from the public npm registry (exact
+pin, no range). Template 4.0.0 and all six generation-4 themes are root
+devDependencies at exact registry versions; no sibling checkout is part of
+installation. No schema is re-authored here. Protocol payloads are validated
+with the package's exported `validateGalaDocument(schemaId, value)` against
 `urn:gala:schema:adapter-capability:2.0.0`,
 `urn:gala:schema:deployment-intent:2.0.0`,
 `urn:gala:schema:deployment-observation:2.0.0` and
@@ -104,9 +102,7 @@ external service dependency; its tests are pure unit and property tests.
 `test/e2e-npx-and-action.test.js`) resolve installed `rathnasgala2/template` and
 generation-4 `rathnasgala2/theme-*` packages by setting
 `WORKSPACE_ROOT="$PWD/node_modules/@rathnasgala2"`. CI, nightly and release
-verification set that path. `npm run vendor:check` is the isolated fail-closed
-gate; `npm run vendor:source-check` additionally proves that two fresh packs
-from the adjacent `v2` source tree are byte-identical to the committed set.
+verification set that path.
 
 ## Review checklist
 

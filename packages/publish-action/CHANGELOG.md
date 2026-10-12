@@ -10,10 +10,11 @@ and this project adheres to
 
 ### Changed
 
-- Source-only delivery installs schemas 3.8.0, template 4.0.0 and all six theme
-  4.0.0 packages from the publish repository's manifest-verified vendor
-  tarballs. An isolated reusable-workflow checkout no longer needs npm
-  publications or sibling repositories to build a new site.
+- Schemas 3.8.0, template 4.0.0 and all six theme 4.0.0 packages are installed
+  from the public npm registry at exact versions; `THEME_CATALOG` carries the
+  registry tarball SHA-256 and the `https://registry.npmjs.org/` identity. An
+  isolated reusable-workflow checkout needs no sibling repositories to build a
+  new site.
 
 ### Added
 

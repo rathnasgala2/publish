@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 /**
- * Source-delivery guard: generation 4 is intentionally not published to npm.
- * Every schema-consuming workspace package therefore resolves the one
- * committed, manifest-verified tarball owned by this repository. Mutable
- * sibling directories, registry ranges and the old untracked
- * `local-packages/*.tgz` convention remain forbidden.
+ * Registry guard: every schema-consuming workspace package pins the exact
+ * registry release of `@rathnasgala2/schemas`. Mutable sibling directories,
+ * ranges and the old untracked `local-packages/*.tgz` convention are
+ * forbidden.
  */
 import { readFile, readdir } from 'node:fs/promises';
 
@@ -15,8 +14,7 @@ const FORBIDDEN = [
   /local-packages\/rathnasgala2-schemas-/u,
   /file:\.\.\/\.\.\/\.\.\/schema/u,
 ];
-const EXPECTED_SPECIFIER =
-  'file:../../vendor/packages/rathnasgala2-schemas-3.8.0.tgz';
+const EXPECTED_SPECIFIER = '3.8.0';
 
 /**
  * @param {string} path the file to scan
@@ -30,8 +28,8 @@ async function checkFile(path) {
     if (pattern.test(text)) {
       diagnostics.push(
         `${path}: found a local-tarball schema reference (${pattern}). ` +
-          '@rathnasgala2/schemas must resolve the committed publish-owned ' +
-          'vendor tarball; sibling and local-packages references are forbidden.',
+          '@rathnasgala2/schemas must be pinned to the registry version; ' +
+          'sibling and local-packages references are forbidden.',
       );
     }
   }
@@ -58,7 +56,7 @@ async function main() {
       schemaSpecifier !== EXPECTED_SPECIFIER
     ) {
       diagnostics.push(
-        `${path}: @rathnasgala2/schemas must be ${EXPECTED_SPECIFIER} for source-only generation-4 delivery.`,
+        `${path}: @rathnasgala2/schemas must be ${EXPECTED_SPECIFIER} exactly.`,
       );
     }
   }
@@ -66,7 +64,7 @@ async function main() {
     throw new Error(diagnostics.join('\n'));
   }
   console.log(
-    `schema consumers use the committed 3.8.0 vendor tarball; no sibling or untracked local tarball found across ${files.length} file(s).`,
+    `schema consumers pin registry 3.8.0; no sibling or untracked local tarball found across ${files.length} file(s).`,
   );
 }
 

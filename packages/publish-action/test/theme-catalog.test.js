@@ -1,6 +1,6 @@
 /**
- * The toolchain's generation-4 theme catalog: every local candidate may be selected,
- * each candidate package agrees with `THEME_CATALOG`, a consistent build
+ * The toolchain's generation-4 theme catalog: every cataloged theme may be selected,
+ * each registry package agrees with `THEME_CATALOG`, a consistent build
  * renders its CSS, and a lock/appearance disagreement is refused with
  * `THEME_SELECTION_MISMATCH`.
  *
@@ -10,28 +10,17 @@
  */
 
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import {
-  cp,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixtures/minimal-repository');
 const WORKSPACE_ROOT =
   process.env.WORKSPACE_ROOT ?? path.resolve(HERE, '../../../..');
 process.env.WORKSPACE_ROOT = WORKSPACE_ROOT;
-const execFileAsync = promisify(execFile);
 
 const {
   THEME_CATALOG,
@@ -78,7 +67,7 @@ async function fixtureSelecting(lockPackage, appearancePackage) {
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
-test('the catalog is exactly the six local generation-4 candidate packages', async () => {
+test('the catalog is exactly the six registry generation-4 theme packages', async () => {
   assert.deepEqual(THEME_CATALOG.map((entry) => entry.package).sort(), [
     '@rathnasgala2/theme-amaze',
     '@rathnasgala2/theme-default',
@@ -113,49 +102,26 @@ test('the catalog is exactly the six local generation-4 candidate packages', asy
   );
 });
 
-test('catalog and fixture integrities equal the locally packed candidate tarball SHA-256', async () => {
+test('every catalog row names a registry release the lockfile resolves from the public registry', async () => {
+  const lockfile = JSON.parse(
+    await readFile(path.join(HERE, '../../../package-lock.json'), 'utf8'),
+  );
   const fixtureLock = JSON.parse(
     await readFile(path.join(FIXTURE, 'gala.lock.json'), 'utf8'),
   );
   for (const catalogEntry of THEME_CATALOG) {
-    const temporaryDirectory = await mkdtemp(
-      path.join(tmpdir(), 'gala-theme-pack-'),
+    assert.equal(catalogEntry.registry, 'https://registry.npmjs.org/');
+    const installed = lockfile.packages[`node_modules/${catalogEntry.package}`];
+    assert.equal(installed?.version, catalogEntry.version);
+    assert.match(
+      installed.resolved,
+      new RegExp(
+        `^https://registry\\.npmjs\\.org/${catalogEntry.package}/`,
+        'u',
+      ),
     );
-    try {
-      const themeDirectory = path.join(
-        WORKSPACE_ROOT,
-        catalogEntry.package.replace('@rathnasgala2/', ''),
-      );
-      await execFileAsync(
-        'npm',
-        [
-          'pack',
-          themeDirectory,
-          '--json',
-          '--pack-destination',
-          temporaryDirectory,
-        ],
-        {
-          env: {
-            ...process.env,
-            npm_config_cache: path.join(temporaryDirectory, 'npm-cache'),
-          },
-        },
-      );
-      const tarballs = (await readdir(temporaryDirectory)).filter((name) =>
-        name.endsWith('.tgz'),
-      );
-      assert.equal(tarballs.length, 1);
-      const tarball = tarballs[0];
-      assert.ok(tarball);
-      const bytes = await readFile(path.join(temporaryDirectory, tarball));
-      const digest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
-      assert.equal(catalogEntry.integrity, digest, catalogEntry.package);
-      if (fixtureLock.theme.package === catalogEntry.package) {
-        assert.equal(fixtureLock.theme.integrity, digest);
-      }
-    } finally {
-      await rm(temporaryDirectory, { recursive: true, force: true });
+    if (fixtureLock.theme.package === catalogEntry.package) {
+      assert.equal(fixtureLock.theme.integrity, catalogEntry.integrity);
     }
   }
 });

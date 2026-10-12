@@ -7,7 +7,7 @@
  * marker plus byte-identical served output.
  *
  * `@rathnasgala2/template` is consumed through its package entry. In an
- * isolated publish checkout, `WORKSPACE_ROOT` points at the source-vendored
+ * isolated publish checkout, `WORKSPACE_ROOT` points at the registry-installed
  * packages installed under `node_modules/@rathnasgala2`; local development
  * may still use the adjacent v2 source tree.
  *

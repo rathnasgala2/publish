@@ -176,8 +176,8 @@ test('PUB-L6: the ledger no longer carries a packages field at all', () => {
   assert.equal(LEDGER.packages, undefined);
 });
 
-test('every workspace package declares exactly the source-vendored schemas artifact', () => {
-  const expected = 'file:../../vendor/packages/rathnasgala2-schemas-3.8.0.tgz';
+test('every workspace package declares exactly the registry-pinned schemas version', () => {
+  const expected = '3.8.0';
   const declaring = readdirSync('packages')
     .map((name) => ({
       name,
@@ -191,7 +191,7 @@ test('every workspace package declares exactly the source-vendored schemas artif
     assert.equal(
       manifest.dependencies['@rathnasgala2/schemas'],
       expected,
-      `${name} must consume exactly the source-vendored schemas artifact`,
+      `${name} must consume exactly the registry-pinned schemas version`,
     );
   }
 });

@@ -80,7 +80,6 @@ test('release.yaml: the push path filter covers everything verify runs, not only
     'packages/**',
     'package.json',
     'package-lock.json',
-    'vendor/**',
     'scripts/**',
     'pins/**',
     '.github/workflows/release.yaml',

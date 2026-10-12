@@ -32,12 +32,9 @@ npm ci
 npm run verify
 ```
 
-`vendor/source-packages.json` binds the committed source tarballs for schemas
-3.8.0, template 4.0.0 and all six generation-4 themes by exact identity, byte
-length, SHA-256 and SHA-512. `npm run vendor:check` verifies that manifest, the
-lockfile and theme catalog without a sibling checkout. Maintainers refresh the
-set from the adjacent `v2` source tree with `npm run vendor:refresh`, then prove
-two fresh packs are byte-identical with `npm run vendor:source-check`.
+Schemas 3.8.0, template 4.0.0 and the six generation-4 themes are installed from
+the public npm registry at exact versions; the lockfile carries their integrity.
+`THEME_CATALOG` records each theme tarball's registry SHA-256.
 
 `npm run verify` runs formatting, lint, `tsc --checkJs --noEmit` per package,
 the dependency-cruiser architecture gate, `jscpd` duplication scan, the Node
@@ -53,10 +50,10 @@ full `verify` is one with both present.
 ### Working from an isolated checkout
 
 `npm ci --ignore-scripts` installs schemas, template and every generation-4
-theme from `vendor/packages/`; no npm publication or sibling checkout is
-required. Set `WORKSPACE_ROOT="$PWD/node_modules/@rathnasgala2"` when directly
-running tests or commands that use the template/theme bridges. The reusable
-workflow and owned CI workflows set the equivalent path themselves.
+theme from the registry; no sibling checkout is required. Set
+`WORKSPACE_ROOT="$PWD/node_modules/@rathnasgala2"` when directly running tests
+or commands that use the template/theme bridges. The reusable workflow and owned
+CI workflows set the equivalent path themselves.
 
 ## SBOM reproducibility (`sbom:check`)
 

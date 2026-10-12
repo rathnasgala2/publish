@@ -7,14 +7,13 @@ Author-facing publish orchestration entry: GitHub Action plus local `npx`
 
 Implemented (S2-T20, extended by S2-T20b's theme wiring) and **source-only**:
 every workspace package is private and `release.yaml` is verification-only. The
-publish repository installs this package's template/theme dependencies from its
-manifest-verified `vendor/packages/` set, without npm publication. This package
-is the workspace's sole composition root: it normalizes an author repository
-into a validated `build-input:2.0.0` document, resolves and verifies the
-`gala.lock.json`-pinned theme package (see "Theme resolution" below), calls
-`@rathnasgala2/template`'s `renderPublication`, and drives
-`@rathnasgala2/publish-kernel` plus the selected `@rathnasgala2/adapter-*`
-implementation.
+publish repository installs this package's template/theme dependencies from the
+public registry at exact versions. This package is the workspace's sole
+composition root: it normalizes an author repository into a validated
+`build-input:2.0.0` document, resolves and verifies the `gala.lock.json`-pinned
+theme package (see "Theme resolution" below), calls `@rathnasgala2/template`'s
+`renderPublication`, and drives `@rathnasgala2/publish-kernel` plus the selected
+`@rathnasgala2/adapter-*` implementation.
 
 `adapter-github-pages` and `adapter-do-spaces` are themselves fully implemented
 (S4-T04/S4-T05) — the gap is in this package's own wiring, not in those
@@ -253,10 +252,10 @@ and `scripts/sandbox-build.sh` forwards both variables into the sandbox.
 `gala.lock.json`'s `theme` entry (`buildInput.packages.theme`, the sole
 authority for the theme selection) names a real theme package
 (`@rathnasgala2/theme-<name>@<version>`). This workspace installs all six
-generation-4 themes and template 4.0.0 from the manifest-verified
-`vendor/packages/` tarballs. `src/theme-bridge.js`'s `resolveThemeDirectory`
-locates the selected theme package directory on disk, in this fixed order — the
-first candidate directory that actually exists wins:
+generation-4 themes and template 4.0.0 from the public registry.
+`src/theme-bridge.js`'s `resolveThemeDirectory` locates the selected theme
+package directory on disk, in this fixed order — the first candidate directory
+that actually exists wins:
 
 1. **Installed package** —
    `<repositoryDirectory>/node_modules/<theme package name>`. This is the
@@ -299,8 +298,8 @@ copies the theme's declared stylesheets (and any declared passive assets) into
 the candidate output's `assets/theme/` and links them, in `cssLayers` order, in
 every generated page's `<head>` (see `v2/template`'s README, S2-T12 section, for
 that consuming side's own path-containment and `basePath`-joining guarantees).
-The vendor gate and catalog test pack every generation-4 candidate. The fixture
-repository's `gala.lock.json` pins the committed candidate
+The catalog test checks every row against the lockfile's registry resolution.
+The fixture repository's `gala.lock.json` pins
 `@rathnasgala2/theme-editorial@4.0.0`; `test/e2e-npx-and-action.test.js` asserts
 the rendered `assets/theme/tokens.css`/`components.css`/`print.css` are
 byte-equal to the installed `theme-editorial` package's own files, and that the

@@ -6,5 +6,4 @@ node_modules/
 package-lock.json
 sbom.cdx.json
 **/sbom.cdx.json
-vendor/packages/*.tgz
 scripts/workflow/spdx/spdx-schema-2.3.json

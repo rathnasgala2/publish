@@ -29,8 +29,8 @@
   "theme": {
     "package": "@rathnasgala2/theme-editorial",
     "version": "4.0.0",
-    "integrity": "sha256:e3d466a6e579406289a6916e3891b8575119c0cc3a3271dacbf12bbe066b3c5a",
-    "registry": "https://local-development.invalid/rathnasgala2/",
+    "integrity": "sha256:5ad1715ac613a02e77655b586084b9899efaa38e54eb8a90b04ff68d83115c2e",
+    "registry": "https://registry.npmjs.org/",
     "contractVersion": "4.0.0",
     "compatibleWith": "^4.0.0"
   },
@@ -62,7 +62,7 @@
     {
       "package": "@rathnasgala2/adapter-local-directory",
       "version": "0.1.1",
-      "integrity": "sha256:80e9dd9b77ffdb3dbd1f03eed566ff34d0235fd61f7c4d8723167bf68592cf11",
+      "integrity": "sha256:aa164d01ca8e2868c8a8df2564950b004bf587830185900cded4f21d4466086f",
       "registry": "https://local-development.invalid/rathnasgala2/",
       "contractVersion": "2.0.0",
       "compatibleWith": "^2.0.0"
@@ -70,5 +70,5 @@
   ],
   "dependencies": [],
   "dependencyDag": [],
-  "lockDigest": "sha256:865eb725c0e8813d1fff42068c2aa571156aeb1ded77f36f525fabe195954b84"
+  "lockDigest": "sha256:ed21bd3bbe8d904006bc1f5ac89d67fb62bfc9792416366637a7afc0921a8788"
 }

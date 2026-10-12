@@ -20,22 +20,21 @@ export function requireThemeArtifact(row: Record<string, unknown>, diagnosticPre
  */
 export function themePackageNameOf(themeSpecifier: string): string;
 /**
- * The exact vendored-source theme catalog this generation-4 toolchain can
- * render. `scripts/sandbox-build.sh` exposes the packages installed from
- * `vendor/packages/` to `theme-bridge.js` through `WORKSPACE_ROOT`. Each entry
- * states the block an author repository's `gala.lock.json` `theme` member must
- * carry for that theme.
+ * The exact theme catalog this generation-4 toolchain can render: one entry per
+ * theme package the repository root installs (`package.json` `devDependencies`,
+ * exact-pinned, resolved from the public registry) and
+ * `scripts/sandbox-build.sh` exposes to `theme-bridge.js` through
+ * `WORKSPACE_ROOT=<toolchain>/node_modules/@rathnasgala2`. Each entry states
+ * the block an author repository's `gala.lock.json` `theme` member must carry
+ * for that theme.
  *
- * `integrity` is the lowercase hex SHA-256 of the candidate tarball produced
- * by the corresponding `vendor/packages/*.tgz` (`lock:2.0.0`'s `digest` shape,
- * `sha256:<64 hex>`). Generation 4 is not published yet, so these values do
- * not claim registry availability or registry-tarball identity. It must be
- * re-verified against registry artifacts before any future publication. The build does not
- * recompute it from installed bytes: it only checks the resolved package's
- * `name`/`version` and `theme.json` identity; the digest travels into
- * provenance and the authorization input unchanged. The workspace test
- * `vendor:check` and `theme-catalog.test.js` keep this table equal to the
- * committed candidate package.
+ * `integrity` is the lowercase hex SHA-256 of the registry tarball
+ * (`lock:2.0.0`'s `digest` shape, `sha256:<64 hex>`), cross-checked against the
+ * registry's `dist.integrity`. The build does not recompute it from installed
+ * bytes: it only checks the resolved package's `name`/`version` and
+ * `theme.json` identity; the digest travels into provenance and the
+ * authorization input unchanged. The workspace test `theme-catalog.test.js`
+ * keeps this table equal to the installed packages and the lockfile.
  *
  * `contractVersion` is the theme CONTRACT version (`theme.json` `contractVersion`, which the pinned template compares
  * with its published styling contract), never the package version; the
@@ -43,13 +42,13 @@ export function themePackageNameOf(themeSpecifier: string): string;
  *
  * @module
  */
-/** Deliberately non-routable registry identity for source-only candidate packages. */
-export const THEME_REGISTRY: "https://local-development.invalid/rathnasgala2/";
+/** The registry every catalog entry was published to. */
+export const THEME_REGISTRY: "https://registry.npmjs.org/";
 /**
  * @typedef {object} ThemeCatalogEntry
  * @property {string} package npm package name
  * @property {string} version exact installed version
- * @property {string} integrity `sha256:<hex>` of the candidate tarball
+ * @property {string} integrity `sha256:<hex>` of the registry tarball
  * @property {string} registry registry URL
  * @property {string} contractVersion the theme contract version (`theme.json` contractVersion)
  * @property {string} compatibleWith semver range over the contract version
@@ -66,7 +65,7 @@ export type ThemeCatalogEntry = {
      */
     version: string;
     /**
-     * `sha256:<hex>` of the candidate tarball
+     * `sha256:<hex>` of the registry tarball
      */
     integrity: string;
     /**

@@ -1,20 +1,19 @@
 /**
- * The exact vendored-source theme catalog this generation-4 toolchain can
- * render. `scripts/sandbox-build.sh` exposes the packages installed from
- * `vendor/packages/` to `theme-bridge.js` through `WORKSPACE_ROOT`. Each entry
- * states the block an author repository's `gala.lock.json` `theme` member must
- * carry for that theme.
+ * The exact theme catalog this generation-4 toolchain can render: one entry per
+ * theme package the repository root installs (`package.json` `devDependencies`,
+ * exact-pinned, resolved from the public registry) and
+ * `scripts/sandbox-build.sh` exposes to `theme-bridge.js` through
+ * `WORKSPACE_ROOT=<toolchain>/node_modules/@rathnasgala2`. Each entry states
+ * the block an author repository's `gala.lock.json` `theme` member must carry
+ * for that theme.
  *
- * `integrity` is the lowercase hex SHA-256 of the candidate tarball produced
- * by the corresponding `vendor/packages/*.tgz` (`lock:2.0.0`'s `digest` shape,
- * `sha256:<64 hex>`). Generation 4 is not published yet, so these values do
- * not claim registry availability or registry-tarball identity. It must be
- * re-verified against registry artifacts before any future publication. The build does not
- * recompute it from installed bytes: it only checks the resolved package's
- * `name`/`version` and `theme.json` identity; the digest travels into
- * provenance and the authorization input unchanged. The workspace test
- * `vendor:check` and `theme-catalog.test.js` keep this table equal to the
- * committed candidate package.
+ * `integrity` is the lowercase hex SHA-256 of the registry tarball
+ * (`lock:2.0.0`'s `digest` shape, `sha256:<64 hex>`), cross-checked against the
+ * registry's `dist.integrity`. The build does not recompute it from installed
+ * bytes: it only checks the resolved package's `name`/`version` and
+ * `theme.json` identity; the digest travels into provenance and the
+ * authorization input unchanged. The workspace test `theme-catalog.test.js`
+ * keeps this table equal to the installed packages and the lockfile.
  *
  * `contractVersion` is the theme CONTRACT version (`theme.json` `contractVersion`, which the pinned template compares
  * with its published styling contract), never the package version; the
@@ -23,14 +22,14 @@
  * @module
  */
 
-/** Deliberately non-routable registry identity for source-only candidate packages. */
-export const THEME_REGISTRY = 'https://local-development.invalid/rathnasgala2/';
+/** The registry every catalog entry was published to. */
+export const THEME_REGISTRY = 'https://registry.npmjs.org/';
 
 /**
  * @typedef {object} ThemeCatalogEntry
  * @property {string} package npm package name
  * @property {string} version exact installed version
- * @property {string} integrity `sha256:<hex>` of the candidate tarball
+ * @property {string} integrity `sha256:<hex>` of the registry tarball
  * @property {string} registry registry URL
  * @property {string} contractVersion the theme contract version (`theme.json` contractVersion)
  * @property {string} compatibleWith semver range over the contract version
@@ -42,7 +41,7 @@ export const THEME_CATALOG = Object.freeze([
     package: '@rathnasgala2/theme-default',
     version: '4.0.0',
     integrity:
-      'sha256:1d648d8b6cfefd22afdf47a46a0bb1260a7afa1d13990d95329e0230fab176a5',
+      'sha256:38287d10c8a1a3bd68febe6109d2bcb59daf2f9fee72c65caa8c2d4502d999a0',
     registry: THEME_REGISTRY,
     contractVersion: '4.0.0',
     compatibleWith: '^4.0.0',
@@ -51,7 +50,7 @@ export const THEME_CATALOG = Object.freeze([
     package: '@rathnasgala2/theme-amaze',
     version: '4.0.0',
     integrity:
-      'sha256:fd9991ca98c3e6be3ae7967a09a989b63c0a20a34eb7fe1d1eb4dd620b179ccb',
+      'sha256:702330eded3e7e2d1a3089c531666664ff3cf85952dddaa0998122a573c36402',
     registry: THEME_REGISTRY,
     contractVersion: '4.0.0',
     compatibleWith: '^4.0.0',
@@ -60,7 +59,7 @@ export const THEME_CATALOG = Object.freeze([
     package: '@rathnasgala2/theme-editorial',
     version: '4.0.0',
     integrity:
-      'sha256:e3d466a6e579406289a6916e3891b8575119c0cc3a3271dacbf12bbe066b3c5a',
+      'sha256:5ad1715ac613a02e77655b586084b9899efaa38e54eb8a90b04ff68d83115c2e',
     registry: THEME_REGISTRY,
     contractVersion: '4.0.0',
     compatibleWith: '^4.0.0',
@@ -69,7 +68,7 @@ export const THEME_CATALOG = Object.freeze([
     package: '@rathnasgala2/theme-flashy',
     version: '4.0.0',
     integrity:
-      'sha256:8cc1927c55d91bed5a512abc7f2173505c51757910f8c87fa57900f486010a91',
+      'sha256:45b6cf9890a8c95a5629f84406058e12c85f8bf8312a0e318bf06ef4b1747162',
     registry: THEME_REGISTRY,
     contractVersion: '4.0.0',
     compatibleWith: '^4.0.0',
@@ -78,7 +77,7 @@ export const THEME_CATALOG = Object.freeze([
     package: '@rathnasgala2/theme-minimal',
     version: '4.0.0',
     integrity:
-      'sha256:19d66ef77b5f4f65d8c5a9d657c8d80fae3638b2f6c50e26f8052a68d9eff791',
+      'sha256:7568094ea60348ac288aa928e6e3b1577d05a4cb1637e9fe13422ee4402f6fa3',
     registry: THEME_REGISTRY,
     contractVersion: '4.0.0',
     compatibleWith: '^4.0.0',
@@ -87,7 +86,7 @@ export const THEME_CATALOG = Object.freeze([
     package: '@rathnasgala2/theme-zebra',
     version: '4.0.0',
     integrity:
-      'sha256:212b259a7cfd9dbd23c298eb4ac1ee59956904ca85013284048996fb05109be8',
+      'sha256:d46fc85f91e2c315bd9341800f9191eb1042f6336b9fdac98367a3c2004b216c',
     registry: THEME_REGISTRY,
     contractVersion: '4.0.0',
     compatibleWith: '^4.0.0',

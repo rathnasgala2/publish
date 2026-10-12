@@ -38,15 +38,16 @@
     "@rathnasgala2/adapter-local-directory": "^0.1.1",
     "@rathnasgala2/adapter-protocol": "^0.2.1",
     "@rathnasgala2/publish-kernel": "^0.1.1",
-    "@rathnasgala2/schemas": "file:../../vendor/packages/rathnasgala2-schemas-3.8.0.tgz",
-    "@rathnasgala2/template": "file:../../vendor/packages/rathnasgala2-template-4.0.0.tgz",
-    "@rathnasgala2/theme-amaze": "file:../../vendor/packages/rathnasgala2-theme-amaze-4.0.0.tgz",
-    "@rathnasgala2/theme-default": "file:../../vendor/packages/rathnasgala2-theme-default-4.0.0.tgz",
-    "@rathnasgala2/theme-editorial": "file:../../vendor/packages/rathnasgala2-theme-editorial-4.0.0.tgz",
-    "@rathnasgala2/theme-flashy": "file:../../vendor/packages/rathnasgala2-theme-flashy-4.0.0.tgz",
-    "@rathnasgala2/theme-minimal": "file:../../vendor/packages/rathnasgala2-theme-minimal-4.0.0.tgz",
-    "@rathnasgala2/theme-zebra": "file:../../vendor/packages/rathnasgala2-theme-zebra-4.0.0.tgz",
+    "@rathnasgala2/schemas": "3.8.0",
     "yaml": "2.9.0"
+  },
+  "peerDependencies": {
+    "@rathnasgala2/template": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@rathnasgala2/template": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "access": "public",

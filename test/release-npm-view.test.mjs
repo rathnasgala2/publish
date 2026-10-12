@@ -14,9 +14,7 @@
  * `scripts/release/npm-view-status.mjs`, which captures stdout and stderr
  * as two separate strings and classifies from stdout alone. This file
  * unit-tests that classification against real captured npm output shapes
- * -- including the exact stdout+stderr mix that broke -- and asserts
- * `release.yaml` actually calls the script rather than re-inlining the
- * broken pattern.
+ * -- including the exact stdout+stderr mix that broke.
  */
 
 import assert from 'node:assert/strict';

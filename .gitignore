@@ -5,7 +5,6 @@ coverage/
 # tracked so verifyPackageTarballs's own unit tests can hash a real file
 # without depending on an ambient sibling local-packages checkout.
 !test/fixtures/local-packages/*.tgz
-!vendor/packages/*.tgz
 
 # CI-only sibling checkouts (template, theme-default) inside the workspace
 .siblings/

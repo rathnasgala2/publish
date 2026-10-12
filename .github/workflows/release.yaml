@@ -8,7 +8,6 @@ on:
       - packages/**
       - package.json
       - package-lock.json
-      - vendor/**
       - scripts/**
       - pins/**
       - .github/workflows/release.yaml

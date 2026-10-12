@@ -25,7 +25,7 @@ import YAML from 'yaml';
 import * as contract from '../scripts/workflow/workload-contract.mjs';
 
 /**
- * Resolve either the development sibling (`schema`) or the source-vendored
+ * Resolve either the development sibling (`schema`) or the registry-installed
  * installed package (`schemas`) under WORKSPACE_ROOT.
  *
  * @returns {Promise<string>} schema package root

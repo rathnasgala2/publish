@@ -10,25 +10,21 @@ and this project adheres to
 
 ### Added
 
-- Source-only generation-4 delivery vendors deterministic tarballs for schemas
-  3.8.0, template 4.0.0 and all six theme 4.0.0 packages. A domain-separated
-  manifest binds exact identities, byte lengths, SHA-256 and SHA-512 values;
-  `vendor:check` also proves lockfile and theme-catalog parity.
+- Generation-4 delivery installs schemas 3.8.0, template 4.0.0 and all six theme
+  4.0.0 packages from the public npm registry at exact versions.
 
 ### Changed
 
-- Isolated reusable-workflow installs consume the committed vendor set with no
-  npm publication or sibling checkout. Every publish workspace package is
-  private, and release automation is verification-only while source delivery is
-  active.
+- Isolated reusable-workflow installs consume the registry packages with no
+  sibling checkout. Every publish workspace package is private, and release
+  automation is verification-only while source delivery is active.
 
 ### Changed
 
-- The toolchain ships `theme-default` 3.0.1, `theme-amaze`, `theme-flashy`,
-  `theme-minimal` and `theme-zebra` 3.0.0 (all theme contract 3.0.0) and pins
-  `@rathnasgala2/template` 3.2.1 (distinct enabled, disabled and working states
-  for the interaction buttons). The sibling checkouts in CI, nightly and release
-  follow the published commits. `theme-amaze` 3.0.0 is installed and offered.
+- The toolchain ships `theme-default`, `theme-amaze`, `theme-flashy`,
+  `theme-minimal`, `theme-zebra` and `theme-editorial` 4.0.0 (theme contract
+  4.0.0) and pins `@rathnasgala2/template` 4.0.0. Contract-3 locks are no longer
+  built: the catalog holds one entry per theme package.
 - The documented caller (`docs/callers/gala-publish-v2.yml`) is byte-identical
   to the starter repository's (`rathnasgala2/user-template` 73a2e33). Its guard
   admits only `gala/publish/` branches (a saved change's `gala/candidate/`
