@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-12
+
 ### Changed
 
 - The package is published to npm again (it was source-only since 0.2.1): it
