@@ -37,7 +37,7 @@ test('the catalog pins the complete closed identity of all three adapters', () =
   );
   for (const entry of ADAPTER_ARTIFACT_CATALOG) {
     assert.equal(entry.package, `@rathnasgala2/adapter-${entry.adapterId}`);
-    assert.equal(entry.version, '0.1.1');
+    assert.match(entry.version, /^\d+\.\d+\.\d+$/u);
     assert.match(entry.integrity, /^sha256:[0-9a-f]{64}$/u);
     assert.equal(entry.registry, ADAPTER_REGISTRY);
     assert.equal(entry.contractVersion, '2.0.0');

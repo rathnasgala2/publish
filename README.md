@@ -503,6 +503,25 @@ implements plus the closed capability vocabulary, negotiation and in-process
 message contract. It has no runtime dependency on any specific adapter or on
 `publish-kernel`; see `packages/adapter-protocol/README.md`.
 
+## Releasing the adapters (`push-adapter.sh`)
+
+The owner-run script `push-adapter.sh` at the workspace root (next to
+`prod-deploy.sh`) bumps, publishes and pins the adapter packages from a
+workstation. Run `./push-adapter.sh --dry-run` first: it typechecks, tests and
+packs each package, compares the pack's sha256 with the registry tarball of the
+same version, and prints the plan (up to date, bump then publish, or publish as
+is). A real run asks once, publishes with
+`npm publish --access public --provenance=false` (npm's browser sign-in is the
+only authentication), refuses to continue unless each registry tarball equals
+the local pack, rewrites the artifact-catalog rows and the fixture lock through
+`scripts/release/update-adapter-catalog.mjs`, runs the targeted checks and
+commits `Release adapter packages: ...`. It requires this checkout on a clean
+`main` equal to `origin/main` and Node from `.nvmrc`. `adapter-protocol` and
+`adapter-conformance-kit` are private in source, so the script refuses to
+release them until that is changed deliberately. The new digests change the
+toolchain commit; the user-template pin and lock, the API catalog and the live
+sites move in a separate pin round.
+
 ## License
 
 Apache-2.0. See `LICENSE` and `NOTICE`.
