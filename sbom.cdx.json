@@ -101,6 +101,7 @@
       "group": "@rathnasgala2",
       "version": "0.0.0",
       "bom-ref": "@rathnasgala2/publish-workspace@0.0.0",
+      "description": "Galascribe v2 publish workspace: provider-neutral publish safety kernel, in-process deployment adapter protocol and the three S2 adapters.",
       "licenses": [
         {
           "license": {
@@ -111,6 +112,18 @@
       ],
       "purl": "pkg:npm/%40rathnasgala2/publish-workspace@0.0.0",
       "properties": [
+        {
+          "name": "cdx:npm:package:constraint:engine:node",
+          "value": "24.18.0"
+        },
+        {
+          "name": "cdx:npm:package:constraint:engine:npm",
+          "value": "11.16.0"
+        },
+        {
+          "name": "cdx:npm:package:private",
+          "value": "true"
+        },
         {
           "name": "cdx:npm:package:path",
           "value": ""
