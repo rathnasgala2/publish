@@ -289,8 +289,8 @@
       "type": "library",
       "name": "adapter-protocol",
       "group": "@rathnasgala2",
-      "version": "0.2.1",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
+      "version": "0.2.2",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
       "licenses": [
         {
           "license": {
@@ -299,7 +299,7 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/adapter-protocol@0.2.1",
+      "purl": "pkg:npm/%40rathnasgala2/adapter-protocol@0.2.2",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -18076,7 +18076,7 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-do-spaces@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.1.0",
@@ -18123,14 +18123,14 @@
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2"
       ]
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-do-spaces@0.1.1",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0"
       ]
     },
@@ -18138,7 +18138,7 @@
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.1",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0"
       ]
     },
@@ -18146,13 +18146,13 @@
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.1",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0"
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0"
       ]
@@ -18161,7 +18161,7 @@
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.1.0",
@@ -18171,7 +18171,7 @@
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0"
       ]
     },
