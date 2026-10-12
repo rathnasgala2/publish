@@ -28,7 +28,7 @@ export const ADAPTER_ARTIFACT_CATALOG = Object.freeze([
     package: '@rathnasgala2/adapter-local-directory',
     version: '0.1.1',
     integrity:
-      'sha256:aa164d01ca8e2868c8a8df2564950b004bf587830185900cded4f21d4466086f',
+      'sha256:099520db91121c33df84eea8f6140c007910680d31910246f0674f4415305117',
     registry: ADAPTER_REGISTRY,
     contractVersion: '2.0.0',
     compatibleWith: '^2.0.0',
@@ -38,7 +38,7 @@ export const ADAPTER_ARTIFACT_CATALOG = Object.freeze([
     package: '@rathnasgala2/adapter-github-pages',
     version: '0.1.1',
     integrity:
-      'sha256:912faa0d12d4c9bfe8791b5650c8280b8f4b26a99b89fde73aca3512ff27f99c',
+      'sha256:ab1deb308aa6712baa2461c4aacae613f666fe7054a74817a60f980f74edf554',
     registry: ADAPTER_REGISTRY,
     contractVersion: '2.0.0',
     compatibleWith: '^2.0.0',
@@ -48,7 +48,7 @@ export const ADAPTER_ARTIFACT_CATALOG = Object.freeze([
     package: '@rathnasgala2/adapter-do-spaces',
     version: '0.1.1',
     integrity:
-      'sha256:65e133581ecddc78c3cd0b30d7b0f05dc8fd4294b3a91fb05bd19ad3b5d4ad32',
+      'sha256:6721febd237202e67367f688eec308443ee685b673e9bddb60b2861f6c471a4d',
     registry: ADAPTER_REGISTRY,
     contractVersion: '2.0.0',
     compatibleWith: '^2.0.0',

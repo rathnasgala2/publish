@@ -1,7 +1,6 @@
 {
   "name": "@rathnasgala2/adapter-local-directory",
   "version": "0.1.1",
-  "private": true,
   "description": "Reference POSIX local-directory deployment adapter and gala-local-directory-filesystem-v2 conformance oracle.",
   "license": "Apache-2.0",
   "type": "module",

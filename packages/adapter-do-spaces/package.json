@@ -1,7 +1,6 @@
 {
   "name": "@rathnasgala2/adapter-do-spaces",
   "version": "0.1.1",
-  "private": true,
   "description": "Managed DigitalOcean Spaces deployment adapter: two-bucket website binding, exact SigV4 request catalog, private generation-prefixed staging, replace-in-place activation with a marker-last pointer write, and credential-free public verification.",
   "license": "Apache-2.0",
   "type": "module",

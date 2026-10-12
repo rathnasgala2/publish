@@ -16,9 +16,9 @@ closed adapter-capability contract.
 | `@rathnasgala2/publish-kernel`          | implemented (S2-T16), source-only (`private: true`)   |
 | `@rathnasgala2/adapter-protocol`        | implemented (S2-T15), source-only (`private: true`)   |
 | `@rathnasgala2/adapter-conformance-kit` | implemented (S2-T17), source-only (`private: true`)   |
-| `@rathnasgala2/adapter-local-directory` | implemented (S2-T17), source-only (`private: true`)   |
-| `@rathnasgala2/adapter-github-pages`    | implemented (S4-T04), source-only (`private: true`)   |
-| `@rathnasgala2/adapter-do-spaces`       | implemented (S4-T05), source-only (`private: true`)   |
+| `@rathnasgala2/adapter-local-directory` | implemented (S2-T17), published to npm                |
+| `@rathnasgala2/adapter-github-pages`    | implemented (S4-T04), published to npm                |
+| `@rathnasgala2/adapter-do-spaces`       | implemented (S4-T05), published to npm                |
 | `@rathnasgala2/publish-action`          | implemented (S2-T20/S2-T20b), source-only (`private`) |
 
 ## Commands
