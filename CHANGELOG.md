@@ -11,10 +11,10 @@ and this project adheres to
 ### Added
 
 - The palette generation: the toolchain installs schemas 3.10.0, template 4.1.0
-  and all six theme 4.1.0 packages at exact registry versions (the editorial row
-  carries the digest of its deterministic pack until its registry release
-  exists), and `update-theme-catalog.mjs` rewrites the theme catalog rows and
-  the fixture lock (with a recomputed `lockDigest`) deterministically.
+  and all six theme 4.1.0 packages at exact registry versions (every row is
+  verified against the registry tarball bytes), and `update-theme-catalog.mjs`
+  rewrites the theme catalog rows and the fixture lock (with a recomputed
+  `lockDigest`) deterministically.
 - Repository intake copies `appearance.json`'s `tokens` into the build-input
   appearance (`{}` stays `{}`, the theme's default palette); schemas 3.10.0
   validate it, and the template derives and checks the palette sheet.
