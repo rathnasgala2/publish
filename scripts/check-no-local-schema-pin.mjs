@@ -15,6 +15,16 @@ const FORBIDDEN = [
   /file:\.\.\/\.\.\/\.\.\/schema/u,
 ];
 const EXPECTED_SPECIFIER = '3.10.0';
+// The adapter family stays on the schemas release its published packs were built
+// against, so the artifact catalog digests keep equalling the deterministic packs.
+const ADAPTER_FAMILY_SPECIFIER = '3.8.0';
+const ADAPTER_FAMILY = new Set([
+  'adapter-protocol',
+  'adapter-conformance-kit',
+  'adapter-local-directory',
+  'adapter-github-pages',
+  'adapter-do-spaces',
+]);
 
 /**
  * @param {string} path the file to scan
@@ -51,12 +61,12 @@ async function main() {
     const path = `packages/${name}/package.json`;
     const manifest = JSON.parse(await readFile(path, 'utf8'));
     const schemaSpecifier = manifest.dependencies?.['@rathnasgala2/schemas'];
-    if (
-      schemaSpecifier !== undefined &&
-      schemaSpecifier !== EXPECTED_SPECIFIER
-    ) {
+    const expected = ADAPTER_FAMILY.has(name)
+      ? ADAPTER_FAMILY_SPECIFIER
+      : EXPECTED_SPECIFIER;
+    if (schemaSpecifier !== undefined && schemaSpecifier !== expected) {
       diagnostics.push(
-        `${path}: @rathnasgala2/schemas must be ${EXPECTED_SPECIFIER} exactly.`,
+        `${path}: @rathnasgala2/schemas must be ${expected} exactly.`,
       );
     }
   }
@@ -64,7 +74,7 @@ async function main() {
     throw new Error(diagnostics.join('\n'));
   }
   console.log(
-    `schema consumers pin registry 3.10.0; no sibling or untracked local tarball found across ${files.length} file(s).`,
+    `schema consumers pin registry 3.10.0 (adapter family 3.8.0); no sibling or untracked local tarball found across ${files.length} file(s).`,
   );
 }
 

@@ -1614,6 +1614,146 @@
       "type": "library",
       "name": "schemas",
       "group": "@rathnasgala2",
+      "version": "3.8.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/%40rathnasgala2/schemas@3.8.0",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/@rathnasgala2/schemas/-/schemas-3.8.0.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "0dd99a5cf78fb90b0652bc6949421b7146fdc5d10139791b5f80ea9c7e0d39ffb5fab081561c7550f10a30cbfd0a2ee440f8d2d8cd96a98e77b610213b918beb"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "packages/adapter-do-spaces/node_modules/@rathnasgala2/schemas"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "schemas",
+      "group": "@rathnasgala2",
+      "version": "3.8.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0#2",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/%40rathnasgala2/schemas@3.8.0",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/@rathnasgala2/schemas/-/schemas-3.8.0.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "0dd99a5cf78fb90b0652bc6949421b7146fdc5d10139791b5f80ea9c7e0d39ffb5fab081561c7550f10a30cbfd0a2ee440f8d2d8cd96a98e77b610213b918beb"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "packages/adapter-github-pages/node_modules/@rathnasgala2/schemas"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "schemas",
+      "group": "@rathnasgala2",
+      "version": "3.8.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0#3",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/%40rathnasgala2/schemas@3.8.0",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/@rathnasgala2/schemas/-/schemas-3.8.0.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "0dd99a5cf78fb90b0652bc6949421b7146fdc5d10139791b5f80ea9c7e0d39ffb5fab081561c7550f10a30cbfd0a2ee440f8d2d8cd96a98e77b610213b918beb"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "packages/adapter-local-directory/node_modules/@rathnasgala2/schemas"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "schemas",
+      "group": "@rathnasgala2",
+      "version": "3.8.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0#4",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/%40rathnasgala2/schemas@3.8.0",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/@rathnasgala2/schemas/-/schemas-3.8.0.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "0dd99a5cf78fb90b0652bc6949421b7146fdc5d10139791b5f80ea9c7e0d39ffb5fab081561c7550f10a30cbfd0a2ee440f8d2d8cd96a98e77b610213b918beb"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "packages/adapter-protocol/node_modules/@rathnasgala2/schemas"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "schemas",
+      "group": "@rathnasgala2",
       "version": "3.10.0",
       "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0",
       "licenses": [
@@ -18131,7 +18271,7 @@
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0"
       ]
     },
     {
@@ -18139,7 +18279,7 @@
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0#2"
       ]
     },
     {
@@ -18148,13 +18288,13 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0#3"
       ]
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
       "dependsOn": [
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.10.0"
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0#4"
       ]
     },
     {
@@ -18427,6 +18567,34 @@
         "@rathnasgala2/publish-workspace@0.0.0|@oozcitak/infra@2.0.2",
         "@rathnasgala2/publish-workspace@0.0.0|@oozcitak/util@10.0.0",
         "@rathnasgala2/publish-workspace@0.0.0|js-yaml@4.3.2"
+      ]
+    },
+    {
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0",
+      "dependsOn": [
+        "@rathnasgala2/publish-workspace@0.0.0|ajv-formats@3.0.1",
+        "@rathnasgala2/publish-workspace@0.0.0|ajv@8.20.0"
+      ]
+    },
+    {
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0#2",
+      "dependsOn": [
+        "@rathnasgala2/publish-workspace@0.0.0|ajv-formats@3.0.1",
+        "@rathnasgala2/publish-workspace@0.0.0|ajv@8.20.0"
+      ]
+    },
+    {
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0#3",
+      "dependsOn": [
+        "@rathnasgala2/publish-workspace@0.0.0|ajv-formats@3.0.1",
+        "@rathnasgala2/publish-workspace@0.0.0|ajv@8.20.0"
+      ]
+    },
+    {
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.8.0#4",
+      "dependsOn": [
+        "@rathnasgala2/publish-workspace@0.0.0|ajv-formats@3.0.1",
+        "@rathnasgala2/publish-workspace@0.0.0|ajv@8.20.0"
       ]
     },
     {
