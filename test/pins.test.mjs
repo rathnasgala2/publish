@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 
 import { comparePins } from '../scripts/check-pins.mjs';
+import { expectedSchemasSpecifier } from '../scripts/schema-pins.mjs';
 
 const LEDGER = JSON.parse(readFileSync('pins/ledger.json', 'utf8'));
 
@@ -177,7 +178,6 @@ test('PUB-L6: the ledger no longer carries a packages field at all', () => {
 });
 
 test('every workspace package declares exactly the registry-pinned schemas version', () => {
-  const expected = '3.10.0';
   const declaring = readdirSync('packages')
     .map((name) => ({
       name,
@@ -190,7 +190,7 @@ test('every workspace package declares exactly the registry-pinned schemas versi
   for (const { name, manifest } of declaring) {
     assert.equal(
       manifest.dependencies['@rathnasgala2/schemas'],
-      expected,
+      expectedSchemasSpecifier(name),
       `${name} must consume exactly the registry-pinned schemas version`,
     );
   }
