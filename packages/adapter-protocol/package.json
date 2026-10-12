@@ -1,7 +1,6 @@
 {
   "name": "@rathnasgala2/adapter-protocol",
   "version": "0.2.1",
-  "private": true,
   "description": "In-process deployment adapter lifecycle interface, closed capability vocabulary, provider limit profiles, negotiation and frame/message contract for Galascribe v2.",
   "license": "Apache-2.0",
   "type": "module",

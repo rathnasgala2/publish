@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Deterministic file rewrites for the owner-run adapter release
- * (`push-adapter.sh` at the workspace root). Three subcommands, each
+ * (`prod-adapter.sh` at the workspace root). Three subcommands, each
  * idempotent, none of which evaluates repository source:
  *
  * - `catalog --root <dir> <package>=<version>=<hex>...` rewrites the version

@@ -14,7 +14,7 @@ closed adapter-capability contract.
 | Package                                 | Status                                                |
 | --------------------------------------- | ----------------------------------------------------- |
 | `@rathnasgala2/publish-kernel`          | implemented (S2-T16), source-only (`private: true`)   |
-| `@rathnasgala2/adapter-protocol`        | implemented (S2-T15), source-only (`private: true`)   |
+| `@rathnasgala2/adapter-protocol`        | implemented (S2-T15), published to npm                |
 | `@rathnasgala2/adapter-conformance-kit` | implemented (S2-T17), source-only (`private: true`)   |
 | `@rathnasgala2/adapter-local-directory` | implemented (S2-T17), published to npm                |
 | `@rathnasgala2/adapter-github-pages`    | implemented (S4-T04), published to npm                |
@@ -503,11 +503,11 @@ implements plus the closed capability vocabulary, negotiation and in-process
 message contract. It has no runtime dependency on any specific adapter or on
 `publish-kernel`; see `packages/adapter-protocol/README.md`.
 
-## Releasing the adapters (`push-adapter.sh`)
+## Releasing the adapters (`prod-adapter.sh`)
 
-The owner-run script `push-adapter.sh` at the workspace root (next to
+The owner-run script `prod-adapter.sh` at the workspace root (next to
 `prod-deploy.sh`) bumps, publishes and pins the adapter packages from a
-workstation. Run `./push-adapter.sh --dry-run` first: it typechecks, tests and
+workstation. Run `./prod-adapter.sh --dry-run` first: it typechecks, tests and
 packs each package, compares the pack's sha256 with the registry tarball of the
 same version, and prints the plan (up to date, bump then publish, or publish as
 is). A real run asks once, publishes with
@@ -516,11 +516,11 @@ only authentication), refuses to continue unless each registry tarball equals
 the local pack, rewrites the artifact-catalog rows and the fixture lock through
 `scripts/release/update-adapter-catalog.mjs`, runs the targeted checks and
 commits `Release adapter packages: ...`. It requires this checkout on a clean
-`main` equal to `origin/main` and Node from `.nvmrc`. `adapter-protocol` and
-`adapter-conformance-kit` are private in source, so the script refuses to
-release them until that is changed deliberately. The new digests change the
-toolchain commit; the user-template pin and lock, the API catalog and the live
-sites move in a separate pin round.
+`main` equal to `origin/main` and Node from `.nvmrc`. `adapter-conformance-kit`
+is private in source, so the script skips it with one printed line (and refuses
+it when it is named explicitly). The new digests change the toolchain commit;
+the user-template pin and lock, the API catalog and the live sites move in a
+separate pin round.
 
 ## License
 

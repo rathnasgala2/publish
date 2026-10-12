@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Structural guard for the generation-4 delivery decision. The toolchain is
- * consumed by commit, so only the destination adapters (installed by npm
- * consumers) may be publishable, and no owned workflow may invoke npm's
+ * consumed by commit, so only the adapter protocol and the destination adapters
+ * (installed by npm consumers) may be publishable, and no owned workflow may invoke npm's
  * publication command.
  */
 import { readFile, readdir } from 'node:fs/promises';
@@ -15,6 +15,7 @@ import { runIfMain } from './run-if-main.mjs';
  */
 async function main() {
   const publishable = new Set([
+    'adapter-protocol',
     'adapter-local-directory',
     'adapter-github-pages',
     'adapter-do-spaces',
@@ -28,7 +29,7 @@ async function main() {
     if (publishable.has(packageName)) {
       if (manifest.private === true) {
         diagnostics.push(
-          `${manifestPath}: destination adapters are published and must not be private`,
+          `${manifestPath}: published packages (the adapter protocol and the destination adapters) must not be private`,
         );
       }
     } else if (manifest.private !== true) {
@@ -56,7 +57,7 @@ async function main() {
     throw new Error(diagnostics.join('\n'));
   }
   process.stdout.write(
-    `source-only: ${packageNames.length} workspace packages are checked (adapters publishable, the rest private) and ${workflowNames.length} workflows contain no npm publish command\n`,
+    `source-only: ${packageNames.length} workspace packages are checked (protocol and adapters publishable, the rest private) and ${workflowNames.length} workflows contain no npm publish command\n`,
   );
 }
 

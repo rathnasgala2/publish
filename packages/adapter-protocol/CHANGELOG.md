@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- The package is published to npm again (it was source-only since 0.2.1): it
+  depends on `@rathnasgala2/schemas` 3.8.0 (exact pin, was 2.11.0) and is no
+  longer marked `private`. No public export changed.
+
 ## [0.2.1] - 2026-09-26
 
 ### Added

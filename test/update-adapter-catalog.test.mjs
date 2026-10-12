@@ -1,5 +1,5 @@
 /**
- * The deterministic rewrites behind `push-adapter.sh`: catalog rows, the
+ * The deterministic rewrites behind `prod-adapter.sh`: catalog rows, the
  * fixture lock digest, CHANGELOG release headings and exact workspace pins.
  * Every case runs on a fixture copy; nothing touches the real catalog.
  */
