@@ -35,6 +35,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Check out the user template at its pinned commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: rathnasgala2/user-template
+          ref: 612a88e988ab4b68f2d855f2a761773671d64f79
+          path: .siblings/user-template
+          persist-credentials: false
+
       - name: Install the pinned Node.js distribution
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:

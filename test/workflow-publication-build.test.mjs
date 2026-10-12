@@ -27,14 +27,54 @@ import YAML from 'yaml';
 import { carrierDigest } from '../scripts/workflow/carrier.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// CI checks the user template out at its pinned commit beside the sources;
+// a workstation falls back to the adjacent repository, then to the fixture.
+const SIBLING_USER_TEMPLATE = path.join(ROOT, '.siblings/user-template');
 const ADJACENT_USER_TEMPLATE = path.resolve(ROOT, '../user-template');
-const PUBLICATION_SOURCE_ROOT =
-  !process.env.WORKSPACE_ROOT && existsSync(ADJACENT_USER_TEMPLATE)
+const PUBLICATION_SOURCE_ROOT = existsSync(SIBLING_USER_TEMPLATE)
+  ? SIBLING_USER_TEMPLATE
+  : !process.env.WORKSPACE_ROOT && existsSync(ADJACENT_USER_TEMPLATE)
     ? ADJACENT_USER_TEMPLATE
     : path.join(
         ROOT,
         'packages/publish-action/test/fixtures/minimal-repository',
       );
+
+const SANDBOX_IMAGE = String(
+  readFileSync(path.join(ROOT, 'scripts/sandbox-build.sh'), 'utf8').match(
+    /^IMAGE="([^"]+)"/mu,
+  )?.[1],
+);
+/**
+ * Removes a directory the sandbox populated as another uid. The runner
+ * cannot delete those entries itself, so the same pinned image does it
+ * (offline) before the ordinary removal.
+ *
+ * @param {string} directory directory to remove
+ */
+function removeSandboxOutput(directory) {
+  if (existsSync(directory)) {
+    spawnSync(
+      'docker',
+      [
+        'run',
+        '--rm',
+        '--network',
+        'none',
+        '--user',
+        '0:0',
+        '-v',
+        `${directory}:/cleanup`,
+        SANDBOX_IMAGE,
+        'sh',
+        '-c',
+        'rm -rf /cleanup/* /cleanup/.[!.]*',
+      ],
+      { timeout: 60_000 },
+    );
+  }
+  rmSync(directory, { recursive: true, force: true });
+}
 
 const DOCKER_PROBE = spawnSync(
   'docker',
@@ -120,8 +160,13 @@ test(
   'a package-free publication source builds through the real carrier and production sandbox command',
   { skip: SKIP },
   () => {
+    // The toolchain mount is the repository, so the output root cannot live
+    // inside it; the runner temporary directory is the writable alternative.
     const temporaryRoot = mkdtempSync(
-      path.join(tmpdir(), 'gala-publication-workflow-'),
+      path.join(
+        process.env.RUNNER_TEMP || tmpdir(),
+        'gala-publication-workflow-',
+      ),
     );
     try {
       const generatedRepository = path.join(temporaryRoot, 'generated');
@@ -222,6 +267,7 @@ test(
         : 'hello-world/index.html';
       assert.ok(existsSync(path.join(output, 'artifact', expectedArticle)));
     } finally {
+      removeSandboxOutput(path.join(temporaryRoot, 'output'));
       rmSync(temporaryRoot, { recursive: true, force: true });
     }
   },
