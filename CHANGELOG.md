@@ -13,6 +13,12 @@ and this project adheres to
 - Generation-4 delivery installs schemas 3.8.0, template 4.0.0 and all six theme
   4.0.0 packages from the public npm registry at exact versions.
 
+### Fixed
+
+- The deployment-intent request admits every theme package the catalog serves
+  (all six), derived from `THEME_CATALOG`; it previously refused every site not
+  on `theme-editorial` before sending.
+
 ### Changed
 
 - Isolated reusable-workflow installs consume the registry packages with no

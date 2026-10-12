@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 import YAML from 'yaml';
 
+import { THEME_CATALOG } from '../packages/publish-action/src/theme-catalog.js';
 import * as contract from '../scripts/workflow/workload-contract.mjs';
 
 /**
@@ -375,9 +376,18 @@ test('the request-side rebuildRecord (2.9.0) declares the retained record’s me
     record.properties.template.allOf[1].properties.package['x-gala-const'],
     '@rathnasgala2/template',
   );
-  assert.deepEqual(contract.ADMITTED_THEME_PACKAGES, [
+  assert.deepEqual([...contract.ADMITTED_THEME_PACKAGES].sort(), [
+    '@rathnasgala2/theme-amaze',
+    '@rathnasgala2/theme-default',
     '@rathnasgala2/theme-editorial',
+    '@rathnasgala2/theme-flashy',
+    '@rathnasgala2/theme-minimal',
+    '@rathnasgala2/theme-zebra',
   ]);
+  assert.deepEqual(
+    [...contract.ADMITTED_THEME_PACKAGES],
+    THEME_CATALOG.map((entry) => entry.package),
+  );
   for (const packageName of contract.ADMITTED_THEME_PACKAGES) {
     assert.ok(
       record.properties.theme.allOf[1].properties.package.enum.includes(

@@ -34,6 +34,8 @@
  * @module
  */
 
+import { THEME_CATALOG } from '../../packages/publish-action/src/theme-catalog.js';
+
 /** The hard transport ceiling both routes apply, in bytes (DEC-086/DEC-097). */
 export const MAXIMUM_REQUEST_BYTES = 1048576;
 
@@ -479,10 +481,13 @@ export const REBUILD_RECORD_REQUIRED = Object.freeze(
   ),
 );
 
-/** The generation-4 new-site `rebuildRecord.theme.package` policy. */
-export const ADMITTED_THEME_PACKAGES = Object.freeze([
-  '@rathnasgala2/theme-editorial',
-]);
+/**
+ * The `rebuildRecord.theme.package` policy: every package the theme catalog
+ * serves, derived from it so the two cannot drift apart.
+ */
+export const ADMITTED_THEME_PACKAGES = Object.freeze(
+  THEME_CATALOG.map((entry) => entry.package),
+);
 
 /**
  * A refusal raised before the request is sent. It carries the API's own wire
