@@ -1456,6 +1456,38 @@ test('appearance.attribution is copied into the build-input appearance; absent s
   assert.equal('attribution' in buildInput.appearance, false);
 });
 
+test('appearance.tokens reaches the build-input appearance: {} stays {}, a palette is copied, a malformed one is refused', async () => {
+  const palette = {
+    accent: { light: '#1d4ed8', dark: '#93c5fd' },
+    canvas: { light: '#ffffff', dark: '#0b1020' },
+    text: { light: '#111827', dark: '#e5e7eb' },
+  };
+  for (const tokens of [{}, { accent: palette.accent }, palette]) {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await setAppearance(dir, { tokens });
+      const { buildInput } = await buildWithWarnings(dir);
+      assert.deepEqual(buildInput.appearance.tokens, tokens);
+    } finally {
+      await cleanup();
+    }
+  }
+  const { buildInput } = await buildWithWarnings(FIXTURE_REPOSITORY);
+  assert.deepEqual(buildInput.appearance.tokens, {});
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await setAppearance(dir, {
+      tokens: { accent: { light: '#1D4ED8', dark: '#93c5fd' } },
+    });
+    await assert.rejects(
+      buildWithWarnings(dir),
+      /SCHEMA_PATTERN_INVALID.*\/tokens\/accent\/light/su,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
 const ARTICLE_BODY = 'The original article.\n\nIt has two paragraphs.\n';
 
 /**

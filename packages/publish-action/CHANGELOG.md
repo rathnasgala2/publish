@@ -8,6 +8,19 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `appearance.json`'s `tokens` (the author's palette, `{}` for the theme's
+  default) is copied into the build-input appearance after schema validation; it
+  was always `{}` before.
+
+### Changed
+
+- Schemas 3.10.0, template 4.1.0 and all six theme 4.1.0 packages; the
+  `THEME_CATALOG` rows carry the 4.1.0 tarball SHA-256 values. Themes declare a
+  `palette` and `templateRange` `^4.1.0`; the template refuses a theme without
+  one.
+
 ### Changed
 
 - Schemas 3.8.0, template 4.0.0 and all six theme 4.0.0 packages are installed

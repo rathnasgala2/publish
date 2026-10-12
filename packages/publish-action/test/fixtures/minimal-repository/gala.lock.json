@@ -11,7 +11,7 @@
   },
   "schemas": {
     "package": "@rathnasgala2/schemas",
-    "version": "3.8.0",
+    "version": "3.10.0",
     "integrity": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
     "registry": "https://local-development.invalid/rathnasgala2/",
     "contractVersion": "3.0.0",
@@ -19,7 +19,7 @@
   },
   "template": {
     "package": "@rathnasgala2/template",
-    "version": "4.0.0",
+    "version": "4.1.0",
     "integrity": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
     "registry": "https://local-development.invalid/rathnasgala2/",
     "contractVersion": "4.0.0",
@@ -28,8 +28,8 @@
   },
   "theme": {
     "package": "@rathnasgala2/theme-editorial",
-    "version": "4.0.0",
-    "integrity": "sha256:5ad1715ac613a02e77655b586084b9899efaa38e54eb8a90b04ff68d83115c2e",
+    "version": "4.1.0",
+    "integrity": "sha256:b515433aacbac3845cf72dfe049bc2391b46928b6294f0a921380b3e1ff0ee23",
     "registry": "https://registry.npmjs.org/",
     "contractVersion": "4.0.0",
     "compatibleWith": "^4.0.0"
@@ -70,5 +70,5 @@
   ],
   "dependencies": [],
   "dependencyDag": [],
-  "lockDigest": "sha256:08e49f257a0b9fc40129d2de817ce355f39e4eb9ee26daa5681226a049107697"
+  "lockDigest": "sha256:f38d8fc2fa9f59d0241666e9a4c7b3aa4d7b08e1ed9eeaae8fe8bff4a5792971"
 }

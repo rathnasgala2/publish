@@ -110,13 +110,13 @@ async function loadRenderableBuildInput() {
   // `test/helpers/schema-fixtures.js` `loadCanonicalBuildInput` does, since
   // this test does not exercise the S2-T05 media pipeline.
   buildInput.appearance.fontAssets = [];
-  buildInput.appearance.theme = '@rathnasgala2/theme-editorial@4.0.0';
-  buildInput.packages.schemas.version = '3.8.0';
-  buildInput.packages.template.version = '4.0.0';
+  buildInput.appearance.theme = '@rathnasgala2/theme-editorial@4.1.0';
+  buildInput.packages.schemas.version = '3.10.0';
+  buildInput.packages.template.version = '4.1.0';
   buildInput.packages.theme = {
     ...buildInput.packages.theme,
     package: '@rathnasgala2/theme-editorial',
-    version: '4.0.0',
+    version: '4.1.0',
     integrity:
       'sha256:e3d466a6e579406289a6916e3891b8575119c0cc3a3271dacbf12bbe066b3c5a',
   };
@@ -180,19 +180,19 @@ function testProvenance() {
       {
         kind: 'package',
         package: '@rathnasgala2/schemas',
-        version: '3.8.0',
+        version: '3.10.0',
         digest: digest(3),
       },
       {
         kind: 'package',
         package: '@rathnasgala2/template',
-        version: '4.0.0',
+        version: '4.1.0',
         digest: digest(4),
       },
       {
         kind: 'package',
         package: '@rathnasgala2/theme-editorial',
-        version: '4.0.0',
+        version: '4.1.0',
         digest: digest(5),
       },
       {

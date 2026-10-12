@@ -90,6 +90,11 @@ test('the catalog is exactly the six registry generation-4 theme packages', asyn
     assert.equal(packageJson.name, entry.package);
     assert.equal(packageJson.version, entry.version);
     assert.equal(themeJson.contractVersion, entry.contractVersion);
+    assert.equal(themeJson.templateRange, '^4.1.0');
+    assert.ok(
+      themeJson.palette && typeof themeJson.palette === 'object',
+      `${entry.package} declares a palette`,
+    );
     assert.match(entry.integrity, /^sha256:[0-9a-f]{64}$/u);
   }
   assert.equal(

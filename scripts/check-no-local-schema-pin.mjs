@@ -14,7 +14,7 @@ const FORBIDDEN = [
   /local-packages\/rathnasgala2-schemas-/u,
   /file:\.\.\/\.\.\/\.\.\/schema/u,
 ];
-const EXPECTED_SPECIFIER = '3.8.0';
+const EXPECTED_SPECIFIER = '3.10.0';
 
 /**
  * @param {string} path the file to scan
@@ -64,7 +64,7 @@ async function main() {
     throw new Error(diagnostics.join('\n'));
   }
   console.log(
-    `schema consumers pin registry 3.8.0; no sibling or untracked local tarball found across ${files.length} file(s).`,
+    `schema consumers pin registry 3.10.0; no sibling or untracked local tarball found across ${files.length} file(s).`,
   );
 }
 

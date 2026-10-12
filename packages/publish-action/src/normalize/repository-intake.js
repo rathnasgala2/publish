@@ -90,6 +90,11 @@
  * (`{showMadeWith}`) is copied into the build-input appearance; absent stays
  * absent.
  *
+ * **Appearance tokens**: `appearance.json`'s `tokens` (`semanticTokens`, schemas
+ * 3.10.0: optional `accent`, `canvas`, `text`, each `{light, dark}`) is copied
+ * into the build-input appearance after schema validation; `{}` stays `{}`
+ * (the theme's default palette). The template derives and checks the palette.
+ *
  * **Prism editions** (`content-editions.js`): a `kind: edition` document is
  * kept only when the article it is `of` is part of the build and its
  * `edition.sourceDigest` still equals the digest of that article's body;
@@ -671,7 +676,7 @@ export async function buildBuildInputFromRepository({
       ? {}
       : { attribution: { ...appearanceDoc.document.attribution } }),
     fontAssets: [],
-    tokens: {},
+    tokens: structuredClone(appearanceDoc.document.tokens ?? {}),
     source: {
       kind: 'authored',
       sourcePath: repository.document.appearance,

@@ -253,7 +253,7 @@ and `scripts/sandbox-build.sh` forwards both variables into the sandbox.
 `gala.lock.json`'s `theme` entry (`buildInput.packages.theme`, the sole
 authority for the theme selection) names a real theme package
 (`@rathnasgala2/theme-<name>@<version>`). This workspace installs all six
-generation-4 themes and template 4.0.0 from the public registry.
+generation-4 themes and template 4.1.0 from the public registry.
 `src/theme-bridge.js`'s `resolveThemeDirectory` locates the selected theme
 package directory on disk, in this fixed order — the first candidate directory
 that actually exists wins:
@@ -301,7 +301,7 @@ every generated page's `<head>` (see `v2/template`'s README, S2-T12 section, for
 that consuming side's own path-containment and `basePath`-joining guarantees).
 The catalog test checks every row against the lockfile's registry resolution.
 The fixture repository's `gala.lock.json` pins
-`@rathnasgala2/theme-editorial@4.0.0`; `test/e2e-npx-and-action.test.js` asserts
+`@rathnasgala2/theme-editorial@4.1.0`; `test/e2e-npx-and-action.test.js` asserts
 the rendered `assets/theme/tokens.css`/`components.css`/`print.css` are
 byte-equal to the installed `theme-editorial` package's own files, and that the
 rendered `<link>` order matches `theme.json`'s `cssLayers`.

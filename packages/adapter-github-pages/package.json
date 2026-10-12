@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@rathnasgala2/adapter-protocol": "^0.2.1",
-    "@rathnasgala2/schemas": "3.8.0"
+    "@rathnasgala2/schemas": "3.10.0"
   },
   "devDependencies": {
     "@rathnasgala2/adapter-conformance-kit": "0.1.1"
