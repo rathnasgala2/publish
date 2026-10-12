@@ -12,21 +12,21 @@ export function findAdapterArtifact(packageName: string): AdapterArtifactCatalog
  */
 export function requireAdapterArtifact(row: Record<string, unknown>, diagnosticPrefix: string): AdapterArtifactCatalogEntry;
 /**
- * The closed destination-adapter artifact catalog admitted by this source-only
+ * The closed destination-adapter artifact catalog admitted by this
  * toolchain. Each entry is the complete package row a managed
  * `gala.lock.json` must carry; partial or locally substituted identities are
  * not admitted.
  *
  * @module
  */
-/** Deliberately non-routable registry identity for source-only candidate packages. */
-export const ADAPTER_REGISTRY: "https://local-development.invalid/rathnasgala2/";
+/** The registry the adapter packages are published to. */
+export const ADAPTER_REGISTRY: "https://registry.npmjs.org/";
 /**
  * @typedef {object} AdapterArtifactCatalogEntry
  * @property {string} adapterId protocol adapter id
  * @property {string} package npm package name
  * @property {string} version exact package version
- * @property {string} integrity `sha256:<hex>` of the deterministic candidate tarball
+ * @property {string} integrity `sha256:<hex>` of the registry tarball (the exact deterministic pack)
  * @property {string} registry registry identity
  * @property {string} contractVersion adapter contract version
  * @property {string} compatibleWith admitted adapter contract range
@@ -51,7 +51,7 @@ export type AdapterArtifactCatalogEntry = {
      */
     version: string;
     /**
-     * `sha256:<hex>` of the deterministic candidate tarball
+     * `sha256:<hex>` of the registry tarball (the exact deterministic pack)
      */
     integrity: string;
     /**

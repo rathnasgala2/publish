@@ -63,12 +63,12 @@
       "package": "@rathnasgala2/adapter-local-directory",
       "version": "0.1.1",
       "integrity": "sha256:aa164d01ca8e2868c8a8df2564950b004bf587830185900cded4f21d4466086f",
-      "registry": "https://local-development.invalid/rathnasgala2/",
+      "registry": "https://registry.npmjs.org/",
       "contractVersion": "2.0.0",
       "compatibleWith": "^2.0.0"
     }
   ],
   "dependencies": [],
   "dependencyDag": [],
-  "lockDigest": "sha256:ed21bd3bbe8d904006bc1f5ac89d67fb62bfc9792416366637a7afc0921a8788"
+  "lockDigest": "sha256:1f40571ccbc817af4541605a86fbd410cc62577fbd1e9cf5bb40e75208ac4f13"
 }
