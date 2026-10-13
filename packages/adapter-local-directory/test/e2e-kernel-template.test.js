@@ -112,7 +112,7 @@ async function loadRenderableBuildInput() {
   buildInput.appearance.fontAssets = [];
   buildInput.appearance.theme = '@rathnasgala2/theme-editorial@4.1.0';
   buildInput.packages.schemas.version = '3.10.0';
-  buildInput.packages.template.version = '4.1.0';
+  buildInput.packages.template.version = '4.2.0';
   buildInput.packages.theme = {
     ...buildInput.packages.theme,
     package: '@rathnasgala2/theme-editorial',

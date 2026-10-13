@@ -32,7 +32,7 @@ npm ci
 npm run verify
 ```
 
-Schemas 3.10.0, template 4.1.0 and the six generation-4 themes are installed
+Schemas 3.10.0, template 4.2.0 and the six generation-4 themes are installed
 from the public npm registry at exact versions; the lockfile carries their
 integrity. `THEME_CATALOG` records each theme tarball's registry SHA-256.
 

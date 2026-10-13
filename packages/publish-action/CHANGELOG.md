@@ -20,6 +20,7 @@ and this project adheres to
   `THEME_CATALOG` rows carry the 4.1.0 tarball SHA-256 values. Themes declare a
   `palette` and `templateRange` `^4.1.0`; the template refuses a theme without
   one.
+- Template 4.2.0 (exact pin in the workspace toolchain; themes stay 4.1.0).
 
 ### Changed
 

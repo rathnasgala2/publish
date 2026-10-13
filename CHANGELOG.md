@@ -18,6 +18,7 @@ and this project adheres to
 - Repository intake copies `appearance.json`'s `tokens` into the build-input
   appearance (`{}` stays `{}`, the theme's default palette); schemas 3.10.0
   validate it, and the template derives and checks the palette sheet.
+- The template pin moves to 4.2.0 (exact registry version; themes stay 4.1.0).
 
 - Generation-4 delivery installs schemas 3.8.0, template 4.0.0 and all six theme
   4.0.0 packages from the public npm registry at exact versions.
