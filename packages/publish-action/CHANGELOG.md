@@ -10,6 +10,18 @@ and this project adheres to
 
 ### Added
 
+- Repository intake supports the advanced-SEO inputs: `publication.json`
+  `defaultImageRef` becomes `publication.defaultImage`, `appearance.json`
+  `brandMark`/`wordmark` become `appearance.brandMark`/`wordmark`, and content
+  `socialImageRef` becomes `frontmatter.socialImage` (each checked and digested
+  like a hero; findings `PUBLICATION_DEFAULT_IMAGE_*`,
+  `APPEARANCE_BRAND_MARK_*`, `APPEARANCE_WORDMARK_*`, `CONTENT_SOCIAL_IMAGE_*`
+  ending `_MISSING`, `_UNSUPPORTED_TYPE` or `_UNRESOLVED`), and
+  `publication.crawlers` and content `seo` are copied through.
+  `publication.contactRef` is refused with `PUBLICATION_CONTACT_UNSUPPORTED`;
+  the old `PUBLICATION_CONTACT_OR_DEFAULT_IMAGE_UNSUPPORTED` and
+  `CONTENT_MEDIA_UNSUPPORTED` codes are gone. `APPEARANCE_MEDIA_UNSUPPORTED` now
+  means `fontAssetRefs` only.
 - `appearance.json`'s `tokens` (the author's palette, `{}` for the theme's
   default) is copied into the build-input appearance after schema validation; it
   was always `{}` before.
@@ -21,6 +33,8 @@ and this project adheres to
   `palette` and `templateRange` `^4.1.0`; the template refuses a theme without
   one.
 - Template 4.2.0 (exact pin in the workspace toolchain; themes stay 4.1.0).
+- Serve template 4.3.0: trailing-slash public URLs, seo overrides,
+  icons/theme-color, readable tag routes; schemas 3.12.0.
 
 ### Changed
 

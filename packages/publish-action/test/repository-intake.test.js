@@ -1141,11 +1141,175 @@ test('a hero is admitted: it becomes frontmatter.hero and is not listed in media
   }
 });
 
-test('socialImageRef is still refused, with the same code as before', async () => {
+/**
+ * @param {string} dir the mutable repository copy
+ * @param {Record<string, unknown>} fields publication.json fields to set
+ * @returns {Promise<void>} resolves once rewritten
+ */
+async function setPublication(dir, fields) {
+  const file = path.join(dir, 'gala/publication.json');
+  const publication = JSON.parse(await readFile(file, 'utf8'));
+  await writeFile(file, JSON.stringify({ ...publication, ...fields }));
+}
+
+const SVG_BYTES = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>',
+  'utf8',
+);
+
+test('defaultImageRef, crawlers and socialLinks reach the build input; the default image is resolved like a body image', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {
     await declareAssetRoots(dir, ['assets']);
-    await addFile(dir, 'assets/social.png', imageBytes('png'));
+    const image = imageBytes('png', 'default-image');
+    await addFile(dir, 'assets/default.png', image);
+    await setPublication(dir, {
+      defaultImageRef: 'assets/default.png',
+      crawlers: { ai: 'block' },
+      socialLinks: [
+        { type: 'website', uri: 'https://example.invalid/' },
+        { type: 'mastodon', uri: 'https://example.social/@jane' },
+      ],
+    });
+    const { buildInput } = await buildWithWarnings(dir);
+    assert.deepEqual(buildInput.publication.defaultImage, {
+      path: 'assets/default.png',
+      sourceDigest: digestOf(image),
+    });
+    assert.deepEqual(buildInput.publication.crawlers, { ai: 'block' });
+    assert.equal(buildInput.publication.socialLinks.length, 2);
+    assert.equal('defaultImageRef' in buildInput.publication, false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a publication without defaultImageRef or crawlers carries neither', async () => {
+  const buildInput = /** @type {any} */ (
+    await buildBuildInputFromRepository({
+      repositoryDirectory: FIXTURE_REPOSITORY,
+    })
+  );
+  assert.equal('defaultImage' in buildInput.publication, false);
+  assert.equal('crawlers' in buildInput.publication, false);
+});
+
+test('a missing default image is PUBLICATION_DEFAULT_IMAGE_MISSING naming publication.json', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await setPublication(dir, { defaultImageRef: 'assets/nope.png' });
+    const findings = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+    );
+    assert.equal(findings[0]?.code, 'PUBLICATION_DEFAULT_IMAGE_MISSING');
+    assert.equal(findings[0]?.severity, 'SOURCE_ERROR');
+    assert.match(findings[0]?.detail ?? '', /gala\/publication\.json/u);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('an SVG default image is PUBLICATION_DEFAULT_IMAGE_UNSUPPORTED_TYPE; one outside an asset root is _UNRESOLVED', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await addFile(dir, 'assets/logo.svg', SVG_BYTES);
+    await addFile(dir, 'stray.png', imageBytes('png'));
+    await setPublication(dir, { defaultImageRef: 'assets/logo.svg' });
+    await rejectsWithFindingCode(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      'PUBLICATION_DEFAULT_IMAGE_UNSUPPORTED_TYPE',
+    );
+    await setPublication(dir, { defaultImageRef: 'stray.png' });
+    await rejectsWithFindingCode(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      'PUBLICATION_DEFAULT_IMAGE_UNRESOLVED',
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('contactRef is still refused, with its own code', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await setPublication(dir, { contactRef: 'gala/authors/jane-doe.json' });
+    await rejectsWithFindingCode(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      'PUBLICATION_CONTACT_UNSUPPORTED',
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('brandMark and wordmark resolve to appearance.brandMark and wordmark', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    const mark = imageBytes('png', 'mark');
+    const word = imageBytes('jpeg', 'word');
+    await addFile(dir, 'assets/mark.png', mark);
+    await addFile(dir, 'assets/word.jpg', word);
+    await setAppearance(dir, {
+      brandMark: 'assets/mark.png',
+      wordmark: 'assets/word.jpg',
+    });
+    const { buildInput } = await buildWithWarnings(dir);
+    assert.deepEqual(buildInput.appearance.brandMark, {
+      path: 'assets/mark.png',
+      sourceDigest: digestOf(mark),
+    });
+    assert.deepEqual(buildInput.appearance.wordmark, {
+      path: 'assets/word.jpg',
+      sourceDigest: digestOf(word),
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a missing, SVG or out-of-root brand mark gets its own finding code', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await addFile(dir, 'assets/mark.svg', SVG_BYTES);
+    await addFile(dir, 'stray.png', imageBytes('png'));
+    /** @type {[string, string][]} */
+    const cases = [
+      ['assets/gone.png', 'APPEARANCE_BRAND_MARK_MISSING'],
+      ['assets/mark.svg', 'APPEARANCE_BRAND_MARK_UNSUPPORTED_TYPE'],
+      ['stray.png', 'APPEARANCE_BRAND_MARK_UNRESOLVED'],
+    ];
+    for (const [ref, code] of cases) {
+      await setAppearance(dir, { brandMark: ref });
+      await rejectsWithFindingCode(
+        buildBuildInputFromRepository({ repositoryDirectory: dir }),
+        code,
+      );
+    }
+    await setAppearance(dir, {
+      brandMark: undefined,
+      wordmark: 'assets/mark.svg',
+    });
+    await rejectsWithFindingCode(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      'APPEARANCE_WORDMARK_UNSUPPORTED_TYPE',
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('socialImageRef resolves to frontmatter.socialImage; hero keeps resolving; seo passes through', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    const social = imageBytes('png', 'social');
+    const hero = imageBytes('jpeg', 'hero');
+    await addFile(dir, 'assets/social.png', social);
+    await addFile(dir, 'assets/hero.jpg', hero);
     await addDocument(
       dir,
       'social.md',
@@ -1153,30 +1317,85 @@ test('socialImageRef is still refused, with the same code as before', async () =
         slug: 'social',
         id: '01912345-6789-7abc-89ab-0123456789b1',
         socialImageRef: 'assets/social.png',
+        hero: { path: 'assets/hero.jpg', alt: 'A lake', role: 'informative' },
+        seo: {
+          title: 'Search title',
+          description: 'Search description',
+          canonicalUrl: 'https://elsewhere.example/post',
+          noindex: true,
+        },
       },
+      'Body\n',
+    );
+    const { buildInput } = await buildWithWarnings(dir);
+    const { frontmatter } = recordOf(buildInput, 'content/social.md');
+    assert.deepEqual(frontmatter.socialImage, {
+      path: 'assets/social.png',
+      sourceDigest: digestOf(social),
+    });
+    assert.deepEqual(frontmatter.hero.file, {
+      path: 'assets/hero.jpg',
+      sourceDigest: digestOf(hero),
+    });
+    assert.deepEqual(frontmatter.seo, {
+      title: 'Search title',
+      description: 'Search description',
+      canonicalUrl: 'https://elsewhere.example/post',
+      noindex: true,
+    });
+    assert.equal('socialImageRef' in frontmatter, false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a missing or SVG socialImageRef gets CONTENT_SOCIAL_IMAGE_* findings naming the document; a draft is not looked at', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await addFile(dir, 'assets/social.svg', SVG_BYTES);
+    const fields = {
+      slug: 'social',
+      id: '01912345-6789-7abc-89ab-0123456789b1',
+    };
+    await addDocument(
+      dir,
+      'social.md',
+      { ...fields, socialImageRef: 'assets/gone.png' },
+      'Body\n',
+    );
+    const missing = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+    );
+    assert.equal(missing[0]?.code, 'CONTENT_SOCIAL_IMAGE_MISSING');
+    assert.equal(missing[0]?.location, 'content/social.md');
+    await addDocument(
+      dir,
+      'social.md',
+      { ...fields, socialImageRef: 'assets/social.svg' },
       'Body\n',
     );
     await rejectsWithFindingCode(
       buildBuildInputFromRepository({ repositoryDirectory: dir }),
-      'CONTENT_MEDIA_UNSUPPORTED',
+      'CONTENT_SOCIAL_IMAGE_UNSUPPORTED_TYPE',
     );
-    // It is refused even for a draft that is not part of the build: this
-    // rule has always been checked before the draft/archived skip.
     await addDocument(
       dir,
       'social.md',
       {
-        slug: 'social',
-        id: '01912345-6789-7abc-89ab-0123456789b1',
+        ...fields,
         status: 'draft',
         publishedAt: undefined,
-        socialImageRef: 'assets/social.png',
+        socialImageRef: 'assets/gone.png',
       },
       'Body\n',
     );
-    await rejectsWithFindingCode(
-      buildBuildInputFromRepository({ repositoryDirectory: dir }),
-      'CONTENT_MEDIA_UNSUPPORTED',
+    const { buildInput } = await buildWithWarnings(dir);
+    assert.equal(
+      buildInput.content.some(
+        (/** @type {any} */ c) => c.sourcePath === 'content/social.md',
+      ),
+      false,
     );
   } finally {
     await cleanup();

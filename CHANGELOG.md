@@ -10,6 +10,12 @@ and this project adheres to
 
 ### Added
 
+- publish-action intake builds the advanced-SEO inputs authored by the App
+  (default social image, brand mark/wordmark, per-document social image,
+  `crawlers`, `seo`) with specific `*_MISSING`/`*_UNSUPPORTED_TYPE`/
+  `*_UNRESOLVED` findings; `contactRef` is refused as
+  `PUBLICATION_CONTACT_UNSUPPORTED`. The kernel/template end-to-end test checks
+  `og:image`, the site icon, `sameAs` and the AI block group in `robots.txt`.
 - The palette generation: the toolchain installs schemas 3.10.0, template 4.1.0
   and all six theme 4.1.0 packages at exact registry versions (every row is
   verified against the registry tarball bytes), and `update-theme-catalog.mjs`
@@ -19,6 +25,8 @@ and this project adheres to
   appearance (`{}` stays `{}`, the theme's default palette); schemas 3.10.0
   validate it, and the template derives and checks the palette sheet.
 - The template pin moves to 4.2.0 (exact registry version; themes stay 4.1.0).
+- Serve template 4.3.0: trailing-slash public URLs, seo overrides,
+  icons/theme-color, readable tag routes; schemas 3.12.0.
 
 - Generation-4 delivery installs schemas 3.8.0, template 4.0.0 and all six theme
   4.0.0 packages from the public npm registry at exact versions.

@@ -92,7 +92,7 @@ use. Every authored Markdown body is normalized exactly once through
 `template`'s `normalizeAuthoredMarkdown` (DEC-097 section 5's division of
 labour). See `repository-intake.js`'s own documentation for the deliberate,
 explicitly rejected scope reductions (no `publication.profile`/`footerCard`, no
-content `socialImageRef`, no `appearance` brand/word marks or font assets —
+`publication.contactRef`, no author `avatarRef`, no `appearance` font assets —
 every one fails closed with a typed finding rather than being silently dropped)
 — those are this package's own scope decisions, not a DEC-006 shortfall. Content
 images (body images and `hero`), the `appearance` attribution switch and Prism
@@ -180,8 +180,34 @@ the array), so a body image is held to the smaller of 5 MiB and the template's
 10 MiB; a hero is not in `media[]` and may be up to 10 MiB.
 `test/content-media.test.js` keeps every number equal to the template's or to
 the installed schema's. The template applies its own, stricter decode ceilings
-(dimensions, pixel count) when it reads the file. `socialImageRef` is still
-refused with `CONTENT_MEDIA_UNSUPPORTED`.
+(dimensions, pixel count) when it reads the file.
+
+## Search and social images
+
+Four single-file references are checked exactly like a hero (a path from the
+repository root, under a declared asset root, a regular file, a PNG, JPEG, WebP,
+AVIF or GIF image within the limits; SVG is refused) and digested, and become a
+build-input `{path, sourceDigest}`:
+
+| Authored                             | Build input                |
+| ------------------------------------ | -------------------------- |
+| `publication.json` `defaultImageRef` | `publication.defaultImage` |
+| `appearance.json` `brandMark`        | `appearance.brandMark`     |
+| `appearance.json` `wordmark`         | `appearance.wordmark`      |
+| content `socialImageRef`             | `frontmatter.socialImage`  |
+
+`publication.json` `crawlers` (`{"ai": "allow" | "block"}`) and content `seo`
+(`title`, `description`, `canonicalUrl`, `noindex`) are copied through; the
+schemas validate their members. A problem is a `SOURCE_ERROR` finding whose code
+is the stem plus a suffix: stems `PUBLICATION_DEFAULT_IMAGE`,
+`APPEARANCE_BRAND_MARK`, `APPEARANCE_WORDMARK`, `CONTENT_SOCIAL_IMAGE`; suffixes
+`_MISSING` (no such file), `_UNSUPPORTED_TYPE` (not a raster image, SVG
+included) and `_UNRESOLVED` (outside an asset root, not a regular file, a
+malformed path). The size limits above apply to them too.
+`publication.contactRef` is still refused, now with
+`PUBLICATION_CONTACT_UNSUPPORTED`; `appearance.fontAssetRefs` keeps
+`APPEARANCE_MEDIA_UNSUPPORTED`. `CONTENT_MEDIA_UNSUPPORTED` and
+`PUBLICATION_CONTACT_OR_DEFAULT_IMAGE_UNSUPPORTED` no longer exist.
 
 ## Appearance attribution
 
@@ -253,7 +279,7 @@ and `scripts/sandbox-build.sh` forwards both variables into the sandbox.
 `gala.lock.json`'s `theme` entry (`buildInput.packages.theme`, the sole
 authority for the theme selection) names a real theme package
 (`@rathnasgala2/theme-<name>@<version>`). This workspace installs all six
-generation-4 themes and template 4.2.0 from the public registry.
+generation-4 themes and template 4.3.0 from the public registry.
 `src/theme-bridge.js`'s `resolveThemeDirectory` locates the selected theme
 package directory on disk, in this fixed order — the first candidate directory
 that actually exists wins:

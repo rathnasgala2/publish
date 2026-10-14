@@ -110,15 +110,16 @@ export function resolveMediaReferences({ repositoryDirectory, assetRoots, refere
 export const MEDIA_LIMITS: Readonly<MediaLimits>;
 /** Most findings one intake failure reports; the rest are counted, not listed. */
 export const MAX_MEDIA_FINDINGS: 50;
+export type MediaOrigin = "body" | "hero" | "defaultImage" | "brandMark" | "wordmark" | "socialImage";
 export type MediaReference = {
     /**
      * repository-relative path of the document that refers to the image
      */
     document: string;
     /**
-     * whether it is a body image or the front matter hero
+     * what refers to the image: a body image, the front matter hero, or one of the single-file references (`defaultImage` of publication.json, `brandMark`/`wordmark` of appearance.json, `socialImage` of the front matter)
      */
-    origin: "body" | "hero";
+    origin: MediaOrigin;
     /**
      * the reference as written (an `<img src>` with entities decoded, or a hero path); `null` when the image has no usable address
      */

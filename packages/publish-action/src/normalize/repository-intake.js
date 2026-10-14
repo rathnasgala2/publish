@@ -65,8 +65,8 @@
  * DEC-097 shortfall): `repository.json`'s `contentRoots`/
  * `generatedSourceRoots` globs are schema-validated but not evaluated as
  * globs — every `content/*.md` file is read directly, sorted by file name;
- * `publication.profile`/`footerCard`, content `socialImageRef`,
- * `appearance` brand/word marks and font assets are not supported (a
+ * `publication.profile`/`footerCard`, `publication.contactRef` and
+ * `appearance` font assets are not supported (a
  * fixture that sets any of them is rejected with a typed finding rather than
  * silently dropped); `placements` is always empty and `modules` carries only
  * `interactions` (read from `<repository.json "modules">/interactions.json`
@@ -85,6 +85,18 @@
  * reference fails the build with `MEDIA_REFERENCE_UNRESOLVED`, an over-limit
  * one with `MEDIA_LIMIT_EXCEEDED`. Only documents that are part of the build
  * are looked at.
+ *
+ * **Single-file images** (schemas 3.12.0): `publication.defaultImageRef`
+ * becomes `publication.defaultImage`, `appearance.brandMark`/`wordmark` become
+ * `appearance.brandMark`/`wordmark`, and content `socialImageRef` becomes
+ * `frontmatter.socialImage`, each `{path, sourceDigest}`. They are checked by
+ * the same code as a hero (a path from the repository root, under an asset
+ * root, a regular file, a raster image within the limits; SVG is refused) but
+ * fail with a code of their own: `PUBLICATION_DEFAULT_IMAGE_*`,
+ * `APPEARANCE_BRAND_MARK_*`, `APPEARANCE_WORDMARK_*` or
+ * `CONTENT_SOCIAL_IMAGE_*`, ending `_MISSING`, `_UNSUPPORTED_TYPE` or
+ * `_UNRESOLVED`. `publication.crawlers` and content `seo` are copied through
+ * (the build-input schema validates their members).
  *
  * **Appearance attribution**: `appearance.json`'s optional `attribution`
  * (`{showMadeWith}`) is copied into the build-input appearance; absent stays
@@ -422,7 +434,25 @@ function normalizeContentFrontmatter(frontmatter, mediaFiles) {
         }
       : {}),
     redirects: frontmatter.redirects,
+    ...(frontmatter.socialImageRef
+      ? { socialImage: resolvedFileOf(mediaFiles, frontmatter.socialImageRef) }
+      : {}),
     ...(frontmatter.edition ? { edition: frontmatter.edition } : {}),
+    ...(frontmatter.seo ? { seo: { ...frontmatter.seo } } : {}),
+  };
+}
+
+/**
+ * The build-input `resolvedFile` of a checked image.
+ *
+ * @param {ReadonlyMap<string, {sourceDigest: string}>} mediaFiles every checked image, by path
+ * @param {string} imagePath the repository-relative path as authored
+ * @returns {{path: string, sourceDigest: string | undefined}} the resolved file
+ */
+function resolvedFileOf(mediaFiles, imagePath) {
+  return {
+    path: imagePath,
+    sourceDigest: mediaFiles.get(imagePath)?.sourceDigest,
   };
 }
 
@@ -572,19 +602,24 @@ export async function buildBuildInputFromRepository({
   const publicationAuthorIds = [
     ...new Set(authors.map((author) => /** @type {string} */ (author.id))),
   ];
-  if (
-    publicationDoc.document.contactRef ||
-    publicationDoc.document.defaultImageRef
-  ) {
+  if (publicationDoc.document.contactRef) {
     throw new RepositoryIntakeError(
-      'publication.json contactRef/defaultImageRef are not supported (documented scope reduction)',
-      [
-        sourceFinding(
-          'PUBLICATION_CONTACT_OR_DEFAULT_IMAGE_UNSUPPORTED',
-          'publication.json',
-        ),
-      ],
+      'publication.json contactRef is not supported (documented scope reduction); remove it, the default image and crawlers are supported',
+      [sourceFinding('PUBLICATION_CONTACT_UNSUPPORTED', 'publication.json')],
     );
+  }
+  // Single-file image references (default image, brand mark, wordmark) are
+  // checked together with the content images further down; the resolved
+  // `{path, sourceDigest}` is added to the publication and appearance then.
+  /** @type {import('./content-media.js').MediaReference[]} */
+  const mediaReferences = [];
+  if (publicationDoc.document.defaultImageRef) {
+    mediaReferences.push({
+      document: repository.document.publication,
+      origin: 'defaultImage',
+      source: publicationDoc.document.defaultImageRef,
+      alt: '',
+    });
   }
   const publication = {
     id: publicationDoc.document.id,
@@ -595,6 +630,9 @@ export async function buildBuildInputFromRepository({
     defaultLanguage: publicationDoc.document.defaultLanguage,
     authorIds: publicationAuthorIds,
     socialLinks: publicationDoc.document.socialLinks,
+    ...(publicationDoc.document.crawlers
+      ? { crawlers: { ...publicationDoc.document.crawlers } }
+      : {}),
     sourcePath: 'publication.json',
     sourceDigest: publicationDoc.digest,
   };
@@ -650,14 +688,22 @@ export async function buildBuildInputFromRepository({
   }
 
   // --- appearance --------------------------------------------------------------
+  for (const origin of /** @type {const} */ (['brandMark', 'wordmark'])) {
+    if (appearanceDoc.document[origin]) {
+      mediaReferences.push({
+        document: repository.document.appearance,
+        origin,
+        source: appearanceDoc.document[origin],
+        alt: '',
+      });
+    }
+  }
   if (
-    appearanceDoc.document.brandMark ||
-    appearanceDoc.document.wordmark ||
-    (appearanceDoc.document.fontAssetRefs &&
-      appearanceDoc.document.fontAssetRefs.length > 0)
+    appearanceDoc.document.fontAssetRefs &&
+    appearanceDoc.document.fontAssetRefs.length > 0
   ) {
     throw new RepositoryIntakeError(
-      'appearance.json brandMark/wordmark/fontAssetRefs are not supported (documented scope reduction; S2-T05 media pipeline is out of scope for this normalization step)',
+      'appearance.json fontAssetRefs are not supported (documented scope reduction; brandMark and wordmark are supported)',
       [
         sourceFinding(
           'APPEARANCE_MEDIA_UNSUPPORTED',
@@ -747,12 +793,6 @@ export async function buildBuildInputFromRepository({
       );
     }
     assertValidDocument(SCHEMA.contentFrontmatter, frontmatter, relativePath);
-    if (frontmatter.socialImageRef) {
-      throw new RepositoryIntakeError(
-        'content socialImageRef is not supported (documented scope reduction)',
-        [sourceFinding('CONTENT_MEDIA_UNSUPPORTED', relativePath)],
-      );
-    }
     documents.push({
       relativePath,
       sourceDigest,
@@ -780,8 +820,6 @@ export async function buildBuildInputFromRepository({
   );
 
   // Pass 2: authors, Markdown, and the list of images the documents refer to.
-  /** @type {import('./content-media.js').MediaReference[]} */
-  const mediaReferences = [];
   const prepared = built.map(({ relativePath, frontmatter, markdownBody }) => {
     for (const authorId of /** @type {string[]} */ (frontmatter.authors)) {
       if (!knownAuthorIds.has(authorId)) {
@@ -806,6 +844,14 @@ export async function buildBuildInputFromRepository({
         origin: 'hero',
         source: frontmatter.hero.path,
         alt: frontmatter.hero.alt,
+      });
+    }
+    if (frontmatter.socialImageRef) {
+      mediaReferences.push({
+        document: relativePath,
+        origin: 'socialImage',
+        source: frontmatter.socialImageRef,
+        alt: '',
       });
     }
     return normalized;
@@ -884,11 +930,39 @@ export async function buildBuildInputFromRepository({
     },
     sourceRevision,
     packages,
-    publication,
+    publication: {
+      ...publication,
+      ...(publicationDoc.document.defaultImageRef
+        ? {
+            defaultImage: resolvedFileOf(
+              media.files,
+              publicationDoc.document.defaultImageRef,
+            ),
+          }
+        : {}),
+    },
     authors,
     content,
     navigation,
-    appearance,
+    appearance: {
+      ...appearance,
+      ...(appearanceDoc.document.brandMark
+        ? {
+            brandMark: resolvedFileOf(
+              media.files,
+              appearanceDoc.document.brandMark,
+            ),
+          }
+        : {}),
+      ...(appearanceDoc.document.wordmark
+        ? {
+            wordmark: resolvedFileOf(
+              media.files,
+              appearanceDoc.document.wordmark,
+            ),
+          }
+        : {}),
+    },
     modules: interactions ? { interactions } : {},
     buildEpoch,
     baseUrl: publication.canonicalBase,

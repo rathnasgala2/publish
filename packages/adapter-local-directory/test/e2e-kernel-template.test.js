@@ -20,10 +20,12 @@
 
 import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { crc32, deflateSync } from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
@@ -111,8 +113,8 @@ async function loadRenderableBuildInput() {
   // this test does not exercise the S2-T05 media pipeline.
   buildInput.appearance.fontAssets = [];
   buildInput.appearance.theme = '@rathnasgala2/theme-editorial@4.1.0';
-  buildInput.packages.schemas.version = '3.10.0';
-  buildInput.packages.template.version = '4.2.0';
+  buildInput.packages.schemas.version = '3.12.0';
+  buildInput.packages.template.version = '4.3.0';
   buildInput.packages.theme = {
     ...buildInput.packages.theme,
     package: '@rathnasgala2/theme-editorial',
@@ -223,6 +225,41 @@ function testProvenance() {
   };
 }
 
+/**
+ * A real, decodable solid-colour square PNG (8-bit RGB), so the template's
+ * media pipeline can decode it and measure it as square.
+ *
+ * @param {number} size the side in pixels
+ * @param {[number, number, number]} rgb the fill colour
+ * @returns {Buffer} the PNG file
+ */
+function squarePng(size, rgb) {
+  /** @type {(type: string, data: Buffer) => Buffer} */
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header[8] = 8;
+  header[9] = 2;
+  const row = Buffer.concat([
+    Buffer.from([0]),
+    Buffer.from(Array.from({ length: size }, () => rgb).flat()),
+  ]);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.concat(Array(size).fill(row)))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
 test('E2E: renderPublication -> kernel preflight/stage/activate/observe/cleanup -> local-directory adapter', async () => {
   const { renderPublication } =
     /** @type {{ renderPublication: (buildInput: unknown, options: unknown) => Promise<{ outputDirectory: string, manifest: Record<string, any> }> }} */ (
@@ -235,6 +272,37 @@ test('E2E: renderPublication -> kernel preflight/stage/activate/observe/cleanup 
     // --- 1. Render (template) ----------------------------------------------
     const sourceDirectory = path.join(renderRoot, 'source');
     await fs.mkdir(sourceDirectory, { recursive: true });
+
+    // The advanced-SEO inputs: a default social image, a square brand mark,
+    // the AI crawler block and a profile link, as the publish toolchain's
+    // repository intake now produces them (PNG files under the source tree).
+    await fs.mkdir(path.join(sourceDirectory, 'assets'), { recursive: true });
+    const defaultImageBytes = squarePng(64, [20, 90, 160]);
+    const brandMarkBytes = squarePng(32, [200, 60, 40]);
+    await writeFile(
+      path.join(sourceDirectory, 'assets/default.png'),
+      defaultImageBytes,
+    );
+    await writeFile(
+      path.join(sourceDirectory, 'assets/mark.png'),
+      brandMarkBytes,
+    );
+    const sha256 = (/** @type {Buffer} */ bytes) =>
+      createHash('sha256').update(bytes).digest('hex');
+    const seoInput = /** @type {any} */ (buildInput);
+    seoInput.publication.defaultImage = {
+      path: 'assets/default.png',
+      sourceDigest: `sha256:${sha256(defaultImageBytes)}`,
+    };
+    seoInput.publication.crawlers = { ai: 'block' };
+    seoInput.publication.socialLinks = [
+      ...seoInput.publication.socialLinks,
+      { type: 'mastodon', uri: 'https://example.social/@fixture' },
+    ];
+    seoInput.appearance.brandMark = {
+      path: 'assets/mark.png',
+      sourceDigest: `sha256:${sha256(brandMarkBytes)}`,
+    };
     const { outputDirectory, manifest } = await renderPublication(buildInput, {
       outputDirectory: path.join(renderRoot, 'output'),
       workDirectory: path.join(renderRoot, 'work'),
@@ -251,6 +319,38 @@ test('E2E: renderPublication -> kernel preflight/stage/activate/observe/cleanup 
       })),
     );
     const adapterDestination = { root: destinationRoot };
+
+    // --- 1b. The advanced-SEO output of the rendered site -------------------
+    const text = (/** @type {{bytes: Buffer}} */ file) =>
+      file.bytes.toString('utf8');
+    const pages = files.filter((file) => file.path.endsWith('.html'));
+    const defaultImageHex = sha256(defaultImageBytes);
+    assert.ok(
+      pages.some((page) =>
+        new RegExp(
+          `<meta property="og:image" content="[^"]*assets/media/${defaultImageHex}/original\\.png"`,
+          'u',
+        ).test(text(page)),
+      ),
+      'a page carries og:image for the default image',
+    );
+    assert.ok(
+      pages.some((page) => /<link rel="icon" href="[^"]+"/u.test(text(page))),
+      'a page carries the brand mark as <link rel="icon">',
+    );
+    assert.ok(
+      pages.some(
+        (page) =>
+          text(page).includes('"sameAs"') &&
+          text(page).includes('https://example.social/@fixture'),
+      ),
+      'structured data lists the social links as sameAs',
+    );
+    const robots = files.find((file) => file.path === 'robots.txt');
+    assert.ok(robots, 'robots.txt is part of the output');
+    assert.match(text(robots), /User-agent: GPTBot\nDisallow: \//u);
+    assert.match(text(robots), /User-agent: ClaudeBot\nDisallow: \//u);
+    assert.match(text(robots), /User-agent: \*\nAllow: \//u);
 
     // --- 2. Kernel preflight (provider-neutral duty composition) ----------
     const entries = files.map((file) => ({

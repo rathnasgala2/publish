@@ -102,9 +102,13 @@ const SCHEME_PREFIX = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/u;
 
 /**
+ * @typedef {'body' | 'hero' | 'defaultImage' | 'brandMark' | 'wordmark' | 'socialImage'} MediaOrigin
+ */
+
+/**
  * @typedef {object} MediaReference
  * @property {string} document repository-relative path of the document that refers to the image
- * @property {'body' | 'hero'} origin whether it is a body image or the front matter hero
+ * @property {MediaOrigin} origin what refers to the image: a body image, the front matter hero, or one of the single-file references (`defaultImage` of publication.json, `brandMark`/`wordmark` of appearance.json, `socialImage` of the front matter)
  * @property {string | null} source the reference as written (an `<img src>` with entities decoded, or a hero path); `null` when the image has no usable address
  * @property {string} alt the image's alternative text, for messages
  */
@@ -400,6 +404,48 @@ function describeRoots(roots) {
 }
 
 /**
+ * The single-file references (a path used exactly as written, like a hero)
+ * and the finding-code stem and wording each one has.
+ *
+ * @type {Readonly<Record<string, {stem: string, label: string}>>}
+ */
+const SINGLE_FILE_ORIGINS = Object.freeze({
+  defaultImage: {
+    stem: 'PUBLICATION_DEFAULT_IMAGE',
+    label: 'the default social image',
+  },
+  brandMark: { stem: 'APPEARANCE_BRAND_MARK', label: 'the brand mark' },
+  wordmark: { stem: 'APPEARANCE_WORDMARK', label: 'the wordmark' },
+  socialImage: {
+    stem: 'CONTENT_SOCIAL_IMAGE',
+    label: 'the social image',
+  },
+});
+
+/**
+ * The finding code for an unusable reference: `MEDIA_REFERENCE_UNRESOLVED` for
+ * a body image or hero, and for a single-file reference a code of its own,
+ * for example `PUBLICATION_DEFAULT_IMAGE_MISSING`, `..._UNSUPPORTED_TYPE` (not
+ * a raster image, SVG included) or `..._UNRESOLVED` (any other problem).
+ *
+ * @param {MediaOrigin} origin what refers to the image
+ * @param {string} reason the problem's reason
+ * @returns {string} the finding code
+ */
+function unresolvedCode(origin, reason) {
+  const single = SINGLE_FILE_ORIGINS[origin];
+  if (single === undefined) {
+    return 'MEDIA_REFERENCE_UNRESOLVED';
+  }
+  if (reason === 'FILE_MISSING') {
+    return `${single.stem}_MISSING`;
+  }
+  return reason === 'UNSUPPORTED_FORMAT'
+    ? `${single.stem}_UNSUPPORTED_TYPE`
+    : `${single.stem}_UNRESOLVED`;
+}
+
+/**
  * The finding for a reference that cannot be used.
  *
  * @param {MediaReference} reference the reference
@@ -410,7 +456,10 @@ function describeRoots(roots) {
  */
 function unresolvedFinding(reference, resolved, problem, roots) {
   const written = reference.source;
-  const kind = reference.origin === 'hero' ? 'the hero image' : 'the image';
+  const kind =
+    reference.origin === 'hero'
+      ? 'the hero image'
+      : (SINGLE_FILE_ORIGINS[reference.origin]?.label ?? 'the image');
   const subject =
     written === null
       ? `the image "${reference.alt}"`
@@ -422,7 +471,7 @@ function unresolvedFinding(reference, resolved, problem, roots) {
         ? 'Use a PNG, JPEG, WebP, AVIF or GIF image (SVG is not allowed).'
         : 'Add the image as a file under an asset root declared in gala/repository.json (for example "assets/"), refer to it by its path from the repository root, or remove the reference.';
   return mediaFinding(
-    'MEDIA_REFERENCE_UNRESOLVED',
+    unresolvedCode(reference.origin, problem.reason),
     `${reference.document}: ${subject} ${problem.explanation}.`,
     reference.document,
     {
@@ -637,7 +686,7 @@ function locate(reference, roots) {
       },
     };
   }
-  if (reference.origin === 'hero') {
+  if (reference.origin !== 'body') {
     const problem = heroPathProblem(source);
     return problem === null
       ? underAssetRoot(source, roots)
