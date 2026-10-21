@@ -16,7 +16,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,30 @@ function checkShape(bom) {
 }
 
 /**
+ * Refuse a checkout path npm cannot report faithfully. `npm ls` masks path
+ * segments that look like tokens (a UUID directory, for example) as `***`,
+ * `cyclonedx-npm` then cannot read the root `package.json`, and the
+ * regenerated SBOM silently loses the root component's description, engine
+ * constraints and `private` flag. That reads as "stale" and tempts a commit of
+ * the degraded file, so it is named here instead.
+ *
+ * @returns {void}
+ */
+function requireFaithfulWorkspacePath() {
+  const listed = spawnSync(
+    'npm',
+    ['ls', '--package-lock-only', '--json', '--long', '--depth=0'],
+    { cwd: workspaceRoot, encoding: 'utf8' },
+  );
+  const reported = JSON.parse(listed.stdout).path;
+  if (reported !== realpathSync(workspaceRoot)) {
+    throw new Error(
+      `npm reports this checkout as ${String(reported)}, not ${realpathSync(workspaceRoot)} (it masks token-like path segments), so the SBOM cannot be regenerated faithfully here. Run the check from a path without a UUID-like directory name.`,
+    );
+  }
+}
+
+/**
  * Run the freshness check: read the committed SBOM, regenerate a fresh one
  * into a scratch directory with the same normalization `npm run sbom`
  * applies, and assert the two are byte-identical.
@@ -61,6 +85,7 @@ function check() {
   }
   const committedBom = JSON.parse(committedRaw);
   checkShape(committedBom);
+  requireFaithfulWorkspacePath();
 
   const scratch = mkdtempSync(path.join(tmpdir(), 'gala-sbom-'));
   try {
