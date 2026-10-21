@@ -158,7 +158,9 @@ test('a real redirecting origin is classified through the platform fetch', async
     response.writeHead(301, { location: 'http://127.0.0.1:1/elsewhere' });
     response.end();
   });
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve) =>
+    server.listen(0, '127.0.0.1', () => resolve(undefined)),
+  );
   try {
     const { port } = /** @type {import('node:net').AddressInfo} */ (
       server.address()
@@ -171,7 +173,7 @@ test('a real redirecting origin is classified through the platform fetch', async
     assert.equal(read.toHost, '127.0.0.1:1');
     assert.equal(read.location, 'http://127.0.0.1:1/elsewhere');
   } finally {
-    await new Promise((resolve) => server.close(resolve));
+    await new Promise((resolve) => server.close(() => resolve(undefined)));
   }
 });
 
