@@ -193,45 +193,48 @@ test('the bound intent carries the build destination identity unchanged', () => 
   assert.equal('verificationBaseUrl' in bound.destination, false);
 });
 
-test('the capability decision agrees with an issued digest computed with or without the extension, and with neither refuses', () => {
+test('the capability decision covers the destination exactly as carried: with verificationBaseUrl when present, without when absent', () => {
   const run = { runId: '987654321', runAttempt: 1 };
   const intent = pagesIntent();
-  // Issued over the pinned destination: the extension is added at render.
-  const issued = requireCapabilityDecisionAgreement(intent, run);
+  const without = requireCapabilityDecisionAgreement(intent, run);
+
   intent.destination.verificationBaseUrl = PROJECT_PATH;
-  assert.equal(
-    requireCapabilityDecisionAgreement(intent, run).decisionDigest,
-    issued.decisionDigest,
+  // A digest issued without the member no longer agrees once it is present.
+  assert.throws(
+    () => requireCapabilityDecisionAgreement(intent, run),
+    /DEPLOY_CAPABILITY_DECISION_MISMATCH/u,
   );
-  // Issued over the full destination: the extension is part of the decision.
   /** @type {string} */
-  let fullReading = '';
+  let withMember = '';
   try {
     requireCapabilityDecisionAgreement(
       { ...intent, capabilityDecisionDigest: 'x' },
       run,
     );
   } catch (error) {
-    fullReading =
+    withMember =
       /recomputed from the intent digests to (sha256:[0-9a-f]{64})/u.exec(
         /** @type {Error} */ (error).message,
       )?.[1] ?? '';
   }
-  assert.match(fullReading, /^sha256:/u);
-  assert.notEqual(fullReading, issued.decisionDigest);
+  assert.match(withMember, /^sha256:/u);
+  assert.notEqual(withMember, without.decisionDigest);
   assert.equal(
     requireCapabilityDecisionAgreement(
-      { ...intent, capabilityDecisionDigest: fullReading },
+      { ...intent, capabilityDecisionDigest: withMember },
       run,
     ).decisionDigest,
-    fullReading,
+    withMember,
   );
+  // And a digest issued with the member does not agree once it is absent.
+  const absent = {
+    ...intent,
+    capabilityDecisionDigest: withMember,
+    destination: { ...intent.destination },
+  };
+  delete absent.destination.verificationBaseUrl;
   assert.throws(
-    () =>
-      requireCapabilityDecisionAgreement(
-        { ...intent, capabilityDecisionDigest: `sha256:${'0'.repeat(64)}` },
-        run,
-      ),
+    () => requireCapabilityDecisionAgreement(absent, run),
     /DEPLOY_CAPABILITY_DECISION_MISMATCH/u,
   );
 });

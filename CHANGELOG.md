@@ -62,9 +62,9 @@ and this project adheres to
   dependency, plainly:** the API and schemas packages must ship accepting
   `destination.verificationBaseUrl` and the submission member `verifiedAt`
   first; until then this toolchain sends a member the pinned contract refuses
-  (422) whenever the journal records one. The capability decision agrees with a
-  digest the API computed over the destination with or without the new member
-  (it must be one of the two).
+  (422) whenever the journal records one. The capability decision digest covers
+  the destination exactly as the intent carries it: with the new member when
+  present, without when absent.
 - publish-action intake builds the advanced-SEO inputs authored by the App
   (default social image, brand mark/wordmark, per-document social image,
   `crawlers`, `seo`) with specific `*_MISSING`/`*_UNSUPPORTED_TYPE`/

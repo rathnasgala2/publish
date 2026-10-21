@@ -27,6 +27,7 @@ import { afterEach, beforeEach, test } from 'node:test';
 import * as pages from '@rathnasgala2/adapter-github-pages';
 
 import { carrierDigest } from '../scripts/workflow/carrier.mjs';
+import { requireCapabilityDecisionAgreement } from '../scripts/workflow/capability-decision.mjs';
 import { classifyFailure, runDeploy } from '../scripts/workflow/deploy.mjs';
 import { buildDeploymentIntentRequest } from '../scripts/workflow/workload-requests.mjs';
 import { frozenEnvelopeFor } from './fixtures/artifact-manifest.mjs';
@@ -273,6 +274,28 @@ function networkStub(behaviour = {}) {
       return new Response(null, { status: 404 });
     }
   );
+}
+
+/**
+ * Name the verification base on an intent the way the API issues it: as a
+ * destination member, covered by the capability decision digest.
+ *
+ * @param {Record<string, any>} intent the intent, changed in place
+ * @param {string} base the verification base URL
+ * @returns {void}
+ */
+function withVerificationBase(intent, base) {
+  intent.destination.verificationBaseUrl = base;
+  try {
+    requireCapabilityDecisionAgreement(
+      { ...intent, capabilityDecisionDigest: 'x' },
+      { runId: RUN_ID, runAttempt: 1 },
+    );
+  } catch (error) {
+    intent.capabilityDecisionDigest = /to (sha256:[0-9a-f]{64}),/u.exec(
+      /** @type {Error} */ (error).message,
+    )?.[1];
+  }
 }
 
 /**
@@ -572,8 +595,10 @@ test('verificationBaseUrl present: every public read goes to it, the build base 
   globalThis.fetch = networkStub({ publicUrls });
   const run = await scenario({
     mutateIntent(intent) {
-      intent.destination.verificationBaseUrl =
-        'https://gala-author.github.io/galascribe-blog/';
+      withVerificationBase(
+        intent,
+        'https://gala-author.github.io/galascribe-blog/',
+      );
     },
   });
   await assert.rejects(runDeploy(run.argv), /DEPLOY_NOT_ACTIVATED/u);
@@ -617,8 +642,10 @@ test('a redirect at the verification origin is still PAGES_PUBLIC_REDIRECT', asy
   globalThis.fetch = networkStub({ publicOrigin: 'redirects' });
   const run = await scenario({
     mutateIntent(intent) {
-      intent.destination.verificationBaseUrl =
-        'https://gala-author.github.io/galascribe-blog/';
+      withVerificationBase(
+        intent,
+        'https://gala-author.github.io/galascribe-blog/',
+      );
     },
   });
   await assert.rejects(runDeploy(run.argv), /DEPLOY_NOT_ACTIVATED/u);
