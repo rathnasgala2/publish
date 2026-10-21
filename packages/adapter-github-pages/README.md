@@ -177,7 +177,8 @@ release the destination fence.
     repositoryId,
     repositoryOwnerId,
     apiOrigin, // https origin; defaults to https://api.github.com
-    publicBaseUrl, // https origin of the activated Pages site
+    publicBaseUrl, // https base the artifact was built for
+    verificationBaseUrl, // optional https base serving right now; verification reads use it
     token, // caller-supplied installation token
     oidcToken, // caller-supplied Pages OIDC JWT (or pass per-activate)
     oidcClaims, // its expected ref/sha/run/job_workflow bindings
@@ -197,6 +198,20 @@ suite against a local fake provider that speaks real HTTP, genuinely gunzips and
 untars the carrier this adapter produced, and serves the result from a separate
 public origin. `test/carrier.test.js` holds the codec goldens. What none of that
 can prove is the live GitHub Pages deployment API itself; that is backlog W4-16.
+
+## The origin the public reads go to
+
+The artifact is built for `publicBaseUrl` (the publication's canonical base),
+but the origin that answers over HTTPS right now can differ: the `github.io`
+project path before the Pages CNAME is set, the custom base once the custom
+domain serves. A destination may name it as `verificationBaseUrl`; every public
+read used for verification (the marker read behind `inspectDestination`,
+`preflight`, `activate`'s fence read and `observe`, and the route reads) uses it
+when present and `publicBaseUrl` otherwise. Artifact-relative paths are joined
+to either the same way, so the marker of an artifact built for a root base is
+found at `<project path>/.well-known/gala-generation.json` while the project
+path serves. It must be an https URL. A redirect at the verification origin is
+still `PAGES_PUBLIC_REDIRECT`.
 
 ## A redirecting public origin
 

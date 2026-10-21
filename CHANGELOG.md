@@ -47,6 +47,24 @@ and this project adheres to
 
 ### Added
 
+- `destination.verificationBaseUrl` (additive intent/authorization field): the
+  origin that is serving right now and answers over HTTPS (the `github.io`
+  project path before the Pages CNAME is set, the custom base once the custom
+  domain serves). The build `destination.baseUrl` is unchanged. Every public
+  read used for verification in `adapter-github-pages` uses it when present and
+  `baseUrl` otherwise (Spaces verifies at its own website origin and ignores
+  it). It is checked like `baseUrl` and stricter (https, exact host, no
+  userinfo, port, query or fragment; `checkVerificationBaseUrl`), and a
+  malformed value refuses as `INTENT_MISMATCH` before any destination contact.
+  The kernel journal head records `verifiedAt: {origin}`, and the receipt
+  submission carries the same optional `verifiedAt: {origin}`, on all three
+  shapes (journal, `deployFailure` present, `deployFailure` absent). **Contract
+  dependency, plainly:** the API and schemas packages must ship accepting
+  `destination.verificationBaseUrl` and the submission member `verifiedAt`
+  first; until then this toolchain sends a member the pinned contract refuses
+  (422) whenever the journal records one. The capability decision agrees with a
+  digest the API computed over the destination with or without the new member
+  (it must be one of the two).
 - publish-action intake builds the advanced-SEO inputs authored by the App
   (default social image, brand mark/wordmark, per-document social image,
   `crawlers`, `seo`) with specific `*_MISSING`/`*_UNSUPPORTED_TYPE`/

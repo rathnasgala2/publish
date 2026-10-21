@@ -82,6 +82,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
 
+import { DESTINATION_EXTENSION_FIELDS } from './workload-contract.mjs';
 import { canonicalJson } from './workload-identity.mjs';
 
 /**
@@ -625,38 +626,66 @@ export async function recomputeSpacesClosedRecords(intent) {
  * @returns {ReturnType<typeof issuancePhaseDecision>} the agreeing decision
  */
 export function requireCapabilityDecisionAgreement(intent, run, spaces) {
-  const decision = issuancePhaseDecision({
-    artifactId: String(intent.artifactId),
-    artifactDigest: String(intent.artifactDigest),
-    manifestDigest: String(intent.manifestDigest),
-    destination: /** @type {Record<string, unknown>} */ (intent.destination),
-    adapter: intent.adapter,
-    artifactFileCount: intent.artifactFileCount,
-    artifactByteCount: intent.artifactByteCount,
-    marker: /** @type {Record<string, unknown>} */ (intent.marker),
-    ...(intent.pagesBuildVersion === undefined
-      ? {}
-      : { pagesBuildVersion: String(intent.pagesBuildVersion) }),
-    ...(intent.spacesStagePrefix === undefined
-      ? {}
-      : { spacesStagePrefix: String(intent.spacesStagePrefix) }),
-    ...(spaces === undefined
-      ? {}
-      : {
-          spacesWebsiteConfigurationDigest:
-            spaces.spacesWebsiteConfigurationDigest,
-          spacesControlPlaneBindingDigest:
-            spaces.spacesControlPlaneBindingDigest,
-          spacesControlPlaneRequestCatalogDigest:
-            spaces.spacesControlPlaneRequestCatalogDigest,
-          spacesControlPlaneResponseCatalogDigest:
-            spaces.spacesControlPlaneResponseCatalogDigest,
-          spacesControlPlaneTlsProfileDigest:
-            spaces.spacesControlPlaneTlsProfileDigest,
-        }),
-    runId: run.runId,
-    runAttempt: run.runAttempt,
-  });
+  /**
+   * @param {Record<string, unknown>} destination the destination the
+   *   decision is computed over
+   * @returns {ReturnType<typeof issuancePhaseDecision>} the decision
+   */
+  const decide = (destination) =>
+    issuancePhaseDecision({
+      artifactId: String(intent.artifactId),
+      artifactDigest: String(intent.artifactDigest),
+      manifestDigest: String(intent.manifestDigest),
+      destination,
+      adapter: intent.adapter,
+      artifactFileCount: intent.artifactFileCount,
+      artifactByteCount: intent.artifactByteCount,
+      marker: /** @type {Record<string, unknown>} */ (intent.marker),
+      ...(intent.pagesBuildVersion === undefined
+        ? {}
+        : { pagesBuildVersion: String(intent.pagesBuildVersion) }),
+      ...(intent.spacesStagePrefix === undefined
+        ? {}
+        : { spacesStagePrefix: String(intent.spacesStagePrefix) }),
+      ...(spaces === undefined
+        ? {}
+        : {
+            spacesWebsiteConfigurationDigest:
+              spaces.spacesWebsiteConfigurationDigest,
+            spacesControlPlaneBindingDigest:
+              spaces.spacesControlPlaneBindingDigest,
+            spacesControlPlaneRequestCatalogDigest:
+              spaces.spacesControlPlaneRequestCatalogDigest,
+            spacesControlPlaneResponseCatalogDigest:
+              spaces.spacesControlPlaneResponseCatalogDigest,
+            spacesControlPlaneTlsProfileDigest:
+              spaces.spacesControlPlaneTlsProfileDigest,
+          }),
+      runId: run.runId,
+      runAttempt: run.runAttempt,
+    });
+  const destination = /** @type {Record<string, unknown>} */ (
+    intent.destination
+  );
+  // The additive destination members the pinned identity does not declare
+  // (`verificationBaseUrl`) are the API's to fold into the decision or not;
+  // the digest it issued agrees with exactly one of the two readings, and the
+  // run accepts that one (never a third).
+  const pinned = Object.fromEntries(
+    Object.entries(destination).filter(
+      ([name]) => !DESTINATION_EXTENSION_FIELDS.includes(name),
+    ),
+  );
+  let decision = decide(destination);
+  if (
+    decision.decisionDigest !== intent.capabilityDecisionDigest &&
+    Object.keys(pinned).length !== Object.keys(destination).length
+  ) {
+    const withoutExtensions = decide(pinned);
+    if (withoutExtensions.decisionDigest === intent.capabilityDecisionDigest) {
+      decision = withoutExtensions;
+    }
+  }
   if (decision.decisionDigest !== intent.capabilityDecisionDigest) {
     throw new Error(
       `DEPLOY_CAPABILITY_DECISION_MISMATCH: the issuance-phase capability decision recomputed from the intent digests to ${decision.decisionDigest}, not the ${String(intent.capabilityDecisionDigest)} the intent carries (LOCAL-62; the API's admission row for ${String(intent.adapter?.adapterId)}@${String(intent.adapter?.adapterVersion)} is mirrored from releases 0045/0046)`,

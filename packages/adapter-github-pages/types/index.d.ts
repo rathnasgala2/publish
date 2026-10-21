@@ -286,6 +286,7 @@ export type PagesDestination = Readonly<{
     oidcToken?: string;
     oidcClaims?: import("./oidc.js").PagesOidcExpectation;
     publicBaseUrl: string;
+    verificationBaseUrl?: string;
     token: string;
     publishCarrier: (input: {
         bytes: Buffer;

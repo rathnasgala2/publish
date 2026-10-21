@@ -238,8 +238,8 @@ async function scenario(options = {}) {
  * A fetch for everything a Pages deploy reaches over the network: the runner
  * token endpoint, GitHub's REST API, and the public origin.
  *
- * @param {{publicOrigin?: 'redirects' | 'not-found'}} [behaviour] how the
- *   public origin answers
+ * @param {{publicOrigin?: 'redirects' | 'not-found', publicUrls?: string[]}} [behaviour]
+ *   how the public origin answers, and where to record every public URL read
  * @returns {typeof globalThis.fetch} the stub
  */
 function networkStub(behaviour = {}) {
@@ -258,6 +258,7 @@ function networkStub(behaviour = {}) {
           headers: { 'content-type': 'application/json' },
         });
       }
+      behaviour.publicUrls?.push(String(url));
       if (behaviour.publicOrigin === 'redirects') {
         if (init.redirect === 'manual') {
           return new Response(null, {
@@ -565,6 +566,103 @@ test('a journal that cannot be moved into place leaves neither a partial file no
     [],
   );
 });
+
+test('verificationBaseUrl present: every public read goes to it, the build base is not read, and the journal says so', async () => {
+  const publicUrls = /** @type {string[]} */ ([]);
+  globalThis.fetch = networkStub({ publicUrls });
+  const run = await scenario({
+    mutateIntent(intent) {
+      intent.destination.verificationBaseUrl =
+        'https://gala-author.github.io/galascribe-blog/';
+    },
+  });
+  await assert.rejects(runDeploy(run.argv), /DEPLOY_NOT_ACTIVATED/u);
+  assert.ok(publicUrls.length > 0, 'the run made public reads');
+  assert.ok(
+    publicUrls.every((url) =>
+      url.startsWith('https://gala-author.github.io/galascribe-blog/'),
+    ),
+    publicUrls.join(', '),
+  );
+  assert.ok(
+    publicUrls.includes(
+      'https://gala-author.github.io/galascribe-blog/.well-known/gala-generation.json',
+    ),
+    'the marker is read under the project path',
+  );
+  const journal = JSON.parse(await readFile(run.out, 'utf8'));
+  assert.deepEqual(journal.verifiedAt, {
+    origin: 'https://gala-author.github.io/galascribe-blog/',
+  });
+});
+
+test('verificationBaseUrl absent: public reads use the build base, which the journal records', async () => {
+  const publicUrls = /** @type {string[]} */ ([]);
+  globalThis.fetch = networkStub({ publicUrls });
+  const run = await scenario();
+  assert.equal(run.intent.destination.verificationBaseUrl, undefined);
+  await assert.rejects(runDeploy(run.argv), /DEPLOY_NOT_ACTIVATED/u);
+  assert.ok(
+    publicUrls.length > 0 &&
+      publicUrls.every((url) => url.startsWith(run.intent.destination.baseUrl)),
+    publicUrls.join(', '),
+  );
+  const journal = JSON.parse(await readFile(run.out, 'utf8'));
+  assert.deepEqual(journal.verifiedAt, {
+    origin: run.intent.destination.baseUrl,
+  });
+});
+
+test('a redirect at the verification origin is still PAGES_PUBLIC_REDIRECT', async () => {
+  globalThis.fetch = networkStub({ publicOrigin: 'redirects' });
+  const run = await scenario({
+    mutateIntent(intent) {
+      intent.destination.verificationBaseUrl =
+        'https://gala-author.github.io/galascribe-blog/';
+    },
+  });
+  await assert.rejects(runDeploy(run.argv), /DEPLOY_NOT_ACTIVATED/u);
+  const journal = JSON.parse(await readFile(run.out, 'utf8'));
+  assert.equal(journal.failure.code, 'PAGES_PUBLIC_REDIRECT');
+  assert.equal(
+    journal.verifiedAt.origin,
+    'https://gala-author.github.io/galascribe-blog/',
+  );
+});
+
+for (const invalid of [
+  'http://gala-author.github.io/blog/',
+  'https://user@gala-author.github.io/blog/',
+  'https://gala-author.github.io:8443/blog/',
+  'https://gala-author.github.io/blog/#top',
+  'https://gala-author.github.io/blog/?x=1',
+  'https://Gala-Author.github.io/blog/',
+  'https://gala-author.github.io/a/../b/',
+  'not a url',
+  42,
+]) {
+  test(`INTENT_MISMATCH: an invalid verificationBaseUrl (${JSON.stringify(invalid)}) is refused before any contact`, async () => {
+    const publicUrls = /** @type {string[]} */ ([]);
+    globalThis.fetch = networkStub({ publicUrls });
+    const run = await scenario({
+      mutateIntent(intent) {
+        intent.destination.verificationBaseUrl = invalid;
+      },
+    });
+    const journal = await failsWithJournal(
+      run,
+      'INTENT_MISMATCH',
+      'verification-origin',
+    );
+    assert.match(
+      journal.failure.message,
+      /DEPLOY_VERIFICATION_BASE_URL_INVALID/u,
+    );
+    assert.equal(journal.verifiedAt, undefined);
+    assert.deepEqual(publicUrls, []);
+    assertNoKernelEvidence(journal);
+  });
+}
 
 test('classifyFailure keeps a classified failure and calls anything else DEPLOY_CRASHED', () => {
   const crash = classifyFailure(new Error('boom'));

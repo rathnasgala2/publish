@@ -405,3 +405,32 @@ test('the journal-present contract is the pinned submission plus a "present" dep
     );
   }
 });
+
+test('the journal’s verifiedAt origin is carried into the receipt on every shape, and omitted when the journal has none', async () => {
+  const origin = 'https://gala-author.github.io/galascribe-blog/';
+  const withJournal = await report({
+    journal: kernelJournal({ verifiedAt: { origin } }),
+  });
+  assert.deepEqual(withJournal.body.verifiedAt, { origin });
+
+  const failureOnly = await report({
+    journal: {
+      schemaVersion: '2.0.0',
+      outcome: 'failed',
+      verifiedAt: { origin },
+      failure: { code: 'CARRIER_UNREADABLE', stage: 'carrier', message: 'm' },
+      attempts: [],
+      observations: [],
+      observedRoutes: [],
+    },
+  });
+  const withoutVerifiedAt = structuredClone(failureOnly.body);
+  delete withoutVerifiedAt.verifiedAt;
+  validateJournalAbsentSubmission(withoutVerifiedAt);
+  assert.deepEqual(failureOnly.body.verifiedAt, { origin });
+
+  const none = await report({ journal: kernelJournal() });
+  assert.equal(none.body.verifiedAt, undefined);
+  const noJournal = await report({ failureCode: 'OIDC_FAILED' });
+  assert.equal(noJournal.body.verifiedAt, undefined);
+});

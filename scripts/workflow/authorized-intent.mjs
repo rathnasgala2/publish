@@ -62,6 +62,7 @@ import {
   STABLE_ID_PATTERN,
   WorkloadContractError,
   checkDestination,
+  checkVerificationBaseUrl,
 } from './workload-contract.mjs';
 import {
   canonicalJson,
@@ -91,7 +92,7 @@ const LEGACY_SUBJECT_PATTERN = /^repo:[^:]+:ref:.+$/u;
 /** A refusal with a closed code and a pointer or a plain reason. */
 export class AuthorizedIntentError extends Error {
   /**
-   * @param {'DEPLOY_INTENT_MALFORMED' | 'DEPLOY_INTENT_INCONSISTENT' | 'DEPLOY_INTENT_IDENTITY_MISMATCH' | 'DEPLOY_INTENT_SUBJECT_LEGACY' | 'DEPLOY_INTENT_EXPIRED' | 'DEPLOY_DESTINATION_BINDING_INVALID' | 'DEPLOY_RUNNER_IDENTITY_MISSING'} code
+   * @param {'DEPLOY_INTENT_MALFORMED' | 'DEPLOY_INTENT_INCONSISTENT' | 'DEPLOY_INTENT_IDENTITY_MISMATCH' | 'DEPLOY_INTENT_SUBJECT_LEGACY' | 'DEPLOY_INTENT_EXPIRED' | 'DEPLOY_DESTINATION_BINDING_INVALID' | 'DEPLOY_VERIFICATION_BASE_URL_INVALID' | 'DEPLOY_RUNNER_IDENTITY_MISSING'} code
    *   the closed refusal code
    * @param {string} detail what disagreed, never quoting a credential
    */
@@ -242,6 +243,41 @@ export function destinationIdentityFrom(intent) {
       ? {}
       : { providerBinding: destination.providerBinding }),
   };
+}
+
+/**
+ * The base URL the intent says is serving right now and answers over HTTPS
+ * (`destination.verificationBaseUrl`), when it says one: the `github.io`
+ * project path before the Pages CNAME is set, the custom base once the custom
+ * domain serves. The build `baseUrl` is unchanged and is where an artifact is
+ * built for; this is where it is verified. Checked like `baseUrl` and
+ * stricter (https, exact host, no userinfo, port, query or fragment).
+ *
+ * @param {Record<string, unknown>} intent the deployment intent
+ * @returns {string | undefined} the verification base URL, or `undefined`
+ *   when the intent names none (the caller verifies at `baseUrl`)
+ * @throws {AuthorizedIntentError} `DEPLOY_VERIFICATION_BASE_URL_INVALID` for
+ *   a value that is present and malformed
+ */
+export function verificationBaseUrlOf(intent) {
+  const destination = object(intent.destination, '/destination');
+  if (destination.verificationBaseUrl === undefined) {
+    return undefined;
+  }
+  try {
+    return checkVerificationBaseUrl(
+      destination.verificationBaseUrl,
+      '/destination/verificationBaseUrl',
+    );
+  } catch (failure) {
+    if (failure instanceof WorkloadContractError) {
+      throw new AuthorizedIntentError(
+        'DEPLOY_VERIFICATION_BASE_URL_INVALID',
+        `${failure.pointer} is not an https base URL with an exact host and no userinfo, port, query or fragment`,
+      );
+    }
+    throw failure;
+  }
 }
 
 /**

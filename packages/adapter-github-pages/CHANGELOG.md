@@ -8,6 +8,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `destination.verificationBaseUrl` (optional, https): the origin that is
+  serving right now. Every public read used for verification (marker reads,
+  `inspectDestination`, `preflight`, `activate`'s fence read, `observe` and the
+  route reads) uses it when present and `publicBaseUrl` otherwise, joined the
+  same way. A redirect there is still `PAGES_PUBLIC_REDIRECT`.
+
 ### Fixed
 
 - A redirecting public origin no longer throws out of the lifecycle. A site

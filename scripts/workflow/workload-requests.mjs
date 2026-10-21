@@ -16,9 +16,7 @@ import {
   MAXIMUM_REQUEST_BYTES,
   MAXIMUM_VERIFICATION_ENTRIES,
   validateExchangeRequest,
-  validateJournalAbsentSubmission,
-  validateJournalPresentSubmission,
-  validateReceiptSubmission,
+  validateSubmission,
 } from './workload-contract.mjs';
 import {
   buildVerificationSubmission,
@@ -315,8 +313,10 @@ export function buildReceiptExchangeRequest(input) {
  *   workflowCompletedAt: string,
  *   destinationGenerationId?: string,
  *   destinationReceiptDigest?: string,
- *   failure?: {failureCode: string, stage?: string, toHost?: string}
- * }} input the submission facts; `failure` is the deploy's classified failure,
+ *   failure?: {failureCode: string, stage?: string, toHost?: string},
+ *   verifiedAt?: {origin: string}
+ * }} input the submission facts; `verifiedAt` is the base URL the deploy's
+ *   public reads were made against (omitted when the journal does not say); `failure` is the deploy's classified failure,
  *   stated beside the journal as `deployFailure: {journal: 'present', ...}`
  * @returns {Record<string, unknown>} the validated submission
  */
@@ -331,11 +331,7 @@ export function buildReceiptSubmission(input) {
       ? {}
       : { deployFailure: { journal: 'present', ...input.failure } }),
   };
-  if (input.failure === undefined) {
-    validateReceiptSubmission(submission);
-  } else {
-    validateJournalPresentSubmission(submission);
-  }
+  validateSubmission(submission);
   assertSubmissionFits(submission);
   return submission;
 }
@@ -365,7 +361,7 @@ export function buildJournalAbsentSubmission(input) {
       ...(input.toHost === undefined ? {} : { toHost: input.toHost }),
     },
   };
-  validateJournalAbsentSubmission(submission);
+  validateSubmission(submission);
   assertSubmissionFits(submission);
   return submission;
 }
@@ -426,6 +422,9 @@ function submissionBase(input) {
   }
   if (input.destinationReceiptDigest !== undefined) {
     submission.destinationReceiptDigest = input.destinationReceiptDigest;
+  }
+  if (input.verifiedAt !== undefined) {
+    submission.verifiedAt = { origin: input.verifiedAt.origin };
   }
   return submission;
 }

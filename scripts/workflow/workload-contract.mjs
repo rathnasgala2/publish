@@ -189,6 +189,19 @@ export const DESTINATION_FIELDS = Object.freeze([
   'providerBinding',
 ]);
 
+/**
+ * Retained destination members the pinned contract does not declare yet: the
+ * additive `verificationBaseUrl`, the origin that is serving right now and
+ * answers over HTTPS. `DESTINATION_FIELDS` above is held to the pinned
+ * schemas by the parity test and so is unchanged; the retained destination
+ * admits these beside it. The value is checked separately, by
+ * `checkVerificationBaseUrl`, so a malformed one is refused as a mismatch with
+ * the intent rather than as a malformed authorization.
+ */
+export const DESTINATION_EXTENSION_FIELDS = Object.freeze([
+  'verificationBaseUrl',
+]);
+
 /** Retained `destinationIdentity` members that are never optional. */
 export const DESTINATION_REQUIRED = Object.freeze(
   DESTINATION_FIELDS.filter((name) => name !== 'providerBinding'),
@@ -1004,6 +1017,56 @@ export function checkRequestDestination(value, pointer) {
 }
 
 /**
+ * Validate a base URL a public read is made against: an HTTPS URL with an
+ * exact host (as `URL` renders it: lower case, no trailing dot), no userinfo,
+ * no port, no query, no fragment, and a normalized path (a project path such
+ * as `/galascribe-blog/` is fine; dot segments and empty segments are not).
+ * Stricter than `baseUrl`'s pattern because this is the origin the deploy
+ * actually reads from.
+ *
+ * @param {unknown} value the candidate base URL
+ * @param {string} pointer the pointer to report
+ * @returns {string} the validated base URL
+ */
+export function checkVerificationBaseUrl(value, pointer) {
+  if (
+    typeof value !== 'string' ||
+    Buffer.byteLength(value, 'utf8') > 2048 ||
+    !HTTPS_URL_PATTERN.test(value)
+  ) {
+    invalid(pointer);
+  }
+  /** @type {URL} */
+  let url;
+  try {
+    url = new URL(/** @type {string} */ (value));
+  } catch {
+    return invalid(pointer);
+  }
+  const text = /** @type {string} */ (value);
+  if (
+    url.protocol !== 'https:' ||
+    url.username !== '' ||
+    url.password !== '' ||
+    url.port !== '' ||
+    url.search !== '' ||
+    url.hash !== '' ||
+    url.hostname.endsWith('.') ||
+    text.includes('#') ||
+    text.includes('?') ||
+    // The host exactly as written: no case, IDN or trailing-dot rewriting.
+    !text.startsWith(`https://${url.host}`) ||
+    // The path exactly as written: no dot segments, no empty segments.
+    (`https://${url.host}${url.pathname}` !== text &&
+      `https://${url.host}${url.pathname}` !== `${text}/`) ||
+    url.pathname.includes('//')
+  ) {
+    invalid(pointer);
+  }
+  return text;
+}
+
+/**
  * Validate the closed retained `destinationIdentity`, including the
  * optional `providerBinding` the contract keys on the destination's own
  * `adapterId` (LOCAL-55 (2)): `{owner, repository}` for `github-pages`,
@@ -1017,7 +1080,11 @@ export function checkRequestDestination(value, pointer) {
  */
 export function checkDestination(value, pointer) {
   const destination = requireObject(value, pointer);
-  requireNoUnknownFields(destination, DESTINATION_FIELDS, pointer);
+  requireNoUnknownFields(
+    destination,
+    [...DESTINATION_FIELDS, ...DESTINATION_EXTENSION_FIELDS],
+    pointer,
+  );
   requirePresent(destination, DESTINATION_REQUIRED, pointer);
   const adapterId = requireEnum(
     destination,
@@ -1189,6 +1256,37 @@ export function validateReceiptSubmission(value) {
   requirePresent(body, SUBMISSION_REQUIRED, '');
   checkSubmissionMembers(body);
   checkKernelJournal(body.kernelJournal, '/kernelJournal');
+}
+
+/**
+ * Validate any submission this workflow can post: the pinned receipt
+ * submission, or one of the two failure shapes, each with the optional
+ * `verifiedAt: {origin}` extension (the base URL the deploy's public reads
+ * were made against, recorded by the API beside the build `publicBaseUrl`).
+ * `verifiedAt` is not in the pinned contract, so it is checked and removed
+ * here and the rest goes to the shape's own validator.
+ *
+ * @param {unknown} value the request body
+ * @returns {void}
+ */
+export function validateSubmission(value) {
+  const { verifiedAt, ...rest } = requireObject(value, '');
+  if (verifiedAt !== undefined) {
+    const at = requireObject(verifiedAt, '/verifiedAt');
+    requireNoUnknownFields(at, ['origin'], '/verifiedAt');
+    requirePresent(at, ['origin'], '/verifiedAt');
+    checkVerificationBaseUrl(at.origin, '/verifiedAt/origin');
+  }
+  const failure = /** @type {{journal?: unknown} | undefined} */ (
+    rest.deployFailure
+  );
+  if (failure === undefined) {
+    validateReceiptSubmission(rest);
+  } else if (failure?.journal === 'absent') {
+    validateJournalAbsentSubmission(rest);
+  } else {
+    validateJournalPresentSubmission(rest);
+  }
 }
 
 /**

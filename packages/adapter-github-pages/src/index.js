@@ -111,6 +111,7 @@ export {
  *   oidcToken?: string,
  *   oidcClaims?: import('./oidc.js').PagesOidcExpectation,
  *   publicBaseUrl: string,
+ *   verificationBaseUrl?: string,
  *   token: string,
  *   publishCarrier: (input: {bytes: Buffer, generationId: string, carrierDigest: string}) => Promise<{pagesArtifactId: string | number, artifactDigest?: string, byteCount?: number}>,
  *   fetch?: typeof globalThis.fetch,
@@ -156,6 +157,14 @@ function restContextFor(destination) {
   if (!destination.publicBaseUrl.startsWith('https://')) {
     throw new TypeError('destination.publicBaseUrl must be an https origin');
   }
+  if (
+    destination.verificationBaseUrl !== undefined &&
+    !destination.verificationBaseUrl.startsWith('https://')
+  ) {
+    throw new TypeError(
+      'destination.verificationBaseUrl must be an https origin',
+    );
+  }
   if (typeof destination.publishCarrier !== 'function') {
     throw new TypeError(
       'destination.publishCarrier is required: adapter-github-pages never uploads an Actions artifact itself (DEC-097 section 2.3 makes direct carrier upload workflow-owned)',
@@ -172,13 +181,20 @@ function restContextFor(destination) {
 }
 
 /**
+ * The public context every verification read uses: the marker read, the
+ * route reads and the inspection. The origin that is serving right now
+ * (`verificationBaseUrl`: the `github.io` project path before the Pages CNAME
+ * is set, the custom base once the custom domain serves) when the destination
+ * names one, else `publicBaseUrl`. Artifact-relative paths are joined to it
+ * the same way under either.
+ *
  * @param {PagesDestination} destination the destination
  * @returns {import('./public-read.js').PublicContext} the public context
  */
 function publicContextFor(destination) {
   const injected = destination.publicFetch ?? destination.fetch;
   return Object.freeze({
-    publicBaseUrl: destination.publicBaseUrl,
+    publicBaseUrl: destination.verificationBaseUrl ?? destination.publicBaseUrl,
     ...(injected === undefined ? {} : { fetch: injected }),
   });
 }

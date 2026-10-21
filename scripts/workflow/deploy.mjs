@@ -50,6 +50,7 @@ import {
   destinationIdentityFrom,
   providerBindingOf,
   requireRunner,
+  verificationBaseUrlOf,
 } from './authorized-intent.mjs';
 import { readAuthorization } from './build-pages-carrier.mjs';
 import {
@@ -120,7 +121,7 @@ function spacesDestination(intent) {
  * @param {Readonly<Record<string, string | undefined>>} runner the runner
  *   environment (`GITHUB_REPOSITORY`, `GITHUB_REPOSITORY_ID`,
  *   `GITHUB_REPOSITORY_OWNER_ID`)
- * @returns {{owner: string, repository: string, repositoryId: string, repositoryOwnerId: string, publicBaseUrl: string}}
+ * @returns {{owner: string, repository: string, repositoryId: string, repositoryOwnerId: string, publicBaseUrl: string, verificationBaseUrl?: string}}
  *   the bound coordinates
  */
 function pagesDestinationBinding(intent, runner) {
@@ -132,6 +133,7 @@ function pagesDestinationBinding(intent, runner) {
   }
   const owner = String(coordinates.owner);
   const repository = String(coordinates.repository);
+  const verificationBaseUrl = verificationBaseUrlOf(intent);
   const own = requireRunner(runner, 'GITHUB_REPOSITORY');
   if (own.toLowerCase() !== `${owner}/${repository}`.toLowerCase()) {
     throw new Error(
@@ -144,6 +146,10 @@ function pagesDestinationBinding(intent, runner) {
     repositoryId: requireRunner(runner, 'GITHUB_REPOSITORY_ID'),
     repositoryOwnerId: requireRunner(runner, 'GITHUB_REPOSITORY_OWNER_ID'),
     publicBaseUrl: String(destinationIdentityFrom(intent).baseUrl),
+    // Where every verification read goes, when the intent says the site is
+    // serving somewhere other than its build base (a custom domain, or the
+    // `github.io` project path before the CNAME is set).
+    ...(verificationBaseUrl === undefined ? {} : { verificationBaseUrl }),
   };
 }
 
@@ -408,6 +414,14 @@ async function deploy(argv, run) {
   await classified('INTENT_MISMATCH', 'intent', () =>
     requireEnvelopeIntentAgreement(intent, envelope),
   );
+  // Where the public reads of this run go: the intent's verification base
+  // when it names one, else the build base. A malformed value is refused here,
+  // before any destination contact, as a disagreement with the intent.
+  const verificationBaseUrl = await classified(
+    'INTENT_MISMATCH',
+    'verification-origin',
+    () => verificationBaseUrlOf(intent),
+  );
   // DEC-097 line 8419 / LOCAL-62: the capability decision is recomputed
   // before staging. Only the issuance-phase record is compared against the
   // intent's digest; the deploy-phase facts (the Pages carrier, the exact
@@ -578,6 +592,16 @@ async function deploy(argv, run) {
       );
     }
   });
+
+  // The origin this run's public reads are made against, recorded before the
+  // first one. Spaces verifies at its own website origin, which its adapter
+  // pins to `baseUrl`, so the verification base applies to Pages only.
+  journalHead.verifiedAt = {
+    origin:
+      adapterId === 'github-pages' && verificationBaseUrl !== undefined
+        ? verificationBaseUrl
+        : String(bound.destination.baseUrl),
+  };
 
   // The kernel returns an outcome, with its classified failure, for every
   // stage that throws; nothing here is wrapped because nothing else can.
