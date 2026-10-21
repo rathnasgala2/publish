@@ -223,22 +223,29 @@ each a title and the repository path of a Markdown file:
 ```
 
 Both pages are required when `policies` is present, and the schema refuses any
-other member. Intake reads each file whole and renders it exactly as it renders
-a content body (`normalizeAuthoredMarkdown`, the current render policy identity,
-`text/html` and the same digests), then sets
+other member. The schema also requires each `body` to end in `.md` and refuses
+any other name first, as a schema failure naming `publication.json`; intake
+checks the extension again as a defence in depth. Intake reads each file whole
+and renders it exactly as it renders a content body
+(`normalizeAuthoredMarkdown`, the current render policy identity, `text/html`
+and the same digests), then sets
 `build-input.policies = {terms: {title, body}, privacy: {title, body}}`, where
 each `body` is a `renderableBody` whose `sourcePath` is the path as authored. A
 policy page is not a content record: it has no front matter, is not in
-`content[]` and is never an edition source. It also cannot contain images: a
-policy body has no media inventory, so a page whose rendered body has an `<img>`
+`content[]` and is never an edition source. A file may be at most 131072 bytes
+(the API's reader cap, which the contract carries as the same limit) and must
+hold something other than whitespace. It also cannot contain images: a policy
+body has no media inventory, so a page whose rendered body has an `<img>`
 element is refused. Without `policies` there is no `policies` member. Intake
 requires `@rathnasgala2/schemas` 3.16.0 or later.
 
-| Code                            | Severity       | Meaning                                                                                     |
-| ------------------------------- | -------------- | ------------------------------------------------------------------------------------------- |
-| `POLICY_BODY_MISSING`           | `SOURCE_ERROR` | The file does not exist or is not a regular file (a symbolic link is never followed).       |
-| `POLICY_BODY_UNSUPPORTED_TYPE`  | `SOURCE_ERROR` | The path does not end in `.md`, or the file's real location is outside the repository root. |
-| `POLICY_BODY_IMAGE_UNSUPPORTED` | `SOURCE_ERROR` | The rendered body contains an image (`evidence.images` counts them); remove it.             |
+| Code                            | Severity       | Meaning                                                                                                                                                   |
+| ------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POLICY_BODY_MISSING`           | `SOURCE_ERROR` | The path does not exist (a dangling symbolic link included) or is not a regular file: a directory, or a symbolic link that points inside the repository.  |
+| `POLICY_BODY_UNSUPPORTED_TYPE`  | `SOURCE_ERROR` | The path does not end in `.md`, or the file's real location is outside the repository root (a symbolic link to an existing file outside it is this code). |
+| `POLICY_BODY_TOO_LARGE`         | `SOURCE_ERROR` | The file is more than 131072 bytes; `evidence.bytes` is its size and `evidence.maxBytes` the limit.                                                       |
+| `POLICY_BODY_EMPTY`             | `SOURCE_ERROR` | The file is empty or contains only whitespace.                                                                                                            |
+| `POLICY_BODY_IMAGE_UNSUPPORTED` | `SOURCE_ERROR` | The rendered body contains an image (`evidence.images` counts them); remove it.                                                                           |
 
 Both pages are checked and every problem is reported together; each finding's
 `evidence` carries `policy` (`terms` or `privacy`) and `path`.

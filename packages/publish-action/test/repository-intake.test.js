@@ -2339,21 +2339,26 @@ test('a policy body that does not exist or is not a regular file is POLICY_BODY_
   }
 });
 
-test('a policy body that is not a .md file is POLICY_BODY_UNSUPPORTED_TYPE', async () => {
+test('a policy body that is not a .md file is refused by the schema before intake reads it', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {
     await addPolicyFiles(dir);
     await addFile(dir, 'gala/policies/terms.txt', POLICY_TEXT.terms);
-    const policies = authoredPolicies();
-    policies.terms.body = 'gala/policies/terms.txt';
-    await setPublication(dir, { policies });
-    const findings = await intakeFindings(
-      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
-    );
-    assert.equal(findings.length, 1);
-    assert.equal(findings[0]?.code, 'POLICY_BODY_UNSUPPORTED_TYPE');
-    assert.equal(findings[0]?.severity, 'SOURCE_ERROR');
-    assert.match(findings[0]?.detail ?? '', /policies\.terms\.body/u);
+    for (const body of ['gala/policies/terms.txt', 'gala/policies/terms']) {
+      const policies = authoredPolicies();
+      policies.terms.body = body;
+      await setPublication(dir, { policies });
+      await assert.rejects(
+        buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+        (/** @type {SchemaValidationError} */ error) => {
+          assert.ok(error instanceof SchemaValidationError, String(error));
+          assert.equal(error.location, 'gala/publication.json');
+          assert.equal(error.schemaId, 'urn:gala:schema:publication:2.0.0');
+          assert.ok(error.diagnostics.length > 0);
+          return true;
+        },
+      );
+    }
   } finally {
     await cleanup();
   }
@@ -2371,13 +2376,131 @@ test('a policy body that links to a file outside the repository is POLICY_BODY_U
       path.join(dir, 'gala/policies/privacy.md'),
     );
     await setPublication(dir, { policies: authoredPolicies() });
-    await rejectsWithFindingCode(
+    const findings = await intakeFindings(
       buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
-      'POLICY_BODY_UNSUPPORTED_TYPE',
     );
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.code, 'POLICY_BODY_UNSUPPORTED_TYPE');
+    assert.match(findings[0]?.detail ?? '', /is outside the repository/u);
+    assert.deepEqual(findings[0]?.evidence, {
+      policy: 'privacy',
+      path: 'gala/policies/privacy.md',
+    });
   } finally {
     await cleanup();
     await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test('a policy body that is a symbolic link inside the repository, or one that dangles, is POLICY_BODY_MISSING', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addPolicyFiles(dir);
+    // terms.md becomes a link to an ordinary file inside the repository and
+    // privacy.md a link to nothing; neither is the file itself.
+    await rm(path.join(dir, 'gala/policies/terms.md'));
+    await addFile(dir, 'gala/policies/real-terms.md', POLICY_TEXT.terms);
+    await symlink('real-terms.md', path.join(dir, 'gala/policies/terms.md'));
+    await rm(path.join(dir, 'gala/policies/privacy.md'));
+    await symlink('absent.md', path.join(dir, 'gala/policies/privacy.md'));
+    await setPublication(dir, { policies: authoredPolicies() });
+    const findings = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.equal(findings.length, 2);
+    const [linked, dangling] = findings;
+    assert.equal(linked?.code, 'POLICY_BODY_MISSING');
+    assert.match(linked?.detail ?? '', /policies\.terms\.body/u);
+    assert.match(linked?.detail ?? '', /is not a regular file/u);
+    assert.equal(dangling?.code, 'POLICY_BODY_MISSING');
+    assert.match(dangling?.detail ?? '', /policies\.privacy\.body/u);
+    assert.match(dangling?.detail ?? '', /does not exist in the repository/u);
+  } finally {
+    await cleanup();
+  }
+});
+
+const POLICY_BODY_LIMIT = 131072;
+
+/**
+ * Assert `findings` is exactly one refusal of the Terms page's Markdown file.
+ *
+ * @param {import('../src/types.js').PublishActionFinding[]} findings what intake reported
+ * @param {string} code the expected finding code
+ * @param {Record<string, unknown>} [extraEvidence] evidence beyond `policy` and `path`
+ * @returns {void}
+ */
+function assertTermsBodyFinding(findings, code, extraEvidence = {}) {
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.code, code);
+  assert.equal(findings[0]?.severity, 'SOURCE_ERROR');
+  assert.equal(findings[0]?.location, 'gala/publication.json');
+  assert.match(findings[0]?.detail ?? '', /policies\.terms\.body/u);
+  assert.deepEqual(findings[0]?.evidence, {
+    policy: 'terms',
+    path: 'gala/policies/terms.md',
+    ...extraEvidence,
+  });
+}
+
+test('a policy body over 131072 bytes is POLICY_BODY_TOO_LARGE; exactly 131072 bytes is accepted', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addPolicyFiles(dir);
+    await setPublication(dir, { policies: authoredPolicies() });
+    // The limit counts bytes, not characters: the second text is half as many
+    // characters as the first but the same bytes.
+    for (const text of [
+      'x'.repeat(POLICY_BODY_LIMIT + 1),
+      '\u00e9'.repeat(POLICY_BODY_LIMIT / 2 + 1),
+    ]) {
+      await addFile(dir, 'gala/policies/terms.md', text);
+      const findings = await intakeFindings(
+        buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+      );
+      assertTermsBodyFinding(findings, 'POLICY_BODY_TOO_LARGE', {
+        bytes: Buffer.byteLength(text, 'utf8'),
+        maxBytes: POLICY_BODY_LIMIT,
+      });
+    }
+
+    const atLimit = `${'x'.repeat(POLICY_BODY_LIMIT - 1)}\n`;
+    assert.equal(Buffer.byteLength(atLimit, 'utf8'), POLICY_BODY_LIMIT);
+    await addFile(dir, 'gala/policies/terms.md', atLimit);
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    assert.equal(
+      buildInput.policies.terms.body.sourceDigest,
+      digestOf(Buffer.from(atLimit, 'utf8')),
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('an empty or whitespace-only policy body is POLICY_BODY_EMPTY', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addPolicyFiles(dir);
+    await setPublication(dir, { policies: authoredPolicies() });
+    for (const text of ['', '\n', ' \t \r\n\n  ']) {
+      await addFile(dir, 'gala/policies/terms.md', text);
+      const findings = await intakeFindings(
+        buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+      );
+      assertTermsBodyFinding(findings, 'POLICY_BODY_EMPTY');
+    }
+
+    // Both pages are reported together.
+    await addFile(dir, 'gala/policies/privacy.md', '\n');
+    const both = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    const codes = both.map((finding) => finding.code);
+    assert.deepEqual(codes, ['POLICY_BODY_EMPTY', 'POLICY_BODY_EMPTY']);
+  } finally {
+    await cleanup();
   }
 });
 

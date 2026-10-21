@@ -116,12 +116,22 @@
  * content record: no front matter, never in `content[]`, never an edition
  * source) and normalized by the same `normalizeAuthoredMarkdown`, render
  * policy identity, `text/html` media type and digests as a content body; the
- * body's `sourcePath` is the path as authored. A file that does not exist or
- * is not a regular file fails with `POLICY_BODY_MISSING`; one that is not a
- * `.md` file, or whose real location is outside the repository root, fails
- * with `POLICY_BODY_UNSUPPORTED_TYPE`; one whose rendered body contains an
- * `<img>` element fails with `POLICY_BODY_IMAGE_UNSUPPORTED` (a policy body
- * has no media inventory). Without `policies` there is no `policies` member.
+ * body's `sourcePath` is the path as authored. Every unusable page is reported
+ * together, each finding's `evidence` carrying `policy` and `path`:
+ * `POLICY_BODY_MISSING` (the path does not exist, or is not a regular file; a
+ * symbolic link is never accepted as the file itself),
+ * `POLICY_BODY_UNSUPPORTED_TYPE` (the name does not end in `.md`, or the real
+ * location of the file, after following symbolic links, is outside the
+ * repository root), `POLICY_BODY_TOO_LARGE` (more than 131072 bytes, the API's
+ * reader cap, which the contract carries as the same limit; `evidence` adds
+ * `bytes` and `maxBytes`), `POLICY_BODY_EMPTY` (empty or whitespace only: the
+ * GET contract requires a body of at least one character) and
+ * `POLICY_BODY_IMAGE_UNSUPPORTED` (the rendered body contains an `<img>`
+ * element, `evidence.images` counting them; a policy body has no media
+ * inventory). The schema requires `body` to end in `.md` and refuses any other
+ * name first, as a schema failure naming `publication.json`, so the intake's
+ * own `.md` check is defence in depth. Without `policies` there is no
+ * `policies` member.
  *
  * **Prism editions** (`content-editions.js`): a `kind: edition` document is
  * kept only when the article it is `of` is part of the build and its
@@ -439,6 +449,12 @@ function splitFrontmatterFence(text, relativePath) {
 }
 
 /**
+ * The most bytes a policy page's Markdown file may have: the API's reader cap,
+ * which the contract carries as the same limit.
+ */
+const MAX_POLICY_BODY_BYTES = 131072;
+
+/**
  * @param {string} child an absolute path
  * @param {string} parent an absolute path
  * @returns {boolean} whether `child` is `parent` or inside it
@@ -453,8 +469,8 @@ function isWithinDirectory(child, parent) {
  * @param {string} repositoryDirectory absolute repository root
  * @param {string} realRepository the repository root after resolving symbolic links
  * @param {string} bodyPath `publication.json` `policies.<page>.body`
- * @returns {Promise<{reason: 'MISSING' | 'UNSUPPORTED_TYPE', explanation: string} | {bytes: Buffer, digest: string}>}
- *   the file's bytes and digest, or why it cannot be used
+ * @returns {Promise<{reason: 'MISSING' | 'UNSUPPORTED_TYPE' | 'TOO_LARGE' | 'EMPTY', explanation: string, evidence?: Record<string, unknown>} | {bytes: Buffer, digest: string, text: string}>}
+ *   the file's bytes, digest and decoded text, or why it cannot be used
  */
 async function readPolicyBodyFile(
   repositoryDirectory,
@@ -496,10 +512,28 @@ async function readPolicyBodyFile(
     };
   }
   // `lstat`, not `stat`: a symbolic link is never followed.
-  if (!(await lstat(absolute)).isFile()) {
+  const stats = await lstat(absolute);
+  if (!stats.isFile()) {
     return { reason: 'MISSING', explanation: 'is not a regular file' };
   }
-  return readFileWithDigest(absolute);
+  // Checked before the read, so an oversized file is never held in memory.
+  if (stats.size > MAX_POLICY_BODY_BYTES) {
+    return {
+      reason: 'TOO_LARGE',
+      explanation: `is ${stats.size} bytes, more than the ${MAX_POLICY_BODY_BYTES}-byte limit`,
+      evidence: { bytes: stats.size, maxBytes: MAX_POLICY_BODY_BYTES },
+    };
+  }
+  const read = await readFileWithDigest(absolute);
+  const text = read.bytes.toString('utf8');
+  // The GET contract requires a body of at least one character.
+  if (text.trim() === '') {
+    return {
+      reason: 'EMPTY',
+      explanation: 'is empty or contains only whitespace',
+    };
+  }
+  return { ...read, text };
 }
 
 /**
@@ -538,21 +572,24 @@ async function readPolicyPages({
       page.body,
     );
     if ('reason' in read) {
+      const recoveries = {
+        MISSING: `Add the Markdown file at that path, or point policies.${key}.body at an existing .md file.`,
+        UNSUPPORTED_TYPE: `Point policies.${key}.body at a Markdown (.md) file inside the repository.`,
+        TOO_LARGE: `Shorten the policy page to at most ${MAX_POLICY_BODY_BYTES} bytes.`,
+        EMPTY: `Write the policy text in the Markdown file, or point policies.${key}.body at a file that has some.`,
+      };
       findings.push({
         ...sourceFinding(
           `POLICY_BODY_${read.reason}`,
           `${publicationPath}: policies.${key}.body "${page.body}" ${read.explanation}.`,
-          { policy: key, path: page.body },
+          { policy: key, path: page.body, ...read.evidence },
         ),
         location: publicationPath,
-        recovery:
-          read.reason === 'MISSING'
-            ? `Add the Markdown file at that path, or point policies.${key}.body at an existing .md file.`
-            : `Point policies.${key}.body at a Markdown (.md) file inside the repository.`,
+        recovery: recoveries[read.reason],
       });
       continue;
     }
-    const normalized = normalizeAuthoredMarkdown(read.bytes.toString('utf8'));
+    const normalized = normalizeAuthoredMarkdown(read.text);
     // A policy body has no media inventory and the template fails closed on an
     // image in one, so refuse it here with a finding the author can act on.
     const images = findImageSources(normalized.html);
