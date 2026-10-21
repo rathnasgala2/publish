@@ -190,7 +190,10 @@ const DECLARED_LIMITS = Object.freeze({
  * `(adapterId, adapterVersion)`: release 0045 seeded the three adapters at
  * `2.0.0` (the protocol version, a mistake LOCAL-64 corrects), release 0046
  * superseded those and admitted package version `0.1.0`; release 0063
- * superseded `0.1.0` and admitted the currently shipped `0.1.1`. A row with
+ * superseded `0.1.0` and admitted `0.1.1`; `github-pages@0.1.2` (public reads
+ * classify a redirect and follow `verificationBaseUrl`; declared limits
+ * unchanged) is admitted beside it and needs the API's matching row before any
+ * intent names it. A row with
  * a `supersededAt` admits nothing. Digests are derived, see
  * {@link admissionRow}.
  *
@@ -207,6 +210,7 @@ export const ADMISSION_ROWS = Object.freeze(
     ['local-directory', '0.1.1', null],
     ['github-pages', '0.1.1', null],
     ['do-spaces', '0.1.1', null],
+    ['github-pages', '0.1.2', null],
   ]).map(([adapterId, adapterVersion, supersededAt]) =>
     Object.freeze({
       adapterId,

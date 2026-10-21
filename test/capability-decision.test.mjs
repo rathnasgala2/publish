@@ -205,6 +205,42 @@ function seededRow(adapterId, adapterVersion) {
   return /** @type {(typeof ADMISSION_ROWS)[number]} */ (row);
 }
 
+test('github-pages 0.1.2 is admitted beside 0.1.1 with the same declared limits and its own derived digests', () => {
+  const previous = admissionRow('github-pages', '0.1.1');
+  const next = admissionRow('github-pages', '0.1.2');
+  assert.equal(next.adapterVersion, '0.1.2');
+  assert.equal(seededRow('github-pages', '0.1.2').supersededAt, null);
+  for (const member of [
+    'maximumFiles',
+    'maximumFileBytes',
+    'maximumArtifactBytes',
+    'maximumPathBytes',
+    'maximumStageRequestCount',
+    'maximumStageRequestBytes',
+    'maximumStageResponseBytes',
+    'maximumStageResponseWireBytes',
+  ]) {
+    assert.equal(
+      next[/** @type {keyof typeof next} */ (member)],
+      previous[/** @type {keyof typeof previous} */ (member)],
+      member,
+    );
+  }
+  assert.notEqual(next.capabilityDigest, previous.capabilityDigest);
+  assert.equal(
+    next.capabilityDigest,
+    `sha256:${createHash('sha256')
+      .update(
+        admissionCanonicalText(
+          'github-pages',
+          seededRow('github-pages', '0.1.2'),
+        ),
+        'utf8',
+      )
+      .digest('hex')}`,
+  );
+});
+
 test('the mirrored admission rows retain superseded releases 0045/0046 and admit release 0063 package version 0.1.1', () => {
   for (const [adapterId, seeded] of Object.entries(SEEDED_0045)) {
     const row = seededRow(adapterId, '2.0.0');

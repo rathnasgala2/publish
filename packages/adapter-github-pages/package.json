@@ -1,6 +1,6 @@
 {
   "name": "@rathnasgala2/adapter-github-pages",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Managed GitHub Pages deployment adapter: deterministic uncompressed ustar Pages carrier, raw Pages deployment REST catalog, bounded status polling and credential-free public verification.",
   "license": "Apache-2.0",
   "type": "module",
