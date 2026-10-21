@@ -1259,10 +1259,34 @@ export function validateReceiptSubmission(value) {
 }
 
 /**
+ * Validate a strict HTTPS origin: `https://host` with an optional port, in the
+ * exact form `URL.origin` renders, so no path, no trailing slash, no userinfo,
+ * query or fragment.
+ *
+ * @param {unknown} value the candidate origin
+ * @param {string} pointer the pointer to report
+ * @returns {string} the validated origin
+ */
+export function checkHttpsOrigin(value, pointer) {
+  if (typeof value !== 'string' || !value.startsWith('https://')) {
+    invalid(pointer);
+  }
+  try {
+    if (new URL(/** @type {string} */ (value)).origin === value) {
+      return /** @type {string} */ (value);
+    }
+  } catch {
+    // Falls through to the refusal.
+  }
+  return invalid(pointer);
+}
+
+/**
  * Validate any submission this workflow can post: the pinned receipt
  * submission, or one of the two failure shapes, each with the optional
- * `verifiedAt: {origin}` extension (the base URL the deploy's public reads
- * were made against, recorded by the API beside the build `publicBaseUrl`).
+ * `verifiedAt: {origin}` extension (the strict origin, `https://host[:port]`
+ * with no path, of the base URL the deploy's public reads were made against,
+ * recorded by the API beside the build `publicBaseUrl`).
  * `verifiedAt` is not in the pinned contract, so it is checked and removed
  * here and the rest goes to the shape's own validator.
  *
@@ -1275,7 +1299,7 @@ export function validateSubmission(value) {
     const at = requireObject(verifiedAt, '/verifiedAt');
     requireNoUnknownFields(at, ['origin'], '/verifiedAt');
     requirePresent(at, ['origin'], '/verifiedAt');
-    checkVerificationBaseUrl(at.origin, '/verifiedAt/origin');
+    checkHttpsOrigin(at.origin, '/verifiedAt/origin');
   }
   const failure = /** @type {{journal?: unknown} | undefined} */ (
     rest.deployFailure

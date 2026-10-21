@@ -617,7 +617,8 @@ test('verificationBaseUrl present: every public read goes to it, the build base 
   );
   const journal = JSON.parse(await readFile(run.out, 'utf8'));
   assert.deepEqual(journal.verifiedAt, {
-    origin: 'https://gala-author.github.io/galascribe-blog/',
+    origin: 'https://gala-author.github.io',
+    baseUrl: 'https://gala-author.github.io/galascribe-blog/',
   });
 });
 
@@ -634,7 +635,8 @@ test('verificationBaseUrl absent: public reads use the build base, which the jou
   );
   const journal = JSON.parse(await readFile(run.out, 'utf8'));
   assert.deepEqual(journal.verifiedAt, {
-    origin: run.intent.destination.baseUrl,
+    origin: new URL(run.intent.destination.baseUrl).origin,
+    baseUrl: run.intent.destination.baseUrl,
   });
 });
 
@@ -651,10 +653,7 @@ test('a redirect at the verification origin is still PAGES_PUBLIC_REDIRECT', asy
   await assert.rejects(runDeploy(run.argv), /DEPLOY_NOT_ACTIVATED/u);
   const journal = JSON.parse(await readFile(run.out, 'utf8'));
   assert.equal(journal.failure.code, 'PAGES_PUBLIC_REDIRECT');
-  assert.equal(
-    journal.verifiedAt.origin,
-    'https://gala-author.github.io/galascribe-blog/',
-  );
+  assert.equal(journal.verifiedAt.origin, 'https://gala-author.github.io');
 });
 
 for (const invalid of [

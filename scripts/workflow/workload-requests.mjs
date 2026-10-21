@@ -315,8 +315,9 @@ export function buildReceiptExchangeRequest(input) {
  *   destinationReceiptDigest?: string,
  *   failure?: {failureCode: string, stage?: string, toHost?: string},
  *   verifiedAt?: {origin: string}
- * }} input the submission facts; `verifiedAt` is the base URL the deploy's
- *   public reads were made against (omitted when the journal does not say); `failure` is the deploy's classified failure,
+ * }} input the submission facts; `verifiedAt.origin` is the strict origin of
+ *   the base URL the deploy's public reads were made against (omitted when the
+ *   journal does not say); `failure` is the deploy's classified failure,
  *   stated beside the journal as `deployFailure: {journal: 'present', ...}`
  * @returns {Record<string, unknown>} the validated submission
  */

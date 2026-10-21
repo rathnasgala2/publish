@@ -407,9 +407,10 @@ test('the journal-present contract is the pinned submission plus a "present" dep
 });
 
 test('the journal’s verifiedAt origin is carried into the receipt on every shape, and omitted when the journal has none', async () => {
-  const origin = 'https://gala-author.github.io/galascribe-blog/';
+  const origin = 'https://gala-author.github.io';
+  const baseUrl = 'https://gala-author.github.io/galascribe-blog/';
   const withJournal = await report({
-    journal: kernelJournal({ verifiedAt: { origin } }),
+    journal: kernelJournal({ verifiedAt: { origin, baseUrl } }),
   });
   assert.deepEqual(withJournal.body.verifiedAt, { origin });
 
@@ -417,7 +418,7 @@ test('the journal’s verifiedAt origin is carried into the receipt on every sha
     journal: {
       schemaVersion: '2.0.0',
       outcome: 'failed',
-      verifiedAt: { origin },
+      verifiedAt: { origin, baseUrl },
       failure: { code: 'CARRIER_UNREADABLE', stage: 'carrier', message: 'm' },
       attempts: [],
       observations: [],

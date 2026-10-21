@@ -27,6 +27,7 @@ import {
   DESTINATION_FIELDS,
   WorkloadContractError,
   checkDestination,
+  checkHttpsOrigin,
   checkVerificationBaseUrl,
   validateSubmission,
 } from '../scripts/workflow/workload-contract.mjs';
@@ -48,6 +49,7 @@ const RUNNER = Object.freeze({
   GITHUB_REPOSITORY_OWNER_ID: '99',
 });
 const PROJECT_PATH = 'https://gala-author.github.io/galascribe-blog/';
+const PROJECT_ORIGIN = 'https://gala-author.github.io';
 const OPERATION_ID = stableId();
 
 /**
@@ -260,6 +262,18 @@ function submissionFacts(intent) {
   };
 }
 
+test('a strict https origin, with or without a port, is the only verifiedAt origin', () => {
+  for (const good of ['https://x.example.com', 'https://x.example.com:8443']) {
+    assert.equal(checkHttpsOrigin(good, '/o'), good);
+  }
+  for (const bad of ['https://x.example.com/', 'x.example.com', 42, '']) {
+    assert.throws(
+      () => checkHttpsOrigin(bad, '/o'),
+      (error) => error instanceof WorkloadContractError,
+    );
+  }
+});
+
 test('verifiedAt rides on both submission shapes, is optional, and is validated like the base URL', () => {
   const intent = pagesIntent();
   const stageAttemptId = '019c0000-0000-7000-8000-00000000000a';
@@ -296,10 +310,10 @@ test('verifiedAt rides on both submission shapes, is optional, and is validated 
     /** @type {any} */ ({
       ...facts,
       journal,
-      verifiedAt: { origin: PROJECT_PATH },
+      verifiedAt: { origin: PROJECT_ORIGIN },
     }),
   );
-  assert.deepEqual(withJournal.verifiedAt, { origin: PROJECT_PATH });
+  assert.deepEqual(withJournal.verifiedAt, { origin: PROJECT_ORIGIN });
   assert.equal(
     buildReceiptSubmission(/** @type {any} */ ({ ...facts, journal }))
       .verifiedAt,
@@ -311,10 +325,10 @@ test('verifiedAt rides on both submission shapes, is optional, and is validated 
     /** @type {any} */ ({
       ...facts,
       failureCode: 'DEPLOY_CRASHED',
-      verifiedAt: { origin: PROJECT_PATH },
+      verifiedAt: { origin: PROJECT_ORIGIN },
     }),
   );
-  assert.deepEqual(absent.verifiedAt, { origin: PROJECT_PATH });
+  assert.deepEqual(absent.verifiedAt, { origin: PROJECT_ORIGIN });
 
   const present = buildReceiptSubmission(
     /** @type {any} */ ({
@@ -324,14 +338,18 @@ test('verifiedAt rides on both submission shapes, is optional, and is validated 
         failureCode: 'PAGES_PUBLIC_REDIRECT',
         toHost: 'www.example.com',
       },
-      verifiedAt: { origin: PROJECT_PATH },
+      verifiedAt: { origin: PROJECT_ORIGIN },
     }),
   );
   assert.equal(/** @type {any} */ (present.deployFailure).journal, 'present');
 
   for (const bad of [
-    { origin: 'http://x.example.com/' },
-    { origin: PROJECT_PATH, extra: 1 },
+    { origin: 'http://x.example.com' },
+    { origin: 'https://x.example.com/' },
+    { origin: PROJECT_PATH },
+    { origin: 'https://user@x.example.com' },
+    { origin: 'https://x.example.com/?q=1' },
+    { origin: PROJECT_ORIGIN, extra: 1 },
     {},
     PROJECT_PATH,
   ]) {

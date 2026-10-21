@@ -596,11 +596,16 @@ async function deploy(argv, run) {
   // The origin this run's public reads are made against, recorded before the
   // first one. Spaces verifies at its own website origin, which its adapter
   // pins to `baseUrl`, so the verification base applies to Pages only.
+  const verifiedBaseUrl =
+    adapterId === 'github-pages' && verificationBaseUrl !== undefined
+      ? verificationBaseUrl
+      : String(bound.destination.baseUrl);
+  // `origin` is the strict origin the receipt carries (scheme, host, optional
+  // port; no path); `baseUrl` is the full base the reads joined paths to,
+  // kept in the journal for forensics.
   journalHead.verifiedAt = {
-    origin:
-      adapterId === 'github-pages' && verificationBaseUrl !== undefined
-        ? verificationBaseUrl
-        : String(bound.destination.baseUrl),
+    origin: new URL(verifiedBaseUrl).origin,
+    baseUrl: verifiedBaseUrl,
   };
 
   // The kernel returns an outcome, with its classified failure, for every

@@ -231,13 +231,15 @@ without `kernelJournal`, with `observedRoutes: []`, `workflowStartedAt` equal to
 failure journal's code, else the printed marker's, else `DEPLOY_CRASHED`; a code
 outside `^[A-Z][A-Z0-9_]{2,63}$` is not trusted and becomes `DEPLOY_CRASHED`.
 The error text stays in the journal carrier and the job log, never in the
-receipt. Every journal head also records `verifiedAt: {origin}`, the base URL
-the run's public reads were made against: `destination.verificationBaseUrl` when
-the intent names one (the origin serving right now), else `baseUrl`; the receipt
-submission carries the same optional member. A malformed `verificationBaseUrl`
-refuses the run as `INTENT_MISMATCH` before any destination contact. This shape
-is not in the pinned schemas contract, so it is validated here by
-`validateJournalAbsentSubmission` and awaits the API's acceptance.
+receipt. Every journal head also records `verifiedAt: {origin, baseUrl}`: the
+base URL the run's public reads were made against
+(`destination.verificationBaseUrl` when the intent names one, the origin serving
+right now, else `baseUrl`) and its strict origin (`https://host[:port]`, no
+path); the receipt submission carries only the optional `verifiedAt: {origin}`.
+A malformed `verificationBaseUrl` refuses the run as `INTENT_MISMATCH` before
+any destination contact. This shape is not in the pinned schemas contract, so it
+is validated here by `validateJournalAbsentSubmission` and awaits the API's
+acceptance.
 
 **Freeze, on the real path.** `freeze.mjs` freezes the envelope under the
 adapter the verified source's lock selects (DEC-097 section 3's closed
