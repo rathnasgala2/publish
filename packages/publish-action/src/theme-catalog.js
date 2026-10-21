@@ -39,20 +39,20 @@ export const THEME_REGISTRY = 'https://registry.npmjs.org/';
 export const THEME_CATALOG = Object.freeze([
   Object.freeze({
     package: '@rathnasgala2/theme-default',
-    version: '4.1.0',
+    version: '4.2.0',
     integrity:
-      'sha256:f503eb5d69d515673d2bef43b6cd9cf768f2cee76747055be9c4931a8100ffdb',
+      'sha256:d4eb5dd5b0ca12391d82cfce8da2ec351bf1b9438bd99fb7a534a0249ab09885',
     registry: THEME_REGISTRY,
-    contractVersion: '4.0.0',
+    contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-amaze',
-    version: '4.1.0',
+    version: '4.2.0',
     integrity:
-      'sha256:2a110bc353f3d6d0ed985460cb5ba14304580b0015527dce9bf2cdcf3a7b0178',
+      'sha256:bc6fe22c621645b4b5c750bc810f837e1a12af0a0f17344cdce00a79bf1a6dc5',
     registry: THEME_REGISTRY,
-    contractVersion: '4.0.0',
+    contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({
@@ -66,29 +66,29 @@ export const THEME_CATALOG = Object.freeze([
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-flashy',
-    version: '4.1.0',
+    version: '4.2.0',
     integrity:
-      'sha256:21ff5baae2edaf01bdb8028d7c24735d4e63fddc6fe6dd40d4bf882f96841297',
+      'sha256:d01ffdd8d915046aab3195eb8a489313e3df5d8a70d29433df7b7cf94c0b23cd',
     registry: THEME_REGISTRY,
-    contractVersion: '4.0.0',
+    contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-minimal',
-    version: '4.1.0',
+    version: '4.2.0',
     integrity:
-      'sha256:1101af185789ffec2ea433418e7ffa5bb72c4f50672eedf7b775d3e5f73d504c',
+      'sha256:875c5f8e7d817622ac6e51443a96c4dd552a7a638114e91acaf836f8e93b1f2e',
     registry: THEME_REGISTRY,
-    contractVersion: '4.0.0',
+    contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-zebra',
-    version: '4.1.0',
+    version: '4.2.0',
     integrity:
-      'sha256:f3b3ea16c825cabac8bf4fac3c31fca40baa199566b900b9be00212db3ed544c',
+      'sha256:f8411cf8004775545d171b48599eb9e3427476969dd67216380143df0e65446b',
     registry: THEME_REGISTRY,
-    contractVersion: '4.0.0',
+    contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
 ]);

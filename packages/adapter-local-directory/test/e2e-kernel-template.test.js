@@ -69,7 +69,7 @@ const TEMPLATE_ROOT =
 
 const THEME_ROOT = process.env.GALA_THEME_DIR
   ? path.resolve(process.env.GALA_THEME_DIR)
-  : path.resolve(TEMPLATE_ROOT, '../theme-editorial');
+  : path.resolve(TEMPLATE_ROOT, '../theme-default');
 
 /**
  * Resolve one `@rathnasgala2/template` module by absolute path, rooted at
@@ -112,15 +112,15 @@ async function loadRenderableBuildInput() {
   // `test/helpers/schema-fixtures.js` `loadCanonicalBuildInput` does, since
   // this test does not exercise the S2-T05 media pipeline.
   buildInput.appearance.fontAssets = [];
-  buildInput.appearance.theme = '@rathnasgala2/theme-editorial@4.1.0';
-  buildInput.packages.schemas.version = '3.12.0';
-  buildInput.packages.template.version = '4.3.0';
+  buildInput.appearance.theme = '@rathnasgala2/theme-default@4.2.0';
+  buildInput.packages.schemas.version = '3.16.0';
+  buildInput.packages.template.version = '4.4.0';
   buildInput.packages.theme = {
     ...buildInput.packages.theme,
-    package: '@rathnasgala2/theme-editorial',
-    version: '4.1.0',
+    package: '@rathnasgala2/theme-default',
+    version: '4.2.0',
     integrity:
-      'sha256:e3d466a6e579406289a6916e3891b8575119c0cc3a3271dacbf12bbe066b3c5a',
+      'sha256:d4eb5dd5b0ca12391d82cfce8da2ec351bf1b9438bd99fb7a534a0249ab09885',
   };
 
   const { computeBodyDigest, computeRenderPolicyIdentity } =
@@ -182,19 +182,19 @@ function testProvenance() {
       {
         kind: 'package',
         package: '@rathnasgala2/schemas',
-        version: '3.10.0',
+        version: '3.16.0',
         digest: digest(3),
       },
       {
         kind: 'package',
         package: '@rathnasgala2/template',
-        version: '4.1.0',
+        version: '4.4.0',
         digest: digest(4),
       },
       {
         kind: 'package',
-        package: '@rathnasgala2/theme-editorial',
-        version: '4.1.0',
+        package: '@rathnasgala2/theme-default',
+        version: '4.2.0',
         digest: digest(5),
       },
       {

@@ -67,6 +67,33 @@ async function fixtureSelecting(lockPackage, appearancePackage) {
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
+const TEMPLATE_VERSION = JSON.parse(
+  await readFile(path.join(WORKSPACE_ROOT, 'template', 'package.json'), 'utf8'),
+).version;
+
+/**
+ * @param {string} version a `major.minor.patch` version
+ * @returns {number} a number that orders versions of one major
+ */
+function versionKey(version) {
+  return version
+    .split('.')
+    .reduce((total, part) => total * 1000 + Number(part), 0);
+}
+
+/**
+ * @param {string} range a `^major.minor.patch` theme `templateRange`
+ * @returns {boolean} whether it admits the installed template release
+ */
+function admitsInstalledTemplate(range) {
+  const floor = /^\^(\d+\.\d+\.\d+)$/u.exec(range)?.[1];
+  return (
+    floor !== undefined &&
+    floor.split('.')[0] === TEMPLATE_VERSION.split('.')[0] &&
+    versionKey(TEMPLATE_VERSION) >= versionKey(floor)
+  );
+}
+
 test('the catalog is exactly the six registry generation-4 theme packages', async () => {
   assert.deepEqual(THEME_CATALOG.map((entry) => entry.package).sort(), [
     '@rathnasgala2/theme-amaze',
@@ -90,7 +117,10 @@ test('the catalog is exactly the six registry generation-4 theme packages', asyn
     assert.equal(packageJson.name, entry.package);
     assert.equal(packageJson.version, entry.version);
     assert.equal(themeJson.contractVersion, entry.contractVersion);
-    assert.equal(themeJson.templateRange, '^4.1.0');
+    assert.ok(
+      admitsInstalledTemplate(themeJson.templateRange),
+      `${entry.package} templateRange ${themeJson.templateRange} admits template ${TEMPLATE_VERSION}`,
+    );
     assert.ok(
       themeJson.palette && typeof themeJson.palette === 'object',
       `${entry.package} declares a palette`,

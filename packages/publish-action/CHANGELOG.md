@@ -25,13 +25,13 @@ and this project adheres to
   link that points outside it), `POLICY_BODY_TOO_LARGE` (more than 131072 bytes,
   the API's reader cap), `POLICY_BODY_EMPTY` (empty or whitespace only) and
   `POLICY_BODY_IMAGE_UNSUPPORTED` (the rendered body contains an image). Absent
-  `policies`, no `policies` member. It requires `@rathnasgala2/schemas` 3.16.0;
-  the exact pin moves at release.
+  `policies`, no `policies` member. It requires `@rathnasgala2/schemas` 3.16.0,
+  the exact pin of this package.
 - Repository intake reads an optional `gala/modules/analytics.json`, validates
   it against `analytics-config:2.0.0` and carries it into the build input as
   `modules.analytics = {config}` (absent file, no member; a malformed file is a
   schema-validation build error like `interactions.json`). It requires
-  `@rathnasgala2/schemas` 3.16.0; the exact pin moves at release.
+  `@rathnasgala2/schemas` 3.16.0, the exact pin of this package.
 - Repository intake supports the advanced-SEO inputs: `publication.json`
   `defaultImageRef` becomes `publication.defaultImage`, `appearance.json`
   `brandMark`/`wordmark` become `appearance.brandMark`/`wordmark`, and content
@@ -57,6 +57,12 @@ and this project adheres to
 - Template 4.2.0 (exact pin in the workspace toolchain; themes stay 4.1.0).
 - Serve template 4.3.0: trailing-slash public URLs, seo overrides,
   icons/theme-color, readable tag routes; schemas 3.12.0.
+- Serve template 4.4.0 and schemas 3.16.0 (exact pins; the workspace toolchain
+  installs template 4.4.0 and themes default, amaze, flashy, minimal and zebra
+  4.2.0). The 4.2.0 themes carry theme contract 4.1.0 and `templateRange`
+  `^4.4.0`, so their `THEME_CATALOG` rows move to `contractVersion` 4.1.0 and
+  the 4.2.0 tarball SHA-256 values. `theme-editorial` stays at 4.1.0 (contract
+  4.0.0, which template 4.4.0 refuses) until its 4.2.0 is published.
 
 ### Changed
 

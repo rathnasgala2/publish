@@ -84,6 +84,13 @@ and this project adheres to
 - The template pin moves to 4.2.0 (exact registry version; themes stay 4.1.0).
 - Serve template 4.3.0: trailing-slash public URLs, seo overrides,
   icons/theme-color, readable tag routes; schemas 3.12.0.
+- Serve template 4.4.0 and schemas 3.16.0 (exact registry pins, which the
+  publication `policies` and `modules.analytics` intake already requires). The
+  workspace installs themes default, amaze, flashy, minimal and zebra 4.2.0
+  (theme contract 4.1.0, `templateRange` `^4.4.0`); the `THEME_CATALOG` rows
+  carry the 4.2.0 tarball SHA-256 values and `contractVersion` 4.1.0.
+  `theme-editorial` stays at 4.1.0 (contract 4.0.0, which template 4.4.0
+  refuses) until its 4.2.0 is published. The adapters stay on schemas 3.8.0.
 
 - Generation-4 delivery installs schemas 3.8.0, template 4.0.0 and all six theme
   4.0.0 packages from the public npm registry at exact versions.

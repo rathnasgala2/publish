@@ -32,9 +32,10 @@ npm ci
 npm run verify
 ```
 
-Schemas 3.12.0, template 4.3.0 and the six generation-4 themes are installed
-from the public npm registry at exact versions; the lockfile carries their
-integrity. `THEME_CATALOG` records each theme tarball's registry SHA-256.
+Schemas 3.16.0, template 4.4.0 and the six generation-4 themes (five at 4.2.0,
+`theme-editorial` at 4.1.0) are installed from the public npm registry at exact
+versions; the lockfile carries their integrity. `THEME_CATALOG` records each
+theme tarball's registry SHA-256.
 
 `npm run verify` runs formatting, lint, `tsc --checkJs --noEmit` per package,
 the dependency-cruiser architecture gate, `jscpd` duplication scan, the Node

@@ -82,8 +82,9 @@ control-plane key.
 
 ## Contract sources and generation commands
 
-`@rathnasgala2/schemas@3.12.0` is consumed from the public npm registry (exact
-pin, no range). Template 4.3.0 and all six generation-4 themes are root
+`@rathnasgala2/schemas@3.16.0` is consumed from the public npm registry (exact
+pin, no range). Template 4.4.0 and the six generation-4 themes (five at 4.2.0;
+`theme-editorial` stays at 4.1.0 until its 4.2.0 is published) are root
 devDependencies at exact registry versions; no sibling checkout is part of
 installation. No schema is re-authored here. Protocol payloads are validated
 with the package's exported `validateGalaDocument(schemaId, value)` against
