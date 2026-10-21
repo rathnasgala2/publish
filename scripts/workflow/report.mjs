@@ -18,6 +18,14 @@
  * before the capability is presented. A report this job knows the API would
  * refuse is a report it never spends the capability on.
  *
+ * A failed deploy that left no kernel journal is still reported. Either no
+ * journal carrier was uploaded (`--journal-digest` absent, the failure code
+ * from `--failure-code`), or the uploaded journal is the classified failure
+ * journal `deploy.mjs` writes when it fails before the kernel produced any
+ * attempt (`failure` present, no attempts). Both post the journal-less
+ * failure submission: `deployFailure: {journal: 'absent', failureCode, stage?}`
+ * in place of the `kernelJournal`.
+ *
  * The capability arrives in `REPORTING_CAPABILITY` and leaves in exactly one
  * place: the `Authorization: Gala-Receipt` header. No evidence record, log
  * line or output ever carries it.
@@ -35,12 +43,14 @@ import { findCarrier } from './decode-carrier.mjs';
 import { parseOptions, requireOption } from './carrier.mjs';
 import { postDeploymentReceipt, resolveApiOrigin } from './gala-api.mjs';
 import {
+  DEPLOY_FAILURE_CODE_PATTERN,
   MAXIMUM_KERNEL_JOURNAL_BYTES,
   MAXIMUM_REQUEST_BYTES,
   REPORTING_CAPABILITY_PATTERN,
 } from './workload-contract.mjs';
 import {
   assertSubmissionFits,
+  buildJournalAbsentSubmission,
   buildReceiptSubmission,
 } from './workload-requests.mjs';
 import { runIfMain } from '../run-if-main.mjs';
@@ -92,6 +102,65 @@ export function earliestInstant(journal) {
 }
 
 /**
+ * The journal carrier `deploy.mjs` writes: the kernel's own, or a classified
+ * failure journal whose `attempts` are empty.
+ *
+ * @typedef {Record<string, any> & {
+ *   attempts: Record<string, unknown>[],
+ *   observations: Record<string, unknown>[]
+ * }} DeployJournal
+ */
+
+/**
+ * Read the kernel-journal carrier the deploy job uploaded, when it uploaded
+ * one.
+ *
+ * @param {string} inbox the download directory
+ * @param {string | undefined} journalDigest the carrier's tagged digest, or
+ *   absent/empty when the deploy job uploaded none
+ * @returns {Promise<DeployJournal | undefined>} the parsed journal, or
+ *   `undefined` for a deploy with no journal carrier
+ */
+async function readJournal(inbox, journalDigest) {
+  if (journalDigest === undefined || journalDigest === '') {
+    return undefined;
+  }
+  const journalBytes = (await findCarrier(inbox, journalDigest)).bytes;
+  if (journalBytes.byteLength > MAXIMUM_KERNEL_JOURNAL_BYTES) {
+    throw new Error(
+      `REPORT_KERNEL_JOURNAL_TOO_LARGE: ${journalBytes.byteLength} bytes exceed ${MAXIMUM_KERNEL_JOURNAL_BYTES}`,
+    );
+  }
+  return JSON.parse(journalBytes.toString('utf8'));
+}
+
+/**
+ * The failure a journal-less report states: the classified `failure` the
+ * deploy's failure journal carries, else the code the deploy step printed
+ * with `GALA_DEPLOY_NO_JOURNAL`, else `DEPLOY_CRASHED`. A code that is not the
+ * closed shape (it travelled through a log) is not trusted and becomes
+ * `DEPLOY_CRASHED` as well.
+ *
+ * @param {DeployJournal | undefined} journal the failure journal, if any
+ * @param {string | undefined} printedCode the code the workflow captured
+ * @returns {{failureCode: string, stage?: string, toHost?: string}} the failure to state
+ */
+function failureOf(journal, printedCode) {
+  const recorded = journal?.failure;
+  const code = typeof recorded?.code === 'string' ? recorded.code : printedCode;
+  return {
+    failureCode:
+      typeof code === 'string' && DEPLOY_FAILURE_CODE_PATTERN.test(code)
+        ? code
+        : 'DEPLOY_CRASHED',
+    ...(typeof recorded?.stage === 'string' ? { stage: recorded.stage } : {}),
+    ...(typeof recorded?.toHost === 'string'
+      ? { toHost: recorded.toHost }
+      : {}),
+  };
+}
+
+/**
  * @returns {Promise<void>} resolves once the report has been submitted and
  *   classified
  */
@@ -109,22 +178,22 @@ async function main() {
   const intent = /** @type {Record<string, unknown>} */ (
     challenge.deploymentIntent
   );
-  const journalBytes = (
-    await findCarrier(inbox, requireOption(options, 'journal-digest'))
-  ).bytes;
-  if (journalBytes.byteLength > MAXIMUM_KERNEL_JOURNAL_BYTES) {
-    throw new Error(
-      `REPORT_KERNEL_JOURNAL_TOO_LARGE: ${journalBytes.byteLength} bytes exceed ${MAXIMUM_KERNEL_JOURNAL_BYTES}`,
-    );
-  }
-  const journal = JSON.parse(journalBytes.toString('utf8'));
+  const journal = await readJournal(inbox, options['journal-digest']);
 
   // The report is bound to the intent exactly as the deploy was: the intent
   // must name this runner's repository and publish ref, the journal must
   // have been produced under this intent, and the repository id the runner
   // reports must be the one the intent's rebuild record was bound to.
   assertIntentBoundToRunner(intent, process.env);
-  assertJournalAgreesWithIntent(journal, intent);
+  // A failure journal with no attempts carries no kernel evidence to bind to
+  // the intent; it contributes its failure code and nothing else.
+  const hasKernelEvidence =
+    journal !== undefined &&
+    Array.isArray(journal.attempts) &&
+    journal.attempts.length > 0;
+  if (journal !== undefined && hasKernelEvidence) {
+    assertJournalAgreesWithIntent(journal, intent);
+  }
   const repositoryId = requireOption(options, 'repository-id');
   const rebuildRecord = /** @type {Record<string, unknown>} */ (
     intent.rebuildRecord ?? {}
@@ -135,24 +204,46 @@ async function main() {
     );
   }
 
-  const submission = buildReceiptSubmission({
+  const base = {
     intent,
-    journal: { attempts: journal.attempts, observations: journal.observations },
     repositoryId,
     runId: process.env.GITHUB_RUN_ID ?? '1',
     runAttempt: Number.parseInt(process.env.GITHUB_RUN_ATTEMPT ?? '1', 10),
     publisherVersion: requireOption(options, 'publisher-version'),
-    observedRoutes: journal.observedRoutes ?? [],
-    workflowStartedAt:
-      options['workflow-started-at'] ?? earliestInstant(journal),
     workflowCompletedAt: rfc3339Milliseconds(new Date()),
-    ...(typeof journal.destinationGenerationId === 'string'
-      ? { destinationGenerationId: journal.destinationGenerationId }
-      : {}),
-    ...(typeof journal.destinationReceiptDigest === 'string'
-      ? { destinationReceiptDigest: journal.destinationReceiptDigest }
-      : {}),
-  });
+  };
+  const submission =
+    journal !== undefined && hasKernelEvidence
+      ? buildReceiptSubmission({
+          ...base,
+          journal: {
+            attempts: journal.attempts,
+            observations: journal.observations,
+          },
+          observedRoutes: journal.observedRoutes ?? [],
+          workflowStartedAt:
+            options['workflow-started-at'] ?? earliestInstant(journal),
+          ...(typeof journal.destinationGenerationId === 'string'
+            ? { destinationGenerationId: journal.destinationGenerationId }
+            : {}),
+          ...(typeof journal.destinationReceiptDigest === 'string'
+            ? { destinationReceiptDigest: journal.destinationReceiptDigest }
+            : {}),
+          // A classified failure beside its journal, so the API reads the
+          // code without parsing attempts.
+          ...(journal.failure === undefined
+            ? {}
+            : { failure: failureOf(journal, undefined) }),
+        })
+      : buildJournalAbsentSubmission({
+          ...base,
+          observedRoutes: [],
+          // No kernel instant exists to floor the report at, so the window is
+          // the report's own cutoff: an honest "no earlier evidence".
+          workflowStartedAt:
+            options['workflow-started-at'] ?? base.workflowCompletedAt,
+          ...failureOf(journal, options['failure-code']),
+        });
 
   // The intent's own precomputed bound, applied before the hard transport
   // cap, exactly as the API applies it.
@@ -189,6 +280,13 @@ async function main() {
         operationId: submission.operationId,
         adapterId: submission.adapterId,
         intentDigest: intent.intentDigest,
+        journal: submission.kernelJournal === undefined ? 'absent' : 'present',
+        ...(submission.deployFailure === undefined
+          ? {}
+          : {
+              failureCode: /** @type {any} */ (submission.deployFailure)
+                .failureCode,
+            }),
         outcome: evidence.outcome,
         httpStatus: evidence.status,
         problemCode: evidence.problemCode,

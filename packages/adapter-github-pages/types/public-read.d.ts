@@ -17,13 +17,17 @@ export function publicUrlFor(publicBaseUrl: string, artifactRelativePath: string
  *
  * @param {PublicContext} context the public-origin context
  * @param {string} artifactRelativePath the artifact-relative POSIX path
- * @returns {Promise<{status: number, bytes: Buffer | null, etag: string | null}>}
- *   the bounded observation; `bytes` is `null` for any non-`200` status
+ * @returns {Promise<{status: number | 'redirect', bytes: Buffer | null, etag: string | null, toHost?: string | null, location?: string | null}>}
+ *   the bounded observation; `bytes` is `null` for any non-`200` status. A
+ *   `'redirect'` status carries the `toHost` and absolute `location` the
+ *   origin named (`null` when it named none that could be read).
  */
 export function readPublic(context: PublicContext, artifactRelativePath: string): Promise<{
-    status: number;
+    status: number | "redirect";
     bytes: Buffer | null;
     etag: string | null;
+    toHost?: string | null;
+    location?: string | null;
 }>;
 /** Maximum bytes any single public read will accept. */
 export const MAXIMUM_PUBLIC_BODY_BYTES: 33554432;

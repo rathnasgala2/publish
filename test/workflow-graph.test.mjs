@@ -51,7 +51,12 @@ const EXPECTED_NEEDS = {
   'verify-do-spaces-configuration': ['authorize', 'freeze'],
   'deploy-do-spaces': ['authorize', 'freeze', 'verify-do-spaces-configuration'],
   'deploy-github-pages': ['authorize', 'freeze'],
-  report: ['authorize', 'deploy-do-spaces', 'deploy-github-pages'],
+  report: [
+    'authorize',
+    'verify-do-spaces-configuration',
+    'deploy-do-spaces',
+    'deploy-github-pages',
+  ],
 };
 
 /** @type {Record<string, Record<string, string>>} */
@@ -85,7 +90,7 @@ const SPACES_DEPLOY_CONDITION =
 const PAGES_DEPLOY_CONDITION =
   "${{ always() && needs.authorize.result == 'success' && needs.freeze.result == 'success' && needs.authorize.outputs.adapter_id == 'github-pages' }}";
 const REPORT_CONDITION =
-  "${{ always() && needs.authorize.result == 'success' && ((needs.authorize.outputs.adapter_id == 'do-spaces' && (needs['deploy-do-spaces'].result == 'success' || (needs['deploy-do-spaces'].result == 'failure' && needs['deploy-do-spaces'].outputs.journal_id != '')) && needs['deploy-github-pages'].result == 'skipped') || (needs.authorize.outputs.adapter_id == 'github-pages' && (needs['deploy-github-pages'].result == 'success' || (needs['deploy-github-pages'].result == 'failure' && needs['deploy-github-pages'].outputs.journal_id != '')) && needs['deploy-do-spaces'].result == 'skipped')) }}";
+  "${{ always() && needs.authorize.result == 'success' && ((needs.authorize.outputs.adapter_id == 'do-spaces' && (needs['deploy-do-spaces'].result == 'success' || needs['deploy-do-spaces'].result == 'failure' || needs['verify-do-spaces-configuration'].result == 'failure') && needs['deploy-github-pages'].result == 'skipped') || (needs.authorize.outputs.adapter_id == 'github-pages' && (needs['deploy-github-pages'].result == 'success' || needs['deploy-github-pages'].result == 'failure') && needs['deploy-do-spaces'].result == 'skipped')) }}";
 
 test('publish-v2 declares exactly the nine jobs, in order', () => {
   assert.deepEqual(Object.keys(PUBLISH.jobs), EXPECTED_JOBS);
@@ -134,20 +139,85 @@ test('the four gated job conditions are byte-equal to DEC-097 section 6', () => 
   assert.equal(PUBLISH.jobs.report.if, REPORT_CONDITION);
 });
 
-test('a failed deploy still reports, and a cancelled one does not', () => {
+test('a failed deploy always reports, journal or not, and a cancelled one does not', () => {
   for (const job of ['deploy-do-spaces', 'deploy-github-pages']) {
     assert.ok(REPORT_CONDITION.includes(`needs['${job}'].result == 'failure'`));
     assert.ok(!REPORT_CONDITION.includes('cancelled'));
+    assert.ok(
+      !REPORT_CONDITION.includes('journal_id'),
+      'a failed deploy reports whether or not it uploaded a journal',
+    );
+    const steps = PUBLISH.jobs[job].steps;
+    const present = "steps.journal-file.outputs.present == 'true'";
+    assert.equal(
+      steps.find(
+        (/** @type {{name: string}} */ st) =>
+          st.name === 'Check the kernel journal file',
+      ).if,
+      '${{ !cancelled() }}',
+      `${job}: the existence check runs on every non-cancelled path`,
+    );
+    assert.match(
+      steps.find((/** @type {{id?: string}} */ st) => st.id === 'journal-file')
+        .run,
+      /JSON\.parse\(/u,
+      `${job}: a journal is uploaded only once it parses`,
+    );
     for (const name of [
       'Upload the kernel journal',
       'Re-observe the kernel journal by exact ID',
     ]) {
-      const step = PUBLISH.jobs[job].steps.find(
+      const step = steps.find(
         (/** @type {{name: string}} */ st) => st.name === name,
       );
-      assert.equal(step.if, '${{ !cancelled() }}', `${job}: ${name}`);
+      assert.equal(
+        step.if,
+        `\${{ !cancelled() && ${present} }}`,
+        `${job}: ${name} runs only for a journal that exists`,
+      );
     }
   }
+});
+
+test('a failed Spaces verifier (deploy skipped) is reported by name; jobs before authorize are not', () => {
+  assert.ok(
+    REPORT_CONDITION.includes(
+      "needs['verify-do-spaces-configuration'].result == 'failure'",
+    ),
+  );
+  assert.match(
+    PUBLISH.jobs.report.with.deploy_failure_code,
+    /VERIFY_DO_SPACES_CONFIGURATION_FAILED/u,
+  );
+  for (const job of ['prep', 'build', 'freeze', 'attest']) {
+    assert.ok(!REPORT_CONDITION.includes(`needs.${job}`), job);
+  }
+});
+
+test('the deploy step publishes the printed no-journal code, and the report carries it', () => {
+  for (const job of ['deploy-do-spaces', 'deploy-github-pages']) {
+    assert.equal(
+      PUBLISH.jobs[job].outputs.failure_code,
+      '${{ steps.deploy.outputs.failure_code }}',
+    );
+    const deploy = PUBLISH.jobs[job].steps.find(
+      (/** @type {{id?: string}} */ st) => st.id === 'deploy',
+    );
+    assert.match(deploy.run, /GALA_DEPLOY_NO_JOURNAL/u);
+    assert.match(deploy.run, /exit "\$\{status\}"/u);
+  }
+  assert.match(
+    PUBLISH.jobs.report.with.deploy_failure_code,
+    /deploy-do-spaces\.outputs\.failure_code[\s\S]*deploy-github-pages\.outputs\.failure_code/u,
+  );
+  for (const input of ['kernel_journal_id', 'kernel_journal_digest']) {
+    assert.equal(REPORT.on.workflow_call.inputs[input].required, false);
+    assert.equal(REPORT.on.workflow_call.inputs[input].default, '');
+  }
+  assert.equal(
+    REPORT.on.workflow_call.inputs.deploy_failure_code.required,
+    false,
+  );
 });
 
 test('the two deploy conditions are mutually exclusive on adapter_id', () => {

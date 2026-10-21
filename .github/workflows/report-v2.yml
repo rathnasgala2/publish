@@ -27,11 +27,21 @@ on:
       report_challenge_digest:
         required: true
         type: string
+      # Both are empty for a failed deploy that uploaded no kernel journal;
+      # the report is then the journal-less failure receipt.
       kernel_journal_id:
-        required: true
+        required: false
+        default: ''
         type: string
       kernel_journal_digest:
-        required: true
+        required: false
+        default: ''
+        type: string
+      # The code deploy.mjs printed with GALA_DEPLOY_NO_JOURNAL; empty means
+      # DEPLOY_CRASHED when there is no journal either.
+      deploy_failure_code:
+        required: false
+        default: ''
         type: string
     outputs:
       operation_status_url:
@@ -55,7 +65,9 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           artifact-ids:
-            ${{ inputs.report_challenge_id }},${{ inputs.kernel_journal_id }}
+            ${{ inputs.kernel_journal_id == '' && inputs.report_challenge_id ||
+            format('{0},{1}', inputs.report_challenge_id,
+            inputs.kernel_journal_id) }}
           path: ${{ runner.temp }}/inbox
 
       - name: Check out the pinned publish toolchain
@@ -109,6 +121,7 @@ jobs:
           API_ORIGIN: ${{ inputs.gala_api_origin }}
           CHALLENGE_DIGEST: ${{ inputs.report_challenge_digest }}
           JOURNAL_DIGEST: ${{ inputs.kernel_journal_digest }}
+          FAILURE_CODE: ${{ inputs.deploy_failure_code }}
           REPOSITORY_ID: ${{ github.repository_id }}
           REPORTING_CAPABILITY:
             ${{ steps.capability.outputs.reporting_capability }}
@@ -119,6 +132,7 @@ jobs:
             --inbox "${RUNNER_TEMP}/inbox" \
             --challenge-digest "${CHALLENGE_DIGEST}" \
             --journal-digest "${JOURNAL_DIGEST}" \
+            --failure-code "${FAILURE_CODE}" \
             --repository-id "${REPOSITORY_ID}" \
             --publisher-version "$(node -p "require('./publish-toolchain/packages/publish-action/package.json').version")" \
             --evidence-out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-report-evidence-v2.jcs"

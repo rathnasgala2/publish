@@ -49,6 +49,9 @@ them as the weakest true claim rather than hiding them:
 - it never mints a `pagesReconciliationRecovery` record, a run-attempt gap proof
   or a tombstone: it validates the server-minted record and refuses a malformed
   one;
+- it never follows a redirect from the public origin and never serves or
+  configures a custom domain (`configuration.customDomains: false`): a redirect
+  is reported, not followed (see "A redirecting public origin");
 - it declares `providerInventoryAssurance: none` and never claims complete
   deployed inventory; and
 - it declares `cacheInvalidation: none` and has no purge authority.
@@ -194,6 +197,31 @@ suite against a local fake provider that speaks real HTTP, genuinely gunzips and
 untars the carrier this adapter produced, and serves the result from a separate
 public origin. `test/carrier.test.js` holds the codec goldens. What none of that
 can prove is the live GitHub Pages deployment API itself; that is backlog W4-16.
+
+## A redirecting public origin
+
+The adapter declares `customDomains: false`, but a site's `publicBaseUrl` can
+still name a host the site has moved away from (a custom domain attached to the
+Pages site while the repository keeps the `github.io` base), and the origin then
+answers `301`/`302`/`307`/`308`. The public reads keep `redirect: 'error'` and
+follow nothing; a redirect is classified instead of thrown:
+
+- `readPublic` returns `{status: 'redirect', toHost, location}`. A refused
+  redirect exposes no `Location`, so the same credential-free URL is asked once
+  more with `redirect: 'manual'` to read it (still followed nowhere); `toHost`
+  and `location` are `null` when none could be read, when the probe takes more
+  than ten seconds, or when `Location` is not an http(s) URL; the probe's body
+  is cancelled unread. Only undici's exact refused-redirect failure (`TypeError`
+  whose cause is `unexpected redirect`) is a redirect; any other fetch error
+  still throws.
+- `inspectDestination` and `observe` report the generation as unknown (never a
+  throw), add a finding that starts `PAGES_PUBLIC_REDIRECT:` and carry
+  `failure: {code: 'PAGES_PUBLIC_REDIRECT', toHost, location}`. `preflight`
+  refuses with the same finding, so the kernel stops before staging.
+- The remedy is the base URL: set it to the redirect target and publish again.
+
+This is a result, not a `PagesAdapterError`: a redirecting origin is a
+destination fact the kernel journals, not an adapter defect.
 
 ## Errors
 

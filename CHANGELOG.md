@@ -8,6 +8,43 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- A failed deploy is always reported (production incident 2026-10-21: an adapter
+  exception ended `deploy.mjs` before it wrote its journal, the journal upload
+  failed with ENOENT, the report job was skipped and the destination fence
+  stayed held). `deploy.mjs` now writes exactly one kernel journal on every
+  path: the kernel's own, or a classified failure journal (`outcome: failed`,
+  `failure: {code, stage, message}`); when not even that can be written it
+  prints `GALA_DEPLOY_NO_JOURNAL <code>`. `kernel-run.mjs` guards every adapter
+  call (`inspectDestination`, `preflight`, `stage`, `observe` as `activate`
+  already was) and reports a throw as `KERNEL_<STAGE>_FAILED`, adopting a
+  failure the adapter classified in its result. The journal upload tolerates a
+  missing file, and the report job runs for every failed deploy; with no kernel
+  journal `report.mjs` posts a journal-less failure submission
+  (`deployFailure: {journal: 'absent', failureCode, stage?}` in place of
+  `kernelJournal`; `report-v2.yml` takes `deploy_failure_code` and optional
+  journal inputs). `adapter-github-pages` reports a redirecting public origin as
+  `PAGES_PUBLIC_REDIRECT` instead of throwing.
+- Kernel and journal hardening: a throwing `cleanupStaged` after a verified
+  activation is a `warnings` entry (`KERNEL_CLEANUP_FAILED`), never a failure;
+  the kernel's own evaluation defects journal as `KERNEL_INTERNAL_FAILED`; an
+  `inspectDestination` that returns a classified `failure` (or no
+  `currentGenerationId`) refuses before staging and is never read as "nothing
+  served"; journalled messages redact any 24-character base64/URL-safe run
+  (digests and upper-snake codes are kept); the journal is written to a partial
+  path and renamed into place, and the workflow uploads it only if it parses as
+  JSON.
+- **Contract dependency, plainly:** two receipt-submission shapes are not in the
+  pinned `@rathnasgala2/schemas` contract, and the API and schemas packages must
+  ship accepting them before this toolchain is pinned by any caller. (1) journal
+  absent: no `kernelJournal`,
+  `deployFailure: {journal: "absent", failureCode, stage?, toHost?}`. (2)
+  journal present: the unchanged submission plus
+  `deployFailure: {journal: "present", failureCode, stage?, toHost?}` beside the
+  `kernelJournal`, sent when the journal carries a `failure`. Until then the API
+  refuses both with 422 and the capability is spent.
+
 ### Added
 
 - publish-action intake builds the advanced-SEO inputs authored by the App

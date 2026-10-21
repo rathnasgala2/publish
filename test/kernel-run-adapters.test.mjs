@@ -835,3 +835,438 @@ for (const [index, bind] of BIND_EACH.entries()) {
     }
   });
 }
+
+/**
+ * Run the real local-directory lifecycle with some of its functions
+ * replaced, so a test can make exactly one stage misbehave.
+ *
+ * @param {string} seed a distinct run seed
+ * @param {Record<string, (...args: any[]) => unknown>} overrides the replaced
+ *   lifecycle functions, each given the real one first
+ * @returns {Promise<{outcome: Awaited<ReturnType<typeof runKernelDeployment>>, intent: Record<string, any>}>}
+ *   the outcome and the intent it consumed
+ */
+async function runWithOverrides(seed, overrides) {
+  const root = await mkdtemp(path.join(tmpdir(), 'gala-kernel-stage-'));
+  try {
+    const envelope = envelopeFor('@rathnasgala2/adapter-local-directory');
+    const intent = intentFor({
+      adapterId: 'local-directory',
+      artifactDigest: localDirectory.computeArtifactDigest(envelope.files),
+      baseUrl: 'https://example.test/',
+      seed,
+      envelope,
+    });
+    /** @type {Record<string, any>} */
+    const adapterModule = { ...localDirectory };
+    for (const [name, replacement] of Object.entries(overrides)) {
+      const real = adapterModule[name];
+      adapterModule[name] = (/** @type {any[]} */ ...args) =>
+        replacement(real, ...args);
+    }
+    const outcome = await runKernelDeployment({
+      adapterModule,
+      destination: { root },
+      destinationIdentity: intent.destination,
+      intent,
+      files: envelope.files,
+    });
+    return { outcome, intent };
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Assert every observation a run produced is a valid
+ * `deployment-observation:2.0.0` document, and the journal is flat-valid for
+ * the receipt submission.
+ *
+ * @param {Awaited<ReturnType<typeof runKernelDeployment>>} outcome the run
+ * @param {Record<string, any>} intent the intent it consumed
+ * @returns {void}
+ */
+function assertFailedJournalIsAcceptable(outcome, intent) {
+  for (const observation of outcome.journal.observations) {
+    const verdict = validateGalaDocument(
+      'urn:gala:schema:deployment-observation:2.0.0',
+      toFullObservation(observation, intent, true),
+    );
+    assert.ok(
+      verdict.valid,
+      `observation ${observation.kernelSequence} (${observation.observationClass}/${observation.outcome}) ` +
+        `is not valid — ${JSON.stringify(verdict.diagnostics)}`,
+    );
+  }
+  validateReceiptSubmission(
+    buildReceiptSubmission(
+      /** @type {any} */ ({
+        intent: {
+          ...intent,
+          artifactByteCount: String(intent.artifactByteCount),
+          artifactFileCount: String(intent.artifactFileCount),
+        },
+        journal: {
+          attempts: outcome.journal.attempts,
+          observations: outcome.journal.observations,
+        },
+        repositoryId: '4242',
+        runId: '987654321',
+        runAttempt: 1,
+        publisherVersion: '0.1.0',
+        observedRoutes: outcome.journal.observedRoutes,
+        workflowStartedAt: '2020-01-01T00:00:00.000Z',
+        workflowCompletedAt: '2099-01-01T00:00:00.000Z',
+      }),
+    ),
+  );
+}
+
+/** A provider message carrying a token-like run the journal must not keep. */
+const SECRETISH = 'A'.repeat(48);
+
+/**
+ * @param {string} message the throw's message
+ * @returns {() => never} a lifecycle function that throws it
+ */
+function throwing(message) {
+  return () => {
+    throw Object.assign(new Error(message), { code: 'PROVIDER_BOOM' });
+  };
+}
+
+/**
+ * @typedef {{
+ *   name: string,
+ *   label: string,
+ *   overrides: (message: string) => Record<string, (...args: any[]) => unknown>,
+ *   attempts: readonly string[],
+ *   failedAttempt: {stage: string, outcome: string, destinationChanged: string, failureCode: string},
+ *   observation: {observationClass: string, outcome: string, destinationChanged: string}
+ * }} StageCase
+ */
+
+/** @type {readonly StageCase[]} */
+const STAGE_CASES = [
+  {
+    name: 'inspectDestination (the pre-stage read)',
+    label: 'INSPECT',
+    overrides: (message) => ({ inspectDestination: throwing(message) }),
+    attempts: ['staging'],
+    failedAttempt: {
+      stage: 'staging',
+      outcome: 'failed',
+      destinationChanged: 'no',
+      failureCode: 'PROVIDER_CONTRACT_VIOLATION',
+    },
+    observation: {
+      observationClass: 'provider-error',
+      outcome: 'provider-contract-violation',
+      destinationChanged: 'no',
+    },
+  },
+  {
+    name: 'preflight',
+    label: 'PREFLIGHT',
+    overrides: (message) => ({ preflight: throwing(message) }),
+    attempts: ['staging'],
+    failedAttempt: {
+      stage: 'staging',
+      outcome: 'failed',
+      destinationChanged: 'no',
+      failureCode: 'PROVIDER_CONTRACT_VIOLATION',
+    },
+    observation: {
+      observationClass: 'provider-error',
+      outcome: 'provider-contract-violation',
+      destinationChanged: 'no',
+    },
+  },
+  {
+    name: 'stage',
+    label: 'STAGE',
+    overrides: (message) => ({ stage: throwing(message) }),
+    attempts: ['staging'],
+    failedAttempt: {
+      stage: 'staging',
+      outcome: 'unknown',
+      destinationChanged: 'unknown',
+      failureCode: 'OUTCOME_UNKNOWN_RECONCILING',
+    },
+    observation: {
+      observationClass: 'provider-error',
+      outcome: 'outcome-unknown-reconciling',
+      destinationChanged: 'unknown',
+    },
+  },
+  {
+    name: 'inspectDestination (the read before activation)',
+    label: 'INSPECT',
+    overrides: (message) => {
+      let calls = 0;
+      return {
+        inspectDestination: (/** @type {any} */ real, /** @type {any} */ d) => {
+          calls += 1;
+          return calls === 1 ? real(d) : throwing(message)();
+        },
+      };
+    },
+    attempts: ['staging', 'activation'],
+    failedAttempt: {
+      stage: 'activation',
+      outcome: 'failed',
+      destinationChanged: 'no',
+      failureCode: 'PROVIDER_CONTRACT_VIOLATION',
+    },
+    observation: {
+      observationClass: 'provider-error',
+      outcome: 'provider-contract-violation',
+      destinationChanged: 'no',
+    },
+  },
+  {
+    name: 'activate',
+    label: 'ACTIVATE',
+    overrides: (message) => ({ activate: throwing(message) }),
+    attempts: ['staging', 'activation'],
+    failedAttempt: {
+      stage: 'activation',
+      outcome: 'unknown',
+      destinationChanged: 'unknown',
+      failureCode: 'OUTCOME_UNKNOWN_RECONCILING',
+    },
+    observation: {
+      observationClass: 'provider-error',
+      outcome: 'outcome-unknown-reconciling',
+      destinationChanged: 'unknown',
+    },
+  },
+];
+
+for (const stageCase of STAGE_CASES) {
+  test(`a throwing ${stageCase.name} ends the run with a journalled KERNEL_${stageCase.label}_FAILED, not a raw throw`, async () => {
+    const { outcome, intent } = await runWithOverrides(
+      `st${stageCase.label}`,
+      stageCase.overrides(`provider said ${SECRETISH}`),
+    );
+    assert.equal(outcome.decision, 'reconcile');
+    assert.equal(outcome.verified, false);
+    assert.equal(outcome.generationId, null);
+    assert.equal(outcome.failure?.code, `KERNEL_${stageCase.label}_FAILED`);
+    assert.equal(outcome.failure?.stage, stageCase.label.toLowerCase());
+    assert.match(outcome.failure?.message ?? '', /code=PROVIDER_BOOM/u);
+    assert.ok(
+      !(outcome.failure?.message ?? '').includes(SECRETISH),
+      'a token-like run is redacted from the journalled message',
+    );
+    assert.deepEqual(
+      outcome.journal.attempts.map((attempt) => attempt.stage),
+      stageCase.attempts,
+    );
+    const failed = outcome.journal.attempts.at(-1);
+    assert.equal(failed?.stage, stageCase.failedAttempt.stage);
+    assert.equal(failed?.outcome, stageCase.failedAttempt.outcome);
+    assert.equal(
+      failed?.destinationChanged,
+      stageCase.failedAttempt.destinationChanged,
+    );
+    assert.equal(failed?.failureCode, stageCase.failedAttempt.failureCode);
+    const observation = outcome.journal.observations.find(
+      (candidate) => candidate.stageAttemptId === failed?.stageAttemptId,
+    );
+    assert.equal(
+      observation?.observationClass,
+      stageCase.observation.observationClass,
+    );
+    assert.equal(observation?.outcome, stageCase.observation.outcome);
+    assert.equal(
+      observation?.destinationChanged,
+      stageCase.observation.destinationChanged,
+    );
+    assertFailedJournalIsAcceptable(outcome, intent);
+  });
+}
+
+test('a throwing observe after activation reports the activation unverified and journals the unknown observation', async () => {
+  const { outcome, intent } = await runWithOverrides('stOBSERVE', {
+    observe: throwing('provider said no'),
+  });
+  assert.equal(outcome.decision, 'activate');
+  assert.equal(outcome.generationId, intent.proposedGenerationId);
+  assert.equal(outcome.verified, false);
+  assert.equal(outcome.failure?.code, 'KERNEL_OBSERVE_FAILED');
+  assert.equal(outcome.failure?.stage, 'observe');
+  const activation = outcome.journal.attempts.find(
+    (attempt) => attempt.stage === 'activation',
+  );
+  assert.equal(activation?.outcome, 'succeeded');
+  const observation = outcome.journal.observations.find(
+    (candidate) => candidate.stageAttemptId === activation?.stageAttemptId,
+  );
+  assert.equal(observation?.observationClass, 'provider-error');
+  assert.equal(observation?.outcome, 'outcome-unknown-reconciling');
+  assert.equal(observation?.destinationChanged, 'yes');
+  assert.ok(
+    !outcome.journal.attempts.some((attempt) => attempt.stage === 'cleanup'),
+    'cleanup is left to reconciliation once the destination is unverified',
+  );
+  assertFailedJournalIsAcceptable(outcome, intent);
+});
+
+test('a failure the adapter classified in its result becomes the run failure, and the first one wins', async () => {
+  const classified = (/** @type {string} */ code) => ({
+    failure: { code, toHost: 'www.example.com' },
+    findings: [`${code}: moved to www.example.com ${SECRETISH}`],
+  });
+  const { outcome, intent } = await runWithOverrides('stADAPTER', {
+    inspectDestination: (/** @type {any} */ real, /** @type {any} */ d) =>
+      Promise.resolve(real(d)).then((inspected) => ({
+        ...inspected,
+        ...classified('PAGES_PUBLIC_REDIRECT'),
+      })),
+    preflight: (/** @type {any} */ real, /** @type {any} */ input) =>
+      Promise.resolve(real(input)).then((checked) => ({
+        ...checked,
+        verdict: 'refuse',
+      })),
+    observe: (/** @type {any} */ real, /** @type {any} */ input) =>
+      Promise.resolve(real(input)).then((observed) => ({
+        ...observed,
+        ...classified('LATER_FAILURE'),
+      })),
+  });
+  assert.equal(outcome.decision, 'reconcile');
+  assert.equal(outcome.verified, false);
+  assert.equal(outcome.failure?.code, 'PAGES_PUBLIC_REDIRECT');
+  assert.equal(outcome.failure?.stage, 'inspect');
+  assert.match(outcome.failure?.message ?? '', /www\.example\.com/u);
+  assert.ok(!(outcome.failure?.message ?? '').includes(SECRETISH));
+  assertFailedJournalIsAcceptable(outcome, intent);
+
+  const observed = await runWithOverrides('stOBSCLS', {
+    observe: (/** @type {any} */ real, /** @type {any} */ input) =>
+      Promise.resolve(real(input)).then((result) => ({
+        ...result,
+        verified: false,
+        ...classified('PAGES_PUBLIC_REDIRECT'),
+      })),
+  });
+  assert.equal(observed.outcome.failure?.code, 'PAGES_PUBLIC_REDIRECT');
+  assert.equal(observed.outcome.failure?.stage, 'observe');
+  assert.equal(observed.outcome.verified, false);
+});
+
+test('a run that fails nowhere carries no failure member', async () => {
+  const { outcome } = await runWithOverrides('stCLEAN', {});
+  assert.equal(outcome.verified, true);
+  assert.equal('failure' in outcome, false);
+});
+
+test('a refused run (kernel duty, no stage threw) carries no failure member either', async () => {
+  const { outcome } = await runWithOverrides('stREFUSED', {
+    preflight: (/** @type {any} */ real, /** @type {any} */ input) =>
+      Promise.resolve(real(input)).then((checked) => ({
+        ...checked,
+        verdict: 'refuse',
+      })),
+  });
+  assert.equal(outcome.decision, 'reconcile');
+  assert.equal('failure' in outcome, false);
+});
+
+test('a cleanup that throws after a verified activation is a warning: the journal keeps the activation and stays activated', async () => {
+  const { outcome, intent } = await runWithOverrides('stCLEANUP', {
+    cleanupStaged: throwing(`provider said ${SECRETISH}`),
+  });
+  assert.equal(outcome.decision, 'activate');
+  assert.equal(outcome.verified, true);
+  assert.equal(outcome.generationId, intent.proposedGenerationId);
+  assert.equal('failure' in outcome, false);
+  assert.equal(outcome.warnings?.length, 1);
+  assert.equal(outcome.warnings?.[0]?.code, 'KERNEL_CLEANUP_FAILED');
+  assert.equal(outcome.warnings?.[0]?.stage, 'cleanup');
+  assert.ok(!(outcome.warnings?.[0]?.message ?? '').includes(SECRETISH));
+  assert.deepEqual(
+    outcome.journal.attempts.map((attempt) => [attempt.stage, attempt.outcome]),
+    [
+      ['staging', 'succeeded'],
+      ['activation', 'succeeded'],
+      ['cleanup', 'failed'],
+    ],
+    'staging and activation evidence is never discarded',
+  );
+  assertFailedJournalIsAcceptable(outcome, intent);
+});
+
+test('an inspect that classified why it cannot tell what is served refuses a first publish before staging', async () => {
+  let staged = false;
+  const { outcome, intent } = await runWithOverrides('stINSPECTCLS', {
+    inspectDestination: (/** @type {any} */ real, /** @type {any} */ d) =>
+      Promise.resolve(real(d)).then((inspected) => ({
+        ...inspected,
+        currentGenerationId: null,
+        failure: { code: 'PAGES_PUBLIC_REDIRECT', toHost: 'www.example.com' },
+        findings: ['PAGES_PUBLIC_REDIRECT: moved'],
+      })),
+    stage: (/** @type {any} */ real, /** @type {any} */ input) => {
+      staged = true;
+      return real(input);
+    },
+  });
+  assert.equal(staged, false, 'nothing is staged');
+  assert.equal(intent.expectedGenerationId, undefined, 'a first publish');
+  assert.equal(outcome.decision, 'reconcile');
+  assert.equal(outcome.verified, false);
+  assert.equal(outcome.failure?.code, 'PAGES_PUBLIC_REDIRECT');
+  assert.equal(outcome.failure?.toHost, 'www.example.com');
+  assert.deepEqual(
+    outcome.journal.attempts.map((attempt) => [attempt.stage, attempt.outcome]),
+    [['staging', 'failed']],
+  );
+  assertFailedJournalIsAcceptable(outcome, intent);
+});
+
+test('an inspect that does not say what is served (undefined) is not "nothing served"', async () => {
+  let staged = false;
+  const { outcome } = await runWithOverrides('stINSPECTUNDEF', {
+    inspectDestination: (/** @type {any} */ real, /** @type {any} */ d) =>
+      Promise.resolve(real(d)).then((inspected) => ({
+        ...inspected,
+        currentGenerationId: undefined,
+      })),
+    stage: (/** @type {any} */ real, /** @type {any} */ input) => {
+      staged = true;
+      return real(input);
+    },
+  });
+  assert.equal(staged, false);
+  assert.equal(outcome.failure?.code, 'KERNEL_INSPECT_FAILED');
+  assert.equal(outcome.decision, 'reconcile');
+});
+
+test('a defect in the kernel’s own evaluation is journalled as KERNEL_INTERNAL_FAILED, not thrown', async () => {
+  const { outcome } = await runWithOverrides('stINTERNAL', {
+    preflight: () => null,
+  });
+  assert.equal(outcome.failure?.code, 'KERNEL_INTERNAL_FAILED');
+  assert.equal(outcome.failure?.stage, 'internal');
+  assert.equal(outcome.decision, 'reconcile');
+  assert.equal(outcome.verified, false);
+});
+
+test('journalled messages redact any 24-character base64 or URL-safe run, and keep failure codes and digests', async () => {
+  const key = `${'k9Z'.repeat(10)}+/abcdefghijk`.slice(0, 43);
+  assert.equal(key.length, 43);
+  assert.ok(key.includes('+') && key.includes('/'));
+  const { outcome } = await runWithOverrides('stREDACT', {
+    stage: throwing(
+      `key ${key} code DEPLOY_ENVELOPE_INTENT_MISMATCH digest sha256:${'a'.repeat(64)} short ${'b'.repeat(23)}`,
+    ),
+  });
+  const message = outcome.failure?.message ?? '';
+  assert.ok(!message.includes(key), message);
+  assert.ok(!message.includes(key.slice(0, 24)), message);
+  assert.match(message, /DEPLOY_ENVELOPE_INTENT_MISMATCH/u);
+  assert.match(message, /sha256:a{64}/u);
+  assert.match(message, /b{23}/u, 'a 23-character run is not a key');
+});

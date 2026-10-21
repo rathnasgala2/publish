@@ -29,6 +29,10 @@
  *   The adapter never mints it, and it never reaches a header, an output, a
  *   digest, an artifact or this script's own log.
  *
+ * Whatever happens, the run leaves exactly one kernel journal at `--out` (see
+ * `runDeploy`): the kernel's own, or a classified failure journal. The job
+ * still fails with the original error; the report job reads the journal.
+ *
  * Neither proof is reachable without credentials, and neither is skipped
  * when they are absent: a run with no credential fails rather than
  * pretending the proof passed. That is the only fail-closed blocker left in
@@ -38,7 +42,7 @@
  * @module
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 
 import {
@@ -59,7 +63,7 @@ import { findCarrier } from './decode-carrier.mjs';
 import { parseOptions, requireOption } from './carrier.mjs';
 import { decodeFrozenEnvelope } from './frozen-envelope.mjs';
 import { acquirePagesOidcToken } from './pages-oidc.mjs';
-import { runKernelDeployment } from './kernel-run.mjs';
+import { boundedText, runKernelDeployment } from './kernel-run.mjs';
 import { runIfMain } from '../run-if-main.mjs';
 
 /**
@@ -166,40 +170,219 @@ function pagesOidcClaims() {
 }
 
 /**
+ * A deploy failure already classified for the failure journal: the closed
+ * `code` the report states, the `stage` it happened in, and the original
+ * error (rethrown unchanged once the journal is written, so the job log reads
+ * exactly as it always did).
+ */
+class DeployFailure extends Error {
+  /**
+   * @param {string} code the failure code
+   * @param {string} stage the stage the failure happened in
+   * @param {unknown} cause the original thrown value
+   */
+  constructor(code, stage, cause) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = 'DeployFailure';
+    this.code = code;
+    this.stage = stage;
+    this.cause = cause;
+  }
+}
+
+/**
+ * Run one step of the deploy, classifying anything it throws as `code`. A
+ * failure the step already classified (a nested step) keeps its own code.
+ *
+ * @template T
+ * @param {string} code the failure code for this step
+ * @param {string} stage the stage name the failure journal states
+ * @param {() => Promise<T> | T} step the step
+ * @returns {Promise<T>} the step's result
+ */
+async function classified(code, stage, step) {
+  try {
+    return await step();
+  } catch (error) {
+    throw error instanceof DeployFailure
+      ? error
+      : new DeployFailure(code, stage, error);
+  }
+}
+
+/**
+ * The classified form of anything a run threw: a failure a step already
+ * classified keeps its code; anything else is a defect in the run itself and
+ * is `DEPLOY_CRASHED`.
+ *
+ * @param {unknown} error the thrown value
+ * @returns {DeployFailure} the classified failure
+ */
+export function classifyFailure(error) {
+  return error instanceof DeployFailure
+    ? error
+    : new DeployFailure('DEPLOY_CRASHED', 'unknown', error);
+}
+
+/**
+ * What a run knows while it is in flight, shared with the failure handler:
+ * where the journal goes, the identity members known so far, and whether the
+ * run's one journal has been written.
+ *
+ * @typedef {{
+ *   out: string | undefined,
+ *   journalHead: Record<string, unknown>,
+ *   journalWritten: boolean
+ * }} DeployRun
+ */
+
+/**
+ * Write the run's one kernel journal.
+ *
+ * @param {DeployRun} run the run state
+ * @param {Record<string, unknown>} journal the journal
+ * @returns {Promise<void>} resolves once it is written
+ */
+async function writeJournal(run, journal) {
+  const out = /** @type {string} */ (run.out);
+  // Written beside the destination and renamed into place, so the path the
+  // workflow uploads is either absent or a complete journal, never a prefix.
+  const partial = `${out}.partial-${process.pid}`;
+  await classified('JOURNAL_WRITE_FAILED', 'journal', async () => {
+    try {
+      await writeFile(partial, Buffer.from(JSON.stringify(journal), 'utf8'));
+      await rename(partial, out);
+    } catch (error) {
+      await rm(partial, { force: true });
+      throw error;
+    }
+  });
+  run.journalWritten = true;
+}
+
+/**
+ * The job's entry point. Whatever fails — before the kernel, during it, or
+ * writing its journal — the run ends with exactly one journal at `--out`: the
+ * kernel's own when it ran to an outcome, otherwise a classified failure
+ * journal (`outcome: 'failed'`, a `failure: {code, stage, message}` block, empty
+ * `attempts`/`observations`/`observedRoutes`, and every identity member known
+ * by then). The job still fails with the original error. When not even a
+ * failure journal can be written, the one line `GALA_DEPLOY_NO_JOURNAL <code>`
+ * goes to stderr so the workflow can still report the failure.
+ *
+ * @param {readonly string[]} argv the job's arguments
+ * @returns {Promise<void>} resolves once the kernel journal is written and the
+ *   run activated a verified generation
+ */
+export async function runDeploy(argv) {
+  /** @type {DeployRun} */
+  const run = { out: undefined, journalHead: {}, journalWritten: false };
+  try {
+    await deploy(argv, run);
+  } catch (error) {
+    const failure = classifyFailure(error);
+    if (!run.journalWritten) {
+      await writeFailureJournal(run, failure);
+    }
+    throw failure.cause;
+  }
+}
+
+/**
+ * Write the classified failure journal, or print the no-journal marker when
+ * that is impossible. Never throws: the original failure is what the job
+ * reports.
+ *
+ * @param {DeployRun} run the run state
+ * @param {DeployFailure} failure the classified failure
+ * @returns {Promise<void>} resolves once the journal or the marker is out
+ */
+async function writeFailureJournal(run, failure) {
+  // A journal write that already failed is not retried at the same path; and
+  // without an `--out` there is nowhere to write one.
+  if (run.out !== undefined && failure.code !== 'JOURNAL_WRITE_FAILED') {
+    try {
+      await writeJournal(run, {
+        schemaVersion: '2.0.0',
+        ...run.journalHead,
+        outcome: 'failed',
+        failure: {
+          code: failure.code,
+          stage: failure.stage,
+          message: boundedText(failure.message),
+        },
+        attempts: [],
+        observations: [],
+        observedRoutes: [],
+      });
+      return;
+    } catch {
+      // Falls through to the marker.
+    }
+  }
+  process.stderr.write(`GALA_DEPLOY_NO_JOURNAL ${failure.code}\n`);
+}
+
+/**
+ * @param {readonly string[]} argv the job's arguments
+ * @param {DeployRun} run the run state the failure handler reads
  * @returns {Promise<void>} resolves once the kernel journal is written
  */
-async function main() {
-  const options = parseOptions(process.argv.slice(2));
-  const inbox = requireOption(options, 'inbox');
-  const out = requireOption(options, 'out');
-  const requestedAdapter = requireOption(options, 'adapter');
+async function deploy(argv, run) {
+  const { inbox, requestedAdapter, envelopeDigest, options } = await classified(
+    'OPTIONS_INVALID',
+    'options',
+    () => {
+      const parsed = parseOptions(argv);
+      // Known before anything can fail, so every later failure has a path.
+      run.out = parsed.out;
+      return {
+        options: parsed,
+        inbox: requireOption(parsed, 'inbox'),
+        requestedAdapter: requireOption(parsed, 'adapter'),
+        envelopeDigest: requireOption(parsed, 'envelope-digest'),
+        out: requireOption(parsed, 'out'),
+      };
+    },
+  );
 
   // Decoding the envelope recomputes its inventory and every metadata
   // digest; a corrupted or substituted envelope never reaches the adapter.
-  const envelope = decodeFrozenEnvelope(
-    (await findCarrier(inbox, requireOption(options, 'envelope-digest'))).bytes,
+  const envelope = await classified('ENVELOPE_INVALID', 'envelope', async () =>
+    decodeFrozenEnvelope((await findCarrier(inbox, envelopeDigest)).bytes),
   );
   // The authorization carrier is the only source of the adapter, the
   // destination, the fence and every operation identity. It is bound to this
   // runner's own repository and publish ref before anything else happens.
-  const bound = bindAuthorizedIntent({
-    authorization: await readAuthorization(inbox),
-    runner: process.env,
-  });
+  const bound = await classified(
+    'AUTHORIZATION_INVALID',
+    'authorization',
+    async () => {
+      const authorized = bindAuthorizedIntent({
+        authorization: await readAuthorization(inbox),
+        runner: process.env,
+      });
+      if (authorized.adapterId !== requestedAdapter) {
+        throw new Error(
+          `DEPLOY_ADAPTER_MISMATCH: the job selected ${requestedAdapter} but the authorized intent names ${authorized.adapterId}`,
+        );
+      }
+      if (
+        authorized.adapterId !== 'do-spaces' &&
+        authorized.adapterId !== 'github-pages'
+      ) {
+        throw new Error(
+          `WORKLOAD_BINDING_INVALID: ${authorized.adapterId} has no managed deploy job; local-directory is the disposable conformance oracle only`,
+        );
+      }
+      return authorized;
+    },
+  );
   const { intent, adapterId } = bound;
-  if (adapterId !== requestedAdapter) {
-    throw new Error(
-      `DEPLOY_ADAPTER_MISMATCH: the job selected ${requestedAdapter} but the authorized intent names ${adapterId}`,
-    );
-  }
-  if (adapterId !== 'do-spaces' && adapterId !== 'github-pages') {
-    throw new Error(
-      `WORKLOAD_BINDING_INVALID: ${adapterId} has no managed deploy job; local-directory is the disposable conformance oracle only`,
-    );
-  }
 
   /** @type {Record<string, unknown>} */
-  const journalHead = {
+  const journalHead = run.journalHead;
+  Object.assign(journalHead, {
     schemaVersion: '2.0.0',
     adapterId,
     // The 2.8.0 `kind` the exchange was answered with (`null` from a 2.7.x
@@ -218,11 +401,13 @@ async function main() {
     // report and the reconciliation worker can see the binding this run
     // deployed under rather than infer it.
     authorization: bound.journal,
-  };
+  });
   // Refused here, before any adapter is imported and before the first
   // destination contact: an envelope whose records are not the ones the
   // intent binds never reaches staging.
-  requireEnvelopeIntentAgreement(intent, envelope);
+  await classified('INTENT_MISMATCH', 'intent', () =>
+    requireEnvelopeIntentAgreement(intent, envelope),
+  );
   // DEC-097 line 8419 / LOCAL-62: the capability decision is recomputed
   // before staging. Only the issuance-phase record is compared against the
   // intent's digest; the deploy-phase facts (the Pages carrier, the exact
@@ -231,34 +416,41 @@ async function main() {
   // are recomputed first, from the retained provider binding and base path
   // only — the same recomputation `verify-spaces-configuration.mjs` proves
   // before its own live control-plane calls.
-  const spacesClosedRecords =
-    adapterId === 'do-spaces'
-      ? await recomputeSpacesClosedRecords(intent)
-      : undefined;
-  const decision = requireCapabilityDecisionAgreement(
-    intent,
-    {
-      runId: requireEnv('GITHUB_RUN_ID'),
-      runAttempt: Number.parseInt(requireEnv('GITHUB_RUN_ATTEMPT'), 10),
+  const { decision, capabilityDecision } = await classified(
+    'CAPABILITY_MISMATCH',
+    'capability-decision',
+    async () => {
+      const spacesClosedRecords =
+        adapterId === 'do-spaces'
+          ? await recomputeSpacesClosedRecords(intent)
+          : undefined;
+      const agreed = requireCapabilityDecisionAgreement(
+        intent,
+        {
+          runId: requireEnv('GITHUB_RUN_ID'),
+          runAttempt: Number.parseInt(requireEnv('GITHUB_RUN_ATTEMPT'), 10),
+        },
+        spacesClosedRecords,
+      );
+      /** @type {Record<string, unknown>} */
+      const evidence = {
+        issuancePhaseDigest: agreed.decisionDigest,
+        issuancePhaseMembers: Object.keys(agreed.record).filter((member) =>
+          ISSUANCE_PHASE_MEMBERS.includes(member),
+        ),
+        deployPhaseMembers: [...DEPLOY_PHASE_MEMBERS],
+        admission: {
+          adapterVersion: agreed.admission.adapterVersion,
+          capabilityDigest: agreed.admission.capabilityDigest,
+        },
+        deployPhase: deployPhaseEvaluation({
+          files: envelope.files,
+          markerByteLength: agreed.markerByteLength,
+        }),
+      };
+      return { decision: agreed, capabilityDecision: evidence };
     },
-    spacesClosedRecords,
   );
-  /** @type {Record<string, unknown>} */
-  const capabilityDecision = {
-    issuancePhaseDigest: decision.decisionDigest,
-    issuancePhaseMembers: Object.keys(decision.record).filter((member) =>
-      ISSUANCE_PHASE_MEMBERS.includes(member),
-    ),
-    deployPhaseMembers: [...DEPLOY_PHASE_MEMBERS],
-    admission: {
-      adapterVersion: decision.admission.adapterVersion,
-      capabilityDigest: decision.admission.capabilityDigest,
-    },
-    deployPhase: deployPhaseEvaluation({
-      files: envelope.files,
-      markerByteLength: decision.markerByteLength,
-    }),
-  };
   journalHead.capabilityDecision = capabilityDecision;
 
   /** @type {Record<string, unknown>} */
@@ -270,28 +462,47 @@ async function main() {
 
   if (adapterId === 'do-spaces') {
     adapterModule = await import('@rathnasgala2/adapter-do-spaces');
-    destination = spacesDestination(intent);
+    destination = await classified('BINDING_INVALID', 'destination', () =>
+      spacesDestination(intent),
+    );
+    await classified('INTENT_MISMATCH', 'adapter-version', () =>
+      requireAdapterVersionAgreement(adapterModule.ADAPTER_VERSION, bound),
+    );
     journalHead.adapterVersion = adapterModule.ADAPTER_VERSION;
-    requireAdapterVersionAgreement(adapterModule.ADAPTER_VERSION, bound);
-    journalHead.destinationOrigins = /** @type {any} */ (
-      adapterModule
-    ).deriveOrigins(destination);
+    await classified('BINDING_INVALID', 'destination', () => {
+      journalHead.destinationOrigins = /** @type {any} */ (
+        adapterModule
+      ).deriveOrigins(destination);
+    });
 
     // Brief section 6.3: before mutation the limited key must be proved
     // limited. This is that proof, and it is the job's first destination
     // contact. It throws `SPACES_LIMITED_KEY_OVERPRIVILEGED` when the key
     // can read a configuration and `SPACES_LIMITED_KEY_DENIAL_UNPROVEN` for
     // anything that is not an exact, well-formed denial.
-    journalHead.limitedKeyDenialEvidence = await /** @type {any} */ (
-      adapterModule
-    ).proveLimitedKeyAccessDenied({ destination });
+    journalHead.limitedKeyDenialEvidence = await classified(
+      'CREDENTIAL_PROOF_FAILED',
+      'credential-proof',
+      () =>
+        /** @type {any} */ (adapterModule).proveLimitedKeyAccessDenied({
+          destination,
+        }),
+    );
   } else {
     adapterModule = await import('@rathnasgala2/adapter-github-pages');
     journalHead.adapterVersion = adapterModule.ADAPTER_VERSION;
-    requireAdapterVersionAgreement(adapterModule.ADAPTER_VERSION, bound);
-    const pagesArtifactId = requireOption(options, 'pages-artifact-id');
-    const pagesArtifactDigest = normalizeUploadArtifactDigest(
-      requireOption(options, 'pages-artifact-digest'),
+    await classified('INTENT_MISMATCH', 'adapter-version', () =>
+      requireAdapterVersionAgreement(adapterModule.ADAPTER_VERSION, bound),
+    );
+    const { pagesArtifactId, pagesArtifactDigest } = await classified(
+      'OPTIONS_INVALID',
+      'options',
+      () => ({
+        pagesArtifactId: requireOption(options, 'pages-artifact-id'),
+        pagesArtifactDigest: normalizeUploadArtifactDigest(
+          requireOption(options, 'pages-artifact-digest'),
+        ),
+      }),
     );
     // Measured on production (rathnastest/g9, artifact 11298103317): upload-artifact's
     // `artifact-digest` is the SHA-256 of the artifact ZIP GitHub stores, not of the
@@ -299,8 +510,13 @@ async function main() {
     // binding that matters is "the bytes the adapter re-encodes are the bytes this job
     // built and uploaded", proven against the carrier file on disk; the action's ZIP
     // digest is kept in the journal as the observed artifact identity.
-    const uploadedCarrierDigest = carrierBytesDigest(
-      await readFile(requireOption(options, 'pages-carrier')),
+    const uploadedCarrierDigest = await classified(
+      'CARRIER_UNREADABLE',
+      'carrier',
+      async () =>
+        carrierBytesDigest(
+          await readFile(requireOption(options, 'pages-carrier')),
+        ),
     );
     journalHead.pagesArtifactId = pagesArtifactId;
     journalHead.pagesArtifactDigest = pagesArtifactDigest;
@@ -316,46 +532,55 @@ async function main() {
     // The one `id-token: write` use. The token is held in this local
     // binding, handed straight to the adapter's create call and never
     // written anywhere; only its normalized origin is evidence.
-    const oidc = await acquirePagesOidcToken();
-    journalHead.pagesOidcOrigin = oidc.pagesOidcOrigin;
-    journalHead.pagesOidcClaimsBound = Object.keys(pagesOidcClaims()).sort();
-    journalHead.pagesOidcTokenAcquired = true;
+    const oidc = await classified('OIDC_FAILED', 'oidc', async () => {
+      const acquired = await acquirePagesOidcToken();
+      journalHead.pagesOidcOrigin = acquired.pagesOidcOrigin;
+      journalHead.pagesOidcClaimsBound = Object.keys(pagesOidcClaims()).sort();
+      journalHead.pagesOidcTokenAcquired = true;
+      return acquired;
+    });
 
-    destination = {
-      ...pagesDestinationBinding(intent, process.env),
-      token: requireEnv('GH_TOKEN'),
-      // The Pages carrier is uploaded by the pinned v7 action in this job's
-      // own earlier step, never by the adapter: what the adapter is handed
-      // is the already observed artifact identity, and the digest it was
-      // re-observed at is compared before it is returned.
-      publishCarrier: pagesCarrierPublisher({
-        pagesArtifactId,
-        uploadedCarrierDigest,
-      }),
-      runId: process.env.GITHUB_RUN_ID,
-      runAttempt: Number.parseInt(process.env.GITHUB_RUN_ATTEMPT ?? '1', 10),
-      headSha: requireEnv('GITHUB_SHA'),
-    };
-    activateExtras = {
-      pagesOidcToken: oidc.token,
-      pagesOidcClaims: pagesOidcClaims(),
-    };
+    destination = await classified('BINDING_INVALID', 'destination', () => {
+      activateExtras = {
+        pagesOidcToken: oidc.token,
+        pagesOidcClaims: pagesOidcClaims(),
+      };
+      return {
+        ...pagesDestinationBinding(intent, process.env),
+        token: requireEnv('GH_TOKEN'),
+        // The Pages carrier is uploaded by the pinned v7 action in this job's
+        // own earlier step, never by the adapter: what the adapter is handed
+        // is the already observed artifact identity, and the digest it was
+        // re-observed at is compared before it is returned.
+        publishCarrier: pagesCarrierPublisher({
+          pagesArtifactId,
+          uploadedCarrierDigest,
+        }),
+        runId: process.env.GITHUB_RUN_ID,
+        runAttempt: Number.parseInt(process.env.GITHUB_RUN_ATTEMPT ?? '1', 10),
+        headSha: requireEnv('GITHUB_SHA'),
+      };
+    });
   }
 
   // The artifact digest is recomputed here under the installed adapter's own
   // projection — the digest the kernel's duty 1 and the adapter's activation
   // check compare — never quoted from the envelope or any job output.
-  const artifactDigest =
-    /** @type {(files: readonly {path: string, bytes: Buffer}[]) => string} */ (
-      adapterModule.computeArtifactDigest
-    )(envelope.files);
-  journalHead.artifactDigest = artifactDigest;
-  if (artifactDigest !== bound.artifactDigest) {
-    throw new Error(
-      `DEPLOY_ENVELOPE_INTENT_MISMATCH: the frozen envelope digests to ${artifactDigest} under ${adapterId}, not the ${bound.artifactDigest} the intent authorizes`,
-    );
-  }
+  await classified('DIGEST_MISMATCH', 'artifact-digest', () => {
+    const artifactDigest =
+      /** @type {(files: readonly {path: string, bytes: Buffer}[]) => string} */ (
+        adapterModule.computeArtifactDigest
+      )(envelope.files);
+    journalHead.artifactDigest = artifactDigest;
+    if (artifactDigest !== bound.artifactDigest) {
+      throw new Error(
+        `DEPLOY_ENVELOPE_INTENT_MISMATCH: the frozen envelope digests to ${artifactDigest} under ${adapterId}, not the ${bound.artifactDigest} the intent authorizes`,
+      );
+    }
+  });
 
+  // The kernel returns an outcome, with its classified failure, for every
+  // stage that throws; nothing here is wrapped because nothing else can.
   const outcome = await runKernelDeployment({
     adapterModule,
     destination,
@@ -365,8 +590,12 @@ async function main() {
     activateExtras,
   });
 
-  const journal = {
+  const activated = outcome.decision === 'activate' && outcome.verified;
+  await writeJournal(run, {
     ...journalHead,
+    outcome: activated ? 'activated' : 'failed',
+    ...(outcome.failure === undefined ? {} : { failure: outcome.failure }),
+    ...(outcome.warnings === undefined ? {} : { warnings: outcome.warnings }),
     decision: outcome.decision,
     verified: outcome.verified,
     attempts: outcome.journal.attempts,
@@ -375,10 +604,9 @@ async function main() {
     ...(outcome.generationId === null
       ? {}
       : { destinationGenerationId: outcome.generationId }),
-  };
-  await writeFile(out, Buffer.from(JSON.stringify(journal), 'utf8'));
+  });
 
-  if (outcome.decision !== 'activate' || !outcome.verified) {
+  if (!activated) {
     // The journal is still written and still reportable — that is the whole
     // point of normalizing an adapter/provider failure into the handoff —
     // but this job did not activate a verified generation and does not
@@ -517,4 +745,4 @@ export {
   spacesDestination,
 };
 
-await runIfMain(import.meta.url, main);
+await runIfMain(import.meta.url, () => runDeploy(process.argv.slice(2)));

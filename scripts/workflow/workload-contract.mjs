@@ -282,6 +282,47 @@ export const SUBMISSION_REQUIRED = Object.freeze(
   ),
 );
 
+/**
+ * The journal-less failure submission's members: the receipt submission
+ * without a `kernelJournal`, plus `deployFailure`. This shape is not in the
+ * pinned `@rathnasgala2/schemas` contract (so `SUBMISSION_FIELDS` above, which
+ * the parity test holds to it, is unchanged); it is the body a failed deploy
+ * with no kernel journal posts to the same route, for the API to accept.
+ */
+export const JOURNAL_ABSENT_SUBMISSION_FIELDS = Object.freeze([
+  ...SUBMISSION_FIELDS.filter((name) => name !== 'kernelJournal'),
+  'deployFailure',
+]);
+
+/** The journal-less submission members that are never optional. */
+export const JOURNAL_ABSENT_SUBMISSION_REQUIRED = Object.freeze(
+  JOURNAL_ABSENT_SUBMISSION_FIELDS.filter(
+    (name) =>
+      name !== 'destinationGenerationId' && name !== 'destinationReceiptDigest',
+  ),
+);
+
+/**
+ * `deployFailure` declared members; `journal` is `absent` (no kernel journal
+ * in the submission) or `present` (beside a `kernelJournal`).
+ */
+export const DEPLOY_FAILURE_FIELDS = Object.freeze([
+  'journal',
+  'failureCode',
+  'stage',
+  'toHost',
+]);
+
+/** A redirect target host, with an optional port, as `URL.host` renders it. */
+export const DEPLOY_FAILURE_HOST_PATTERN =
+  /^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:[0-9]{1,5})?$/u;
+
+/** A deploy failure code: the closed upper-snake shape deploy.mjs emits. */
+export const DEPLOY_FAILURE_CODE_PATTERN = /^[A-Z][A-Z0-9_]{2,63}$/u;
+
+/** A deploy failure stage name: lower kebab, as deploy.mjs and the kernel emit. */
+export const DEPLOY_FAILURE_STAGE_PATTERN = /^[a-z][a-z0-9-]{0,63}$/u;
+
 /** `kernelJournal.attempts[]` declared members. */
 export const ATTEMPT_FIELDS = Object.freeze([
   'stageAttemptId',
@@ -1146,6 +1187,84 @@ export function validateReceiptSubmission(value) {
   const body = requireObject(value, '');
   requireNoUnknownFields(body, SUBMISSION_FIELDS, '');
   requirePresent(body, SUBMISSION_REQUIRED, '');
+  checkSubmissionMembers(body);
+  checkKernelJournal(body.kernelJournal, '/kernelJournal');
+}
+
+/**
+ * Validate the journal-less failure submission: every receipt submission
+ * member except `kernelJournal`, plus `deployFailure` stating
+ * `journal: 'absent'`, the failure code and (when known) the stage. It never
+ * carries a `kernelJournal`; the two shapes are disjoint.
+ *
+ * @param {unknown} value the request body
+ * @returns {void}
+ */
+export function validateJournalAbsentSubmission(value) {
+  const body = requireObject(value, '');
+  requireNoUnknownFields(body, JOURNAL_ABSENT_SUBMISSION_FIELDS, '');
+  requirePresent(body, JOURNAL_ABSENT_SUBMISSION_REQUIRED, '');
+  checkSubmissionMembers(body);
+  checkDeployFailure(body.deployFailure, 'absent');
+}
+
+/**
+ * Validate a receipt submission that carries its `kernelJournal` and also
+ * states the deploy's classified failure beside it
+ * (`deployFailure.journal: 'present'`), so the API reads the code without
+ * parsing attempts. Everything but `deployFailure` is the pinned contract.
+ *
+ * @param {unknown} value the request body
+ * @returns {void}
+ */
+export function validateJournalPresentSubmission(value) {
+  const { deployFailure, ...rest } = requireObject(value, '');
+  validateReceiptSubmission(rest);
+  checkDeployFailure(deployFailure, 'present');
+}
+
+/**
+ * @param {unknown} value the `deployFailure` member
+ * @param {'absent' | 'present'} journal the journal state it must state
+ * @returns {void}
+ */
+function checkDeployFailure(value, journal) {
+  const failure = requireObject(value, '/deployFailure');
+  requireNoUnknownFields(failure, DEPLOY_FAILURE_FIELDS, '/deployFailure');
+  requirePresent(failure, ['journal', 'failureCode'], '/deployFailure');
+  requireEnum(failure, 'journal', [journal], '/deployFailure');
+  requireMatch(
+    failure,
+    'failureCode',
+    DEPLOY_FAILURE_CODE_PATTERN,
+    '/deployFailure',
+  );
+  if (failure.stage !== undefined) {
+    requireMatch(
+      failure,
+      'stage',
+      DEPLOY_FAILURE_STAGE_PATTERN,
+      '/deployFailure',
+    );
+  }
+  if (failure.toHost !== undefined) {
+    requireMatch(
+      failure,
+      'toHost',
+      DEPLOY_FAILURE_HOST_PATTERN,
+      '/deployFailure',
+    );
+  }
+}
+
+/**
+ * The checks the two submission shapes share: every member but the evidence
+ * stream (`kernelJournal` or `deployFailure`).
+ *
+ * @param {Record<string, unknown>} body the request body
+ * @returns {void}
+ */
+function checkSubmissionMembers(body) {
   requireMatch(body, 'operationId', STABLE_ID_PATTERN, '');
   requireMatch(body, 'repositoryId', PROVIDER_NUMERIC_ID_PATTERN, '');
   requireMatch(body, 'sourceCommit', COMMIT_OID_PATTERN, '');
@@ -1187,5 +1306,4 @@ export function validateReceiptSubmission(value) {
   }
   requireMatch(body, 'workflowStartedAt', INSTANT_PATTERN, '');
   requireMatch(body, 'workflowCompletedAt', INSTANT_PATTERN, '');
-  checkKernelJournal(body.kernelJournal, '/kernelJournal');
 }

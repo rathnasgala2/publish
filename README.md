@@ -204,6 +204,36 @@ to the runner's repository and ref, a kernel journal whose head (`operationId`,
 `authorization.intentDigest`) was not produced under that intent, and a runner
 repository id the intent's rebuild record was not bound to.
 
+**A journal on every exit.** `deploy.mjs` leaves exactly one kernel journal at
+`--out` on every path, so the report job always has something to report. When
+the kernel ran to an outcome that is its journal (an `outcome` of `activated` or
+`failed`; a `failure: {code, stage, message}` member names the classified
+failure when there is one: `KERNEL_<STAGE>_FAILED` for an adapter call that
+threw, or the code the adapter put in its own result, such as
+`PAGES_PUBLIC_REDIRECT`). When the job fails before or around the kernel, the
+journal is a failure journal: `outcome: failed`, `failure`, empty `attempts`,
+`observations` and `observedRoutes`, and every identity member known by then.
+The codes are `OPTIONS_INVALID`, `ENVELOPE_INVALID`, `AUTHORIZATION_INVALID`,
+`INTENT_MISMATCH`, `CAPABILITY_MISMATCH`, `CREDENTIAL_PROOF_FAILED`,
+`CARRIER_UNREADABLE`, `OIDC_FAILED`, `BINDING_INVALID`, `DIGEST_MISMATCH`,
+`JOURNAL_WRITE_FAILED` and `DEPLOY_CRASHED` (a defect in the run itself). A
+journal that cannot be written (including `JOURNAL_WRITE_FAILED`, which is only
+ever logged) prints one line, `GALA_DEPLOY_NO_JOURNAL <code>`, to stderr; the
+deploy step captures it as the job's `failure_code` output.
+
+The report job runs for every failed deploy (a cancelled one is deliberately not
+reported). With a kernel journal it reports as before. With none, or with a
+failure journal that has no attempts, `report.mjs` posts the journal-less
+failure submission to the same route and capability: the receipt submission
+without `kernelJournal`, with `observedRoutes: []`, `workflowStartedAt` equal to
+`workflowCompletedAt` (the report's own cutoff; no kernel instant exists), and
+`deployFailure: {journal: 'absent', failureCode, stage?}`. `failureCode` is the
+failure journal's code, else the printed marker's, else `DEPLOY_CRASHED`; a code
+outside `^[A-Z][A-Z0-9_]{2,63}$` is not trusted and becomes `DEPLOY_CRASHED`.
+The error text stays in the journal carrier and the job log, never in the
+receipt. This shape is not in the pinned schemas contract, so it is validated
+here by `validateJournalAbsentSubmission` and awaits the API's acceptance.
+
 **Freeze, on the real path.** `freeze.mjs` freezes the envelope under the
 adapter the verified source's lock selects (DEC-097 section 3's closed
 package-to-`adapterId` mapping; the artifact digest is that adapter's own

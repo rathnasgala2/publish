@@ -15,7 +15,8 @@ export function describeCapabilities(destination: PagesDestination): Promise<Rea
  *   retainedHistory: readonly Readonly<Record<string, unknown>>[],
  *   releaseGenerationsOnDisk: readonly string[],
  *   providerSiteObserved: boolean,
- *   findings: readonly string[]
+ *   findings: readonly string[],
+ *   failure?: PublicRedirectFailure
  * }>>} the inspection result
  */
 export function inspectDestination(destination: PagesDestination): Promise<Readonly<{
@@ -24,6 +25,7 @@ export function inspectDestination(destination: PagesDestination): Promise<Reado
     releaseGenerationsOnDisk: readonly string[];
     providerSiteObserved: boolean;
     findings: readonly string[];
+    failure?: PublicRedirectFailure;
 }>>;
 /**
  * `preflight`: check every declared route against the portable path rules
@@ -175,7 +177,8 @@ export function activate(input: {
  *   currentGenerationId: string | null,
  *   markerValid: boolean,
  *   claimsCompleteInventory: false,
- *   findings: readonly string[]
+ *   findings: readonly string[],
+ *   failure?: PublicRedirectFailure
  * }>>} the observation result
  */
 export function observe(input: {
@@ -189,6 +192,7 @@ export function observe(input: {
     markerValid: boolean;
     claimsCompleteInventory: false;
     findings: readonly string[];
+    failure?: PublicRedirectFailure;
 }>>;
 /**
  * `cleanupStaged`: drop this operation's staged carrier from run-scoped
@@ -260,6 +264,18 @@ export const PACKAGE_STATUS: Readonly<{
     name: "@rathnasgala2/adapter-github-pages";
     implemented: true;
     implementingTask: "S4-T04";
+}>;
+/**
+ * The classified failure the adapter reports when the public origin answers
+ * with a redirect instead of the route: the destination's `publicBaseUrl` no
+ * longer names the host that serves the site (typically a custom domain was
+ * attached while the repository still carries the `github.io` base). The
+ * adapter follows no redirect, so it cannot tell what the origin serves.
+ */
+export type PublicRedirectFailure = Readonly<{
+    code: "PAGES_PUBLIC_REDIRECT";
+    toHost: string | null;
+    location: string | null;
 }>;
 export type PagesDestination = Readonly<{
     owner: string;

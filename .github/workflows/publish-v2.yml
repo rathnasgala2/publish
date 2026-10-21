@@ -664,6 +664,7 @@ jobs:
     outputs:
       journal_id: ${{ steps.journal.outputs.artifact_id }}
       journal_digest: ${{ steps.journal.outputs.artifact_digest }}
+      failure_code: ${{ steps.deploy.outputs.failure_code }}
     steps:
       - name: Download the exact envelope, authorization and evidence carriers
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -692,6 +693,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Run the kernel and the Spaces adapter
+        id: deploy
         shell: bash
         # The only job permitted to reference the three caller-mapped
         # limited-key secrets. It never receives the control-plane key.
@@ -708,16 +710,41 @@ jobs:
         run: |
           set -euo pipefail
           install -d "${RUNNER_TEMP}/carrier"
+          status=0
           node publish-toolchain/scripts/workflow/deploy.mjs \
             --adapter do-spaces \
             --inbox "${RUNNER_TEMP}/inbox" \
             --envelope-digest "${ENVELOPE_DIGEST}" \
             --evidence-digest "${EVIDENCE_DIGEST}" \
-            --out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs"
+            --out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs" 2>&1 | tee "${RUNNER_TEMP}/deploy.log" || status=$?
+
+          # deploy.mjs writes a journal on every failure; when it cannot, it
+          # prints `GALA_DEPLOY_NO_JOURNAL <code>` and the report job states
+          # that code. The step's own exit status is preserved.
+          code="$(sed -n 's/^GALA_DEPLOY_NO_JOURNAL \([A-Z][A-Z0-9_]*\)$/\1/p' "${RUNNER_TEMP}/deploy.log" | tail -n 1)"
+          echo "failure_code=${code}" >> "${GITHUB_OUTPUT}"
+          exit "${status}"
+
+      # deploy.mjs writes a journal on every failure it can survive, but a
+      # killed or timed-out step writes none, and a journal is renamed into place
+      # only once complete. A missing or unparseable file is a notice, not
+      # an upload failure: the report job then states the absent journal.
+      - name: Check the kernel journal file
+        id: journal-file
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs" ] && node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "present=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice title=No kernel journal::The deploy step wrote no complete kernel journal; the report job posts a journal-less failure report."
+          fi
 
       - name: Upload the kernel journal
         id: upload
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.journal-file.outputs.present == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path:
@@ -729,7 +756,7 @@ jobs:
 
       - name: Re-observe the kernel journal by exact ID
         id: journal
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.journal-file.outputs.present == 'true' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -758,6 +785,7 @@ jobs:
     outputs:
       journal_id: ${{ steps.journal.outputs.artifact_id }}
       journal_digest: ${{ steps.journal.outputs.artifact_digest }}
+      failure_code: ${{ steps.deploy.outputs.failure_code }}
     steps:
       - name: Download the exact envelope and authorization carriers
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -813,6 +841,7 @@ jobs:
           retention-days: 1
 
       - name: Run the kernel and the raw Pages REST adapter
+        id: deploy
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -830,6 +859,7 @@ jobs:
           GALA_PUBLISH_TOOLCHAIN_SHA: ${{ inputs.publish_toolchain_ref }}
         run: |
           set -euo pipefail
+          status=0
           node publish-toolchain/scripts/workflow/deploy.mjs \
             --adapter github-pages \
             --inbox "${RUNNER_TEMP}/inbox" \
@@ -837,11 +867,35 @@ jobs:
             --pages-artifact-id "${PAGES_ARTIFACT_ID}" \
             --pages-artifact-digest "${PAGES_ARTIFACT_DIGEST}" \
             --pages-carrier "${RUNNER_TEMP}/carrier/gala-pages-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}" \
-            --out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs"
+            --out "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs" 2>&1 | tee "${RUNNER_TEMP}/deploy.log" || status=$?
+
+          # deploy.mjs writes a journal on every failure; when it cannot, it
+          # prints `GALA_DEPLOY_NO_JOURNAL <code>` and the report job states
+          # that code. The step's own exit status is preserved.
+          code="$(sed -n 's/^GALA_DEPLOY_NO_JOURNAL \([A-Z][A-Z0-9_]*\)$/\1/p' "${RUNNER_TEMP}/deploy.log" | tail -n 1)"
+          echo "failure_code=${code}" >> "${GITHUB_OUTPUT}"
+          exit "${status}"
+
+      # deploy.mjs writes a journal on every failure it can survive, but a
+      # killed or timed-out step writes none, and a journal is renamed into place
+      # only once complete. A missing or unparseable file is a notice, not
+      # an upload failure: the report job then states the absent journal.
+      - name: Check the kernel journal file
+        id: journal-file
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs" ] && node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-kernel-journal-v2.jcs"; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "present=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice title=No kernel journal::The deploy step wrote no complete kernel journal; the report job posts a journal-less failure report."
+          fi
 
       - name: Upload the kernel journal
         id: upload
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.journal-file.outputs.present == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path:
@@ -853,7 +907,7 @@ jobs:
 
       - name: Re-observe the kernel journal by exact ID
         id: journal
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.journal-file.outputs.present == 'true' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -868,24 +922,36 @@ jobs:
 
   report:
     name: Submit the preliminary report and kernel journal
-    needs: [authorize, deploy-do-spaces, deploy-github-pages]
-    # DEC-097 section 6's guard, widened so a failed deploy still reports:
+    needs:
+      [
+        authorize,
+        verify-do-spaces-configuration,
+        deploy-do-spaces,
+        deploy-github-pages,
+      ]
+    # DEC-097 section 6's guard, widened so a failed deploy always reports:
     # authorize succeeded, the selected deploy job ended success or failure,
-    # and the other deploy job was skipped. A failed deploy is reported only
-    # when it uploaded its kernel journal (the journal output is non-empty);
-    # the API interprets the failure from that journal, so no outcome value
-    # is sent. A cancelled deploy is not reported.
+    # and the other deploy job was skipped. A failed deploy that uploaded its
+    # kernel journal reports it, and one that did not (the journal output is
+    # empty) reports a journal-less failure receipt with the code deploy.mjs
+    # printed, or DEPLOY_CRASHED; the API interprets the failure, so no
+    # outcome value is sent. The Spaces configuration verifier is the one job
+    # between authorize and deploy: its failure skips the deploy and is
+    # reported as VERIFY_DO_SPACES_CONFIGURATION_FAILED. Jobs before authorize
+    # (prep, build, freeze, attest) need no report: no fence is held until the
+    # authorization exchange. A cancelled deploy is deliberately not reported:
+    # a cancellation is the operator's own act, the run is superseded, and
+    # reconciliation owns the fence it leaves.
     if:
       ${{ always() && needs.authorize.result == 'success' &&
       ((needs.authorize.outputs.adapter_id == 'do-spaces' &&
       (needs['deploy-do-spaces'].result == 'success' ||
-      (needs['deploy-do-spaces'].result == 'failure' &&
-      needs['deploy-do-spaces'].outputs.journal_id != '')) &&
+      needs['deploy-do-spaces'].result == 'failure' ||
+      needs['verify-do-spaces-configuration'].result == 'failure') &&
       needs['deploy-github-pages'].result == 'skipped') ||
       (needs.authorize.outputs.adapter_id == 'github-pages' &&
       (needs['deploy-github-pages'].result == 'success' ||
-      (needs['deploy-github-pages'].result == 'failure' &&
-      needs['deploy-github-pages'].outputs.journal_id != '')) &&
+      needs['deploy-github-pages'].result == 'failure') &&
       needs['deploy-do-spaces'].result == 'skipped')) }}
     permissions:
       actions: read
@@ -906,3 +972,9 @@ jobs:
         ${{ needs.authorize.outputs.adapter_id == 'do-spaces' &&
         needs.deploy-do-spaces.outputs.journal_digest ||
         needs.deploy-github-pages.outputs.journal_digest }}
+      deploy_failure_code:
+        ${{ needs.authorize.outputs.adapter_id == 'do-spaces' &&
+        (needs['verify-do-spaces-configuration'].result == 'failure' &&
+        'VERIFY_DO_SPACES_CONFIGURATION_FAILED' ||
+        needs.deploy-do-spaces.outputs.failure_code) ||
+        needs.deploy-github-pages.outputs.failure_code }}

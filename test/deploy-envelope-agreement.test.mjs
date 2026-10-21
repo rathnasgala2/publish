@@ -68,8 +68,8 @@ for (const member of ['manifestDigest', 'provenanceDigest', 'sbomDigest']) {
 
 test('deploy.mjs refuses the disagreement before any adapter is imported and before the kernel is driven (no staging call)', async () => {
   const source = await readFile(DEPLOY_SOURCE, 'utf8');
-  const mainStart = source.indexOf('async function main()');
-  assert.ok(mainStart > 0, 'main() is where the job runs');
+  const mainStart = source.indexOf('async function deploy(');
+  assert.ok(mainStart > 0, 'deploy() is where the job runs');
   const main = source.slice(mainStart);
   const agreement = main.indexOf(
     'requireEnvelopeIntentAgreement(intent, envelope)',
@@ -78,7 +78,7 @@ test('deploy.mjs refuses the disagreement before any adapter is imported and bef
     "await import('@rathnasgala2/adapter-",
   );
   const kernelRun = main.indexOf('await runKernelDeployment(');
-  assert.ok(agreement > 0, 'main() requires the agreement');
+  assert.ok(agreement > 0, 'deploy() requires the agreement');
   assert.ok(firstAdapterImport > 0 && kernelRun > 0);
   assert.ok(
     agreement < firstAdapterImport,

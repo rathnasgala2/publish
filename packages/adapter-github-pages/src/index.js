@@ -195,11 +195,48 @@ export async function describeCapabilities(destination) {
 }
 
 /**
+ * The classified failure the adapter reports when the public origin answers
+ * with a redirect instead of the route: the destination's `publicBaseUrl` no
+ * longer names the host that serves the site (typically a custom domain was
+ * attached while the repository still carries the `github.io` base). The
+ * adapter follows no redirect, so it cannot tell what the origin serves.
+ *
+ * @typedef {Readonly<{
+ *   code: 'PAGES_PUBLIC_REDIRECT',
+ *   toHost: string | null,
+ *   location: string | null
+ * }>} PublicRedirectFailure
+ */
+
+/**
+ * @param {{toHost?: string | null, location?: string | null}} redirect a
+ *   `'redirect'` public read
+ * @returns {PublicRedirectFailure} the classified failure
+ */
+function publicRedirectFailure(redirect) {
+  return Object.freeze({
+    code: /** @type {const} */ ('PAGES_PUBLIC_REDIRECT'),
+    toHost: redirect.toHost ?? null,
+    location: redirect.location ?? null,
+  });
+}
+
+/**
+ * @param {PublicRedirectFailure} failure the classified failure
+ * @returns {string} the finding that states it
+ */
+function publicRedirectFinding(failure) {
+  return `${failure.code}: the public origin answered with a redirect to ${failure.toHost ?? 'a target it did not name as an http(s) URL'} instead of serving the route; the site's base URL no longer names the host that serves it, so set the base URL to the redirect target and publish again`;
+}
+
+/**
  * Read the generation identity the public origin currently serves, or
- * `null` when nothing has ever been activated.
+ * `null` when nothing has ever been activated. A redirecting origin is
+ * reported as the `PAGES_PUBLIC_REDIRECT` failure with the generation
+ * unknown, never thrown.
  *
  * @param {PagesDestination} destination the bound destination
- * @returns {Promise<{generationId: string | null, artifactDigest: string | null, findings: string[]}>}
+ * @returns {Promise<{generationId: string | null, artifactDigest: string | null, findings: string[], failure?: PublicRedirectFailure}>}
  *   the observed public generation
  */
 async function readServedGeneration(destination) {
@@ -207,6 +244,15 @@ async function readServedGeneration(destination) {
     publicContextFor(destination),
     GENERATION_MARKER_PATH,
   );
+  if (observation.status === 'redirect') {
+    const failure = publicRedirectFailure(observation);
+    return {
+      generationId: null,
+      artifactDigest: null,
+      findings: [publicRedirectFinding(failure)],
+      failure,
+    };
+  }
   if (observation.status === 404) {
     return { generationId: null, artifactDigest: null, findings: [] };
   }
@@ -244,7 +290,8 @@ async function readServedGeneration(destination) {
  *   retainedHistory: readonly Readonly<Record<string, unknown>>[],
  *   releaseGenerationsOnDisk: readonly string[],
  *   providerSiteObserved: boolean,
- *   findings: readonly string[]
+ *   findings: readonly string[],
+ *   failure?: PublicRedirectFailure
  * }>>} the inspection result
  */
 export async function inspectDestination(destination) {
@@ -277,6 +324,7 @@ export async function inspectDestination(destination) {
     ),
     providerSiteObserved,
     findings: Object.freeze(findings),
+    ...(served.failure === undefined ? {} : { failure: served.failure }),
   });
 }
 
@@ -790,7 +838,8 @@ export async function activate(input) {
  *   currentGenerationId: string | null,
  *   markerValid: boolean,
  *   claimsCompleteInventory: false,
- *   findings: readonly string[]
+ *   findings: readonly string[],
+ *   failure?: PublicRedirectFailure
  * }>>} the observation result
  */
 export async function observe(input) {
@@ -822,7 +871,12 @@ export async function observe(input) {
     )?.entryPaths;
   /** @type {string | null} */
   let observedArtifactDigest = null;
-  if (entryPaths === undefined) {
+  /** @type {PublicRedirectFailure | undefined} */
+  let failure = served.failure;
+  if (failure !== undefined) {
+    // The origin redirects, so every route would redirect too: say so once
+    // instead of asking for each of them.
+  } else if (entryPaths === undefined) {
     findings.push(
       'this run did not stage the observed generation, so its route inventory cannot be verified here',
     );
@@ -832,6 +886,11 @@ export async function observe(input) {
     const entries = [];
     for (const entryPath of entryPaths) {
       const read = await readPublic(publicContext, entryPath);
+      if (read.status === 'redirect') {
+        failure = publicRedirectFailure(read);
+        findings.push(`${entryPath}: ${publicRedirectFinding(failure)}`);
+        break;
+      }
       if (read.status !== 200 || read.bytes === null) {
         findings.push(`${entryPath}: public read returned HTTP ${read.status}`);
         continue;
@@ -853,6 +912,7 @@ export async function observe(input) {
     markerValid,
     claimsCompleteInventory: /** @type {false} */ (false),
     findings: Object.freeze(findings),
+    ...(failure === undefined ? {} : { failure }),
   });
 }
 

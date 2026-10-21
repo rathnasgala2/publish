@@ -157,6 +157,9 @@ export function describeCapabilities(context) {
     configuration: {
       redirects: false,
       headers: false,
+      // No custom-domain configuration or serving. A base URL that names a
+      // host the site has since moved away from is reported by the public
+      // reads as `PAGES_PUBLIC_REDIRECT`, never followed or configured.
       customDomains: false,
       notFoundBehavior: ROW.notFoundBehavior,
       immutableCaching: false,

@@ -10,6 +10,16 @@ and this project adheres to
 
 ### Fixed
 
+- A redirecting public origin no longer throws out of the lifecycle. A site
+  whose repository still carried the `github.io` base after moving to a custom
+  domain made the public read's `redirect: 'error'` fetch throw (production
+  incident 2026-10-21), so the run died without a journal. `readPublic` now
+  returns `{status: 'redirect', toHost, location}` (the `Location` is read with
+  one extra credential-free `redirect: 'manual'` request, still followed
+  nowhere, bounded to ten seconds, body cancelled, http(s) targets only, and
+  only undici's exact refused-redirect error counts); `inspectDestination` and
+  `observe` carry `failure: {code: 'PAGES_PUBLIC_REDIRECT', toHost, location}`
+  and a `PAGES_PUBLIC_REDIRECT:` finding, and `preflight` refuses with it.
 - Accept GitHub's `deployment_queued` Pages deployment status as temporary (keep
   polling). It is in GitHub's REST reference but was missing from the accepted
   vocabulary, so a real publish on 2026-10-06 stopped with

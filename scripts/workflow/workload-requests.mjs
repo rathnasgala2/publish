@@ -16,6 +16,8 @@ import {
   MAXIMUM_REQUEST_BYTES,
   MAXIMUM_VERIFICATION_ENTRIES,
   validateExchangeRequest,
+  validateJournalAbsentSubmission,
+  validateJournalPresentSubmission,
   validateReceiptSubmission,
 } from './workload-contract.mjs';
 import {
@@ -312,11 +314,71 @@ export function buildReceiptExchangeRequest(input) {
  *   workflowStartedAt: string,
  *   workflowCompletedAt: string,
  *   destinationGenerationId?: string,
- *   destinationReceiptDigest?: string
- * }} input the submission facts
+ *   destinationReceiptDigest?: string,
+ *   failure?: {failureCode: string, stage?: string, toHost?: string}
+ * }} input the submission facts; `failure` is the deploy's classified failure,
+ *   stated beside the journal as `deployFailure: {journal: 'present', ...}`
  * @returns {Record<string, unknown>} the validated submission
  */
 export function buildReceiptSubmission(input) {
+  const submission = {
+    ...submissionBase(input),
+    kernelJournal: {
+      attempts: input.journal.attempts,
+      observations: input.journal.observations,
+    },
+    ...(input.failure === undefined
+      ? {}
+      : { deployFailure: { journal: 'present', ...input.failure } }),
+  };
+  if (input.failure === undefined) {
+    validateReceiptSubmission(submission);
+  } else {
+    validateJournalPresentSubmission(submission);
+  }
+  assertSubmissionFits(submission);
+  return submission;
+}
+
+/**
+ * Build the journal-less failure submission: the same bounded facts as
+ * `buildReceiptSubmission`, with `deployFailure` in place of a
+ * `kernelJournal`, for a failed deploy that produced no kernel journal (the
+ * job died before the kernel ran, or its journal could not be written or
+ * uploaded). It states only that the journal is absent, the failure code and,
+ * when known, the stage; the deploy's own error text stays in the job log.
+ *
+ * @param {Omit<Parameters<typeof buildReceiptSubmission>[0], 'journal' | 'destinationGenerationId' | 'destinationReceiptDigest' | 'failure'> & {
+ *   failureCode: string,
+ *   stage?: string,
+ *   toHost?: string
+ * }} input the submission facts and the failure
+ * @returns {Record<string, unknown>} the validated submission
+ */
+export function buildJournalAbsentSubmission(input) {
+  const submission = {
+    ...submissionBase(input),
+    deployFailure: {
+      journal: 'absent',
+      failureCode: input.failureCode,
+      ...(input.stage === undefined ? {} : { stage: input.stage }),
+      ...(input.toHost === undefined ? {} : { toHost: input.toHost }),
+    },
+  };
+  validateJournalAbsentSubmission(submission);
+  assertSubmissionFits(submission);
+  return submission;
+}
+
+/**
+ * The submission members both shapes share: everything quoted from the
+ * retained intent or the run, and neither evidence stream.
+ *
+ * @param {Omit<Parameters<typeof buildReceiptSubmission>[0], 'journal' | 'failure'>} input
+ *   the submission facts
+ * @returns {Record<string, unknown>} the shared members
+ */
+function submissionBase(input) {
   const intent = input.intent;
   const adapter = /** @type {Record<string, unknown>} */ (
     required(intent, 'adapter')
@@ -358,10 +420,6 @@ export function buildReceiptSubmission(input) {
     observedRoutes: [...input.observedRoutes],
     workflowStartedAt: input.workflowStartedAt,
     workflowCompletedAt: input.workflowCompletedAt,
-    kernelJournal: {
-      attempts: input.journal.attempts,
-      observations: input.journal.observations,
-    },
   };
   if (input.destinationGenerationId !== undefined) {
     submission.destinationGenerationId = input.destinationGenerationId;
@@ -369,9 +427,6 @@ export function buildReceiptSubmission(input) {
   if (input.destinationReceiptDigest !== undefined) {
     submission.destinationReceiptDigest = input.destinationReceiptDigest;
   }
-
-  validateReceiptSubmission(submission);
-  assertSubmissionFits(submission);
   return submission;
 }
 
@@ -388,10 +443,10 @@ export function buildReceiptSubmission(input) {
  *   two measured sizes
  */
 export function assertSubmissionFits(submission, intentRequestBound) {
-  const journalBytes = Buffer.byteLength(
-    JSON.stringify(submission.kernelJournal),
-    'utf8',
-  );
+  const journalBytes =
+    submission.kernelJournal === undefined
+      ? 0
+      : Buffer.byteLength(JSON.stringify(submission.kernelJournal), 'utf8');
   if (journalBytes > MAXIMUM_KERNEL_JOURNAL_BYTES) {
     throw new Error(
       `REPORT_KERNEL_JOURNAL_TOO_LARGE: ${journalBytes} bytes exceed ${MAXIMUM_KERNEL_JOURNAL_BYTES}`,
