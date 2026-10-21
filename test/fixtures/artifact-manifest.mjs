@@ -307,7 +307,7 @@ export function manifestFor(files, options = {}) {
  * (`build-facts.mjs`): the real `build-input:2.0.0` `publish-action`'s own
  * normalizer produces from the minimal repository with its lock re-pointed
  * at one adapter, and the real `theme-contract:2.0.0` of the theme package
- * that lock pins (the `theme-editorial` sibling). Computed once per adapter;
+ * that lock pins (the `theme-default` sibling). Computed once per adapter;
  * a manifest tied to them is `manifestFor(files, {buildInputDigest})`.
  *
  * @param {string} [adapterPackage] the adapter package the lock selects
@@ -332,7 +332,7 @@ export async function fixtureBuildFacts(adapterPackage) {
     );
     const themeContract = JSON.parse(
       await readFile(
-        path.join(resolveWorkspaceSibling('theme-editorial'), 'theme.json'),
+        path.join(resolveWorkspaceSibling('theme-default'), 'theme.json'),
         'utf8',
       ),
     );

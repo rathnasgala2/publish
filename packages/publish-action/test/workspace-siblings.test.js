@@ -70,8 +70,8 @@ test('resolveWorkspaceRoot: defaults to process.env when no env is passed', () =
 
 test('resolveWorkspaceSibling: joins the resolved workspace root with the sibling name (default)', () => {
   assert.equal(
-    resolveWorkspaceSibling('theme-editorial', {}),
-    path.join(EXPECTED_DEFAULT_WORKSPACE_ROOT, 'theme-editorial'),
+    resolveWorkspaceSibling('theme-default', {}),
+    path.join(EXPECTED_DEFAULT_WORKSPACE_ROOT, 'theme-default'),
   );
 });
 

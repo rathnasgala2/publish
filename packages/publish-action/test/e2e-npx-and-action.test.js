@@ -8,9 +8,9 @@
  *    (loopback only, port 0) and never deploys (no destination directory is
  *    ever touched by `preview`).
  * 3. (S2-T20b) The fixture repository's `gala.lock.json` declares
- *    `@rathnasgala2/theme-editorial`; `build`'s output carries
+ *    `@rathnasgala2/theme-default`; `build`'s output carries
  *    `assets/theme/tokens.css`/`components.css`/`print.css`, byte-equal to
- *    the real `theme-editorial` sibling package's own files, and every
+ *    the real `theme-default` sibling package's own files, and every
  *    rendered page's `<head>` links them in `cssLayers` order.
  *
  * The fixture author repository lives at `test/fixtures/minimal-repository`
@@ -50,7 +50,7 @@ const FIXTURE_REPOSITORY = path.resolve(
  * right place from a git worktree, per LOCAL-38), rather than a hardcoded
  * path that could drift from it.
  */
-const THEME_EDITORIAL_DIRECTORY = resolveWorkspaceSibling('theme-editorial');
+const THEME_DIRECTORY = resolveWorkspaceSibling('theme-default');
 
 /**
  * @returns {Promise<{tmp: string, cleanup: () => Promise<void>}>} a fresh
@@ -171,7 +171,7 @@ test('build -> Action-path deploy to a temp local-directory root: served bytes e
     assert.match(themeContract.stylingContractDigest, /^sha256:[0-9a-f]{64}$/u);
 
     // S2-T20b: the theme package `gala.lock.json` pins
-    // (`@rathnasgala2/theme-editorial`) was resolved, verified and its
+    // (`@rathnasgala2/theme-default`) was resolved, verified and its
     // declared stylesheets copied into the candidate output byte-equal to
     // the real theme package's own files.
     for (const stylesheet of ['tokens.css', 'components.css', 'print.css']) {
@@ -183,7 +183,7 @@ test('build -> Action-path deploy to a temp local-directory root: served bytes e
         ),
       );
       const themePackageBytes = await readFile(
-        path.join(THEME_EDITORIAL_DIRECTORY, stylesheet),
+        path.join(THEME_DIRECTORY, stylesheet),
       );
       assert.ok(
         rendered.equals(themePackageBytes),
@@ -263,10 +263,7 @@ test("build: every generated page <head> links the resolved theme package's styl
     );
 
     const themeContract = JSON.parse(
-      await readFile(
-        path.join(THEME_EDITORIAL_DIRECTORY, 'theme.json'),
-        'utf8',
-      ),
+      await readFile(path.join(THEME_DIRECTORY, 'theme.json'), 'utf8'),
     );
     // `template@2.1.0` (TPL-M1) adds `integrity="sha256-…"` and
     // `crossorigin="anonymous"` to every theme stylesheet `<link>`, derived
@@ -431,7 +428,7 @@ test('a local preview build followed by the Action deploying into the same outpu
           path.join(releaseDirectory, 'assets/theme', stylesheet),
         );
         const themePackageBytes = await readFile(
-          path.join(THEME_EDITORIAL_DIRECTORY, stylesheet),
+          path.join(THEME_DIRECTORY, stylesheet),
         );
         assert.ok(
           deployed.equals(themePackageBytes),

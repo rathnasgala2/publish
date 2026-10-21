@@ -33,7 +33,7 @@ import {
 
 /** @type {{package: string, version: string, integrity: string, registry: string}} */
 const FAKE_THEME = Object.freeze({
-  package: '@rathnasgala2/theme-editorial',
+  package: '@rathnasgala2/theme-default',
   version: '4.0.0',
   integrity: `sha256:${'a'.repeat(64)}`,
   registry: 'https://registry.npmjs.org',

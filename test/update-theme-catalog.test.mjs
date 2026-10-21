@@ -22,21 +22,23 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LOCK_PROFILE = /** @type {any} */ (ACTIVE_DIGEST_PROFILES.lock);
-const EDITORIAL = '@rathnasgala2/theme-editorial';
-const DEFAULT = '@rathnasgala2/theme-default';
+/** The theme the fixture lock pins. */
+const FIXTURE_THEME = '@rathnasgala2/theme-default';
+/** A cataloged theme the fixture lock does not pin. */
+const OTHER_THEME = '@rathnasgala2/theme-editorial';
 const HEX = 'b'.repeat(64);
 const digest = (/** @type {object} */ lock) => LOCK_PROFILE.digest(lock);
 
 test('the lock rewrite moves the named theme, schemas and template and keeps lockDigest authentic', async () => {
   const text = await readFile(path.join(ROOT, FIXTURE_LOCK_PATH), 'utf8');
   const update = {
-    themes: [{ package: EDITORIAL, version: '4.2.0', hex: HEX }],
+    themes: [{ package: FIXTURE_THEME, version: '4.3.0', hex: HEX }],
     schemas: '3.11.0',
     template: '4.2.0',
   };
   const next = rewriteThemeLockText(text, update, digest);
   const lock = JSON.parse(next);
-  assert.equal(lock.theme.version, '4.2.0');
+  assert.equal(lock.theme.version, '4.3.0');
   assert.equal(lock.theme.integrity, `sha256:${HEX}`);
   assert.equal(lock.schemas.version, '3.11.0');
   assert.equal(lock.template.version, '4.2.0');
@@ -51,7 +53,7 @@ test('a theme row for another package leaves the lock theme alone', async () => 
   const lock = JSON.parse(
     rewriteThemeLockText(
       text,
-      { themes: [{ package: DEFAULT, version: '4.2.0', hex: HEX }] },
+      { themes: [{ package: OTHER_THEME, version: '4.2.0', hex: HEX }] },
       digest,
     ),
   );
@@ -62,8 +64,8 @@ test('a theme row for another package leaves the lock theme alone', async () => 
 test('malformed versions and digests are refused', async () => {
   const text = await readFile(path.join(ROOT, FIXTURE_LOCK_PATH), 'utf8');
   for (const update of [
-    { themes: [{ package: EDITORIAL, version: 'v4', hex: HEX }] },
-    { themes: [{ package: EDITORIAL, version: '4.1.0', hex: 'abc' }] },
+    { themes: [{ package: FIXTURE_THEME, version: 'v4', hex: HEX }] },
+    { themes: [{ package: FIXTURE_THEME, version: '4.2.0', hex: 'abc' }] },
     { themes: [], schemas: '3.x' },
   ]) {
     assert.throws(() => rewriteThemeLockText(text, update, digest), /invalid/u);
@@ -85,7 +87,7 @@ test('the catalog command rewrites the theme catalog and the fixture lock of a c
       '3.11.0',
       '--template',
       '4.2.0',
-      `${EDITORIAL}=4.2.0=${HEX}`,
+      `${FIXTURE_THEME}=4.2.0=${HEX}`,
     ]);
     const catalog = await readFile(path.join(root, THEME_CATALOG_PATH), 'utf8');
     const lock = JSON.parse(

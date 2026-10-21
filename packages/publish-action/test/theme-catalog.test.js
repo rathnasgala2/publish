@@ -18,6 +18,8 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixtures/minimal-repository');
+/** The theme the fixture repository selects (`gala/appearance.json`). */
+const FIXTURE_THEME = '@rathnasgala2/theme-default';
 const WORKSPACE_ROOT =
   process.env.WORKSPACE_ROOT ?? path.resolve(HERE, '../../../..');
 process.env.WORKSPACE_ROOT = WORKSPACE_ROOT;
@@ -70,6 +72,25 @@ async function fixtureSelecting(lockPackage, appearancePackage) {
 const TEMPLATE_VERSION = JSON.parse(
   await readFile(path.join(WORKSPACE_ROOT, 'template', 'package.json'), 'utf8'),
 ).version;
+
+/**
+ * The styling contract version the installed template publishes
+ * (`contracts/theme-styling-contract.jcs`, canonical JSON). A theme whose
+ * catalog `contractVersion` differs is refused by the template at the
+ * asset stage with `THEME_CONTRACT_VERSION_MISMATCH`, whatever its package
+ * version.
+ */
+const STYLING_CONTRACT_VERSION = JSON.parse(
+  await readFile(
+    path.join(
+      WORKSPACE_ROOT,
+      'template',
+      'contracts',
+      'theme-styling-contract.jcs',
+    ),
+    'utf8',
+  ),
+).contractVersion;
 
 /**
  * @param {string} version a `major.minor.patch` version
@@ -209,8 +230,8 @@ test('repository intake rejects every schema-admitted catalog value drift before
     compatibleWith: '^9.9.9',
   })) {
     const { dir, cleanup } = await fixtureSelecting(
-      '@rathnasgala2/theme-editorial',
-      '@rathnasgala2/theme-editorial',
+      FIXTURE_THEME,
+      FIXTURE_THEME,
     );
     try {
       await editJson(dir, 'gala.lock.json', (lock) => {
@@ -229,7 +250,7 @@ test('repository intake rejects every schema-admitted catalog value drift before
 });
 
 for (const entry of THEME_CATALOG) {
-  test(`build with ${entry.package} selected consistently renders that theme's CSS`, async () => {
+  test(`build with ${entry.package} selected consistently renders that theme's CSS, or is refused at the template's styling contract`, async () => {
     const { dir, cleanup } = await fixtureSelecting(
       entry.package,
       entry.package,
@@ -241,6 +262,18 @@ for (const entry of THEME_CATALOG) {
         outputDirectory: path.join(out, 'output'),
         workDirectory: path.join(out, 'work'),
       });
+      if (entry.contractVersion !== STYLING_CONTRACT_VERSION) {
+        // The catalog row is admitted and resolves to the installed package
+        // (no identity mismatch), but the template refuses its contract before
+        // any site is rendered; the row builds once its release moves to the
+        // template's styling contract.
+        assert.equal(result.resultCode, 'UNSAFE_INPUT');
+        assert.match(
+          JSON.stringify(result.findings),
+          /THEME_CONTRACT_VERSION_MISMATCH/u,
+        );
+        return;
+      }
       assert.equal(
         result.resultCode,
         'SUCCESS',
@@ -306,10 +339,7 @@ test('appearance.json naming a different theme than the lock is refused with THE
 });
 
 test('intake rejects a lockDigest that does not authenticate the complete lock', async () => {
-  const { dir, cleanup } = await fixtureSelecting(
-    '@rathnasgala2/theme-editorial',
-    '@rathnasgala2/theme-editorial',
-  );
+  const { dir, cleanup } = await fixtureSelecting(FIXTURE_THEME, FIXTURE_THEME);
   try {
     await editJson(dir, 'gala.lock.json', (lock) => {
       lock.lockDigest = `sha256:${'f'.repeat(64)}`;

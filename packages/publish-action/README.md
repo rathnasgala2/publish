@@ -378,9 +378,9 @@ every generated page's `<head>` (see `v2/template`'s README, S2-T12 section, for
 that consuming side's own path-containment and `basePath`-joining guarantees).
 The catalog test checks every row against the lockfile's registry resolution.
 The fixture repository's `gala.lock.json` pins
-`@rathnasgala2/theme-editorial@4.1.0`; `test/e2e-npx-and-action.test.js` asserts
+`@rathnasgala2/theme-default@4.2.0`; `test/e2e-npx-and-action.test.js` asserts
 the rendered `assets/theme/tokens.css`/`components.css`/`print.css` are
-byte-equal to the installed `theme-editorial` package's own files, and that the
+byte-equal to the installed `theme-default` package's own files, and that the
 rendered `<link>` order matches `theme.json`'s `cssLayers`.
 
 ## Sibling-repository resolution and `WORKSPACE_ROOT` (FOLLOW-UP SUPPLY-CHAIN-JS)
