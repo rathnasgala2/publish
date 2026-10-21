@@ -2136,3 +2136,82 @@ test('the Action keeps a dropped edition as a warning on its successful result',
     await rm(work, { recursive: true, force: true });
   }
 });
+
+const VALID_ANALYTICS_CONFIG = {
+  schemaId: 'urn:gala:schema:analytics-config:2.0.0',
+  schemaVersion: '2.0.0',
+  provider: { kind: 'google-analytics-4', measurementId: 'G-ABC123XYZ' },
+  consent: { policy: 'opt-in' },
+};
+
+/**
+ * @param {string} dir a mutable fixture copy
+ * @param {unknown} document the analytics.json content
+ * @returns {Promise<void>} resolves once written
+ */
+async function writeAnalyticsConfig(dir, document) {
+  await mkdir(path.join(dir, 'gala/modules'), { recursive: true });
+  await writeFile(
+    path.join(dir, 'gala/modules/analytics.json'),
+    typeof document === 'string' ? document : JSON.stringify(document),
+  );
+}
+
+test('an absent analytics.json leaves no modules.analytics member', async () => {
+  const buildInput = /** @type {any} */ (
+    await buildBuildInputFromRepository({
+      repositoryDirectory: FIXTURE_REPOSITORY,
+      env: {},
+    })
+  );
+  assert.equal('analytics' in buildInput.modules, false);
+});
+
+test('a valid analytics.json sets modules.analytics.config', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await writeAnalyticsConfig(dir, VALID_ANALYTICS_CONFIG);
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    assert.deepEqual(buildInput.modules.analytics, {
+      config: VALID_ANALYTICS_CONFIG,
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+/** @type {[string, (config: any) => void][]} */
+const INVALID_ANALYTICS_MUTATIONS = [
+  ['bad measurementId', (c) => (c.provider.measurementId = 'UA-123')],
+  ['unknown top-level property', (c) => (c.extra = true)],
+  ['unknown provider property', (c) => (c.provider.extra = true)],
+  ['unknown consent policy', (c) => (c.consent.policy = 'always')],
+];
+
+for (const [rule, mutate] of INVALID_ANALYTICS_MUTATIONS) {
+  test(`analytics.json violating "${rule}" is a build error naming the file`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      const config = structuredClone(VALID_ANALYTICS_CONFIG);
+      mutate(config);
+      await writeAnalyticsConfig(dir, config);
+      await assert.rejects(
+        buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+        (/** @type {SchemaValidationError} */ error) => {
+          assert.ok(error instanceof SchemaValidationError);
+          assert.equal(error.location, 'gala/modules/analytics.json');
+          assert.equal(
+            error.schemaId,
+            'urn:gala:schema:analytics-config:2.0.0',
+          );
+          assert.ok(error.diagnostics.length > 0);
+          return true;
+        },
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+}

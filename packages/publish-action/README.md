@@ -274,6 +274,15 @@ file, `modules` stays `{}`.
 The managed workflow passes `GALA_API_ORIGIN` from its `gala_api_origin` input,
 and `scripts/sandbox-build.sh` forwards both variables into the sandbox.
 
+## Analytics module
+
+When `<repository.json "modules">/analytics.json` (normally
+`gala/modules/analytics.json`) exists, intake validates it against
+`urn:gala:schema:analytics-config:2.0.0` (a failure is a build error naming the
+file and the failing rule; the schema is closed, so there are no further checks)
+and sets `build-input.modules.analytics = {config}`. With no file there is no
+`analytics` member. Intake requires `@rathnasgala2/schemas` 3.16.0 or later.
+
 ## Theme resolution (S2-T20b)
 
 `gala.lock.json`'s `theme` entry (`buildInput.packages.theme`, the sole

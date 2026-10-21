@@ -70,7 +70,9 @@
  * fixture that sets any of them is rejected with a typed finding rather than
  * silently dropped); `placements` is always empty and `modules` carries only
  * `interactions` (read from `<repository.json "modules">/interactions.json`
- * when that file exists), matching S2's closed scope. A future task that needs the fuller author-repository
+ * when that file exists) and `analytics` (read from
+ * `<repository.json "modules">/analytics.json` when that file exists),
+ * matching S2's closed scope. A future task that needs the fuller author-repository
  * surface should replace this module rather than extend it ad hoc.
  *
  * **Content media** (`content-media.js`): every repository file that a
@@ -147,6 +149,7 @@ const SCHEMA = Object.freeze({
   contentFrontmatter: 'urn:gala:schema:content-frontmatter:2.0.0',
   buildInput: 'urn:gala:schema:build-input:2.0.0',
   interactionsConfig: 'urn:gala:schema:interactions-config:2.0.0',
+  analyticsConfig: 'urn:gala:schema:analytics-config:2.0.0',
 });
 
 const DEFAULT_INTERACTIONS_API_ORIGIN = 'https://api.galascribe.com';
@@ -354,6 +357,36 @@ async function readInteractionsModule(
       DEFAULT_INTERACTIONS_APP_ORIGIN,
     ),
   };
+}
+
+/**
+ * Read `<modules directory>/analytics.json` when it exists. The schema is
+ * closed, so schema validation is the only check.
+ *
+ * @param {string} repositoryDirectory absolute repository root
+ * @param {string} modulesDirectory `repository.json`'s `modules` path
+ * @returns {Promise<{config: unknown} | null>} the module selection, or `null`
+ *   when the file is absent
+ */
+async function readAnalyticsModule(repositoryDirectory, modulesDirectory) {
+  const relativePath = path.posix.join(
+    modulesDirectory.replace(/\\/gu, '/'),
+    'analytics.json',
+  );
+  try {
+    await stat(path.join(repositoryDirectory, relativePath));
+  } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT') {
+      return null;
+    }
+    throw error;
+  }
+  const doc = await readValidatedJson(
+    repositoryDirectory,
+    relativePath,
+    SCHEMA.analyticsConfig,
+  );
+  return { config: doc.document };
 }
 
 /**
@@ -901,6 +934,10 @@ export async function buildBuildInputFromRepository({
     repository.document.modules,
     env,
   );
+  const analytics = await readAnalyticsModule(
+    repositoryDirectory,
+    repository.document.modules,
+  );
 
   // --- repository / rootDigest -----------------------------------------------
   const repositoryFiles = await listRepositoryFiles(repositoryDirectory);
@@ -963,7 +1000,10 @@ export async function buildBuildInputFromRepository({
           }
         : {}),
     },
-    modules: interactions ? { interactions } : {},
+    modules: {
+      ...(interactions ? { interactions } : {}),
+      ...(analytics ? { analytics } : {}),
+    },
     buildEpoch,
     baseUrl: publication.canonicalBase,
     basePath: '/',

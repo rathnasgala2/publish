@@ -10,6 +10,11 @@ and this project adheres to
 
 ### Added
 
+- Repository intake reads an optional `gala/modules/analytics.json`, validates
+  it against `analytics-config:2.0.0` and carries it into the build input as
+  `modules.analytics = {config}` (absent file, no member; a malformed file is a
+  schema-validation build error like `interactions.json`). It requires
+  `@rathnasgala2/schemas` 3.16.0; the exact pin moves at release.
 - Repository intake supports the advanced-SEO inputs: `publication.json`
   `defaultImageRef` becomes `publication.defaultImage`, `appearance.json`
   `brandMark`/`wordmark` become `appearance.brandMark`/`wordmark`, and content
