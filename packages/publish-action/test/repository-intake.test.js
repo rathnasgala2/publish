@@ -16,6 +16,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  symlink,
   truncate,
   writeFile,
 } from 'node:fs/promises';
@@ -43,6 +44,7 @@ import {
   resolveSourceRevision,
 } from '../src/normalize/source-revision.js';
 import { SchemaValidationError } from '../src/schema.js';
+import { currentRenderPolicyIdentity } from '../src/template-bridge.js';
 import { imageBytes } from './image-bytes.js';
 
 const FIXTURE_REPOSITORY = path.resolve(
@@ -2206,6 +2208,236 @@ for (const [rule, mutate] of INVALID_ANALYTICS_MUTATIONS) {
             error.schemaId,
             'urn:gala:schema:analytics-config:2.0.0',
           );
+          assert.ok(error.diagnostics.length > 0);
+          return true;
+        },
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+const POLICY_TEXT = Object.freeze({
+  terms: '# Terms\n\nBy reading this site you agree to these terms.\n',
+  privacy: '# Privacy\n\nWe keep as little reader data as we can.\n',
+});
+
+/**
+ * @returns {{terms: {title: string, body: string}, privacy: {title: string, body: string}}}
+ *   a valid `publication.json` `policies` member
+ */
+function authoredPolicies() {
+  return {
+    terms: { title: 'Terms of use', body: 'gala/policies/terms.md' },
+    privacy: { title: 'Privacy notice', body: 'gala/policies/privacy.md' },
+  };
+}
+
+/**
+ * Write both policy Markdown files at the paths `authoredPolicies` names.
+ *
+ * @param {string} dir the mutable repository copy
+ * @returns {Promise<void>} resolves once written
+ */
+async function addPolicyFiles(dir) {
+  await addFile(dir, 'gala/policies/terms.md', POLICY_TEXT.terms);
+  await addFile(dir, 'gala/policies/privacy.md', POLICY_TEXT.privacy);
+}
+
+test('an absent publication.policies leaves no build-input.policies member', async () => {
+  const buildInput = /** @type {any} */ (
+    await buildBuildInputFromRepository({
+      repositoryDirectory: FIXTURE_REPOSITORY,
+      env: {},
+    })
+  );
+  assert.equal('policies' in buildInput, false);
+});
+
+test('publication.policies renders both Markdown files into build-input.policies', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addPolicyFiles(dir);
+    await setPublication(dir, { policies: authoredPolicies() });
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    const renderPolicy = await currentRenderPolicyIdentity();
+    assert.deepEqual(Object.keys(buildInput.policies).sort(), [
+      'privacy',
+      'terms',
+    ]);
+    const expected = /** @type {const} */ ([
+      [
+        'terms',
+        'Terms of use',
+        'gala/policies/terms.md',
+        'agree to these terms',
+      ],
+      [
+        'privacy',
+        'Privacy notice',
+        'gala/policies/privacy.md',
+        'as little reader data as we can',
+      ],
+    ]);
+    for (const [key, title, sourcePath, sentence] of expected) {
+      const page = buildInput.policies[key];
+      assert.deepEqual(Object.keys(page).sort(), ['body', 'title']);
+      assert.equal(page.title, title);
+      assert.equal(page.body.sourcePath, sourcePath);
+      assert.equal(page.body.bodyMediaType, 'text/html');
+      assert.ok(page.body.body.length > 0);
+      assert.ok(page.body.body.includes(sentence), page.body.body);
+      assert.equal(
+        page.body.sourceDigest,
+        digestOf(Buffer.from(POLICY_TEXT[key], 'utf8')),
+      );
+      assert.match(page.body.bodyDigest, /^sha256:[0-9a-f]{64}$/u);
+      assert.deepEqual(page.body.renderPolicy, renderPolicy);
+    }
+    // A policy page is not a content record.
+    const contentPaths = buildInput.content.map(
+      (/** @type {{sourcePath: string}} */ record) => record.sourcePath,
+    );
+    assert.deepEqual(contentPaths, ['content/hello-world.md']);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a policy body that does not exist or is not a regular file is POLICY_BODY_MISSING naming the page', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addFile(dir, 'gala/policies/terms.md', POLICY_TEXT.terms);
+    await setPublication(dir, { policies: authoredPolicies() });
+    const findings = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.code, 'POLICY_BODY_MISSING');
+    assert.equal(findings[0]?.severity, 'SOURCE_ERROR');
+    assert.equal(findings[0]?.location, 'gala/publication.json');
+    assert.match(findings[0]?.detail ?? '', /policies\.privacy\.body/u);
+    assert.deepEqual(findings[0]?.evidence, {
+      policy: 'privacy',
+      path: 'gala/policies/privacy.md',
+    });
+
+    // A directory where the file should be is not a regular file either, and
+    // both pages are reported together.
+    await rm(path.join(dir, 'gala/policies/terms.md'));
+    await mkdir(path.join(dir, 'gala/policies/terms.md'));
+    const both = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    const codes = both.map((finding) => finding.code);
+    assert.deepEqual(codes, ['POLICY_BODY_MISSING', 'POLICY_BODY_MISSING']);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a policy body that is not a .md file is POLICY_BODY_UNSUPPORTED_TYPE', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addPolicyFiles(dir);
+    await addFile(dir, 'gala/policies/terms.txt', POLICY_TEXT.terms);
+    const policies = authoredPolicies();
+    policies.terms.body = 'gala/policies/terms.txt';
+    await setPublication(dir, { policies });
+    const findings = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.code, 'POLICY_BODY_UNSUPPORTED_TYPE');
+    assert.equal(findings[0]?.severity, 'SOURCE_ERROR');
+    assert.match(findings[0]?.detail ?? '', /policies\.terms\.body/u);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a policy body that links to a file outside the repository is POLICY_BODY_UNSUPPORTED_TYPE', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  const outside = await mkdtemp(path.join(tmpdir(), 'gala-policy-outside-'));
+  try {
+    await addFile(dir, 'gala/policies/terms.md', POLICY_TEXT.terms);
+    await writeFile(path.join(outside, 'privacy.md'), POLICY_TEXT.privacy);
+    await mkdir(path.join(dir, 'gala/policies'), { recursive: true });
+    await symlink(
+      path.join(outside, 'privacy.md'),
+      path.join(dir, 'gala/policies/privacy.md'),
+    );
+    await setPublication(dir, { policies: authoredPolicies() });
+    await rejectsWithFindingCode(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+      'POLICY_BODY_UNSUPPORTED_TYPE',
+    );
+  } finally {
+    await cleanup();
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test('a policy body whose rendered HTML has an image is POLICY_BODY_IMAGE_UNSUPPORTED', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addPolicyFiles(dir);
+    for (const reference of [
+      '![Our logo](assets/logo.png)',
+      '![Remote](https://example.invalid/logo.png)',
+    ]) {
+      await addFile(
+        dir,
+        'gala/policies/terms.md',
+        `${POLICY_TEXT.terms}\n${reference}\n`,
+      );
+      await setPublication(dir, { policies: authoredPolicies() });
+      const findings = await intakeFindings(
+        buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+      );
+      assert.equal(findings.length, 1);
+      assert.equal(findings[0]?.code, 'POLICY_BODY_IMAGE_UNSUPPORTED');
+      assert.equal(findings[0]?.severity, 'SOURCE_ERROR');
+      assert.equal(findings[0]?.location, 'gala/policies/terms.md');
+      assert.deepEqual(findings[0]?.evidence, {
+        policy: 'terms',
+        path: 'gala/policies/terms.md',
+        images: 1,
+      });
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+/** @type {[string, (policies: any) => void][]} */
+const INVALID_POLICIES_MUTATIONS = [
+  [
+    'unknown page',
+    (policies) => (policies.imprint = { title: 'Imprint', body: 'imprint.md' }),
+  ],
+  ['unknown page member', (policies) => (policies.terms.extra = true)],
+  ['missing privacy page', (policies) => delete policies.privacy],
+  ['empty title', (policies) => (policies.terms.title = '')],
+];
+
+for (const [rule, mutate] of INVALID_POLICIES_MUTATIONS) {
+  test(`publication.policies violating "${rule}" is a schema refusal naming publication.json`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await addPolicyFiles(dir);
+      const policies = authoredPolicies();
+      mutate(policies);
+      await setPublication(dir, { policies });
+      await assert.rejects(
+        buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+        (/** @type {SchemaValidationError} */ error) => {
+          assert.ok(error instanceof SchemaValidationError);
+          assert.equal(error.location, 'gala/publication.json');
+          assert.equal(error.schemaId, 'urn:gala:schema:publication:2.0.0');
           assert.ok(error.diagnostics.length > 0);
           return true;
         },

@@ -109,6 +109,20 @@
  * into the build-input appearance after schema validation; `{}` stays `{}`
  * (the theme's default palette). The template derives and checks the palette.
  *
+ * **Policy pages** (schemas 3.16.0): `publication.json`'s optional `policies`
+ * (`{terms, privacy}`, each `{title, body}` where `body` is the repository path
+ * of a Markdown file) becomes `build-input.policies`, each page
+ * `{title, body: <renderableBody>}`. Each file is read whole (it is not a
+ * content record: no front matter, never in `content[]`, never an edition
+ * source) and normalized by the same `normalizeAuthoredMarkdown`, render
+ * policy identity, `text/html` media type and digests as a content body; the
+ * body's `sourcePath` is the path as authored. A file that does not exist or
+ * is not a regular file fails with `POLICY_BODY_MISSING`; one that is not a
+ * `.md` file, or whose real location is outside the repository root, fails
+ * with `POLICY_BODY_UNSUPPORTED_TYPE`; one whose rendered body contains an
+ * `<img>` element fails with `POLICY_BODY_IMAGE_UNSUPPORTED` (a policy body
+ * has no media inventory). Without `policies` there is no `policies` member.
+ *
  * **Prism editions** (`content-editions.js`): a `kind: edition` document is
  * kept only when the article it is `of` is part of the build and its
  * `edition.sourceDigest` still equals the digest of that article's body;
@@ -119,7 +133,7 @@
  * @module
  */
 
-import { readdir, stat } from 'node:fs/promises';
+import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 
@@ -422,6 +436,157 @@ function splitFrontmatterFence(text, relativePath) {
   const frontmatterText = lines.slice(1, closingIndex).join('\n');
   const rawBody = lines.slice(closingIndex + 1).join('\n');
   return { frontmatterText, body: rawBody.replace(/^\n+/u, ''), rawBody };
+}
+
+/**
+ * @param {string} child an absolute path
+ * @param {string} parent an absolute path
+ * @returns {boolean} whether `child` is `parent` or inside it
+ */
+function isWithinDirectory(child, parent) {
+  return child === parent || child.startsWith(`${parent}${path.sep}`);
+}
+
+/**
+ * Check and read one policy page's Markdown file.
+ *
+ * @param {string} repositoryDirectory absolute repository root
+ * @param {string} realRepository the repository root after resolving symbolic links
+ * @param {string} bodyPath `publication.json` `policies.<page>.body`
+ * @returns {Promise<{reason: 'MISSING' | 'UNSUPPORTED_TYPE', explanation: string} | {bytes: Buffer, digest: string}>}
+ *   the file's bytes and digest, or why it cannot be used
+ */
+async function readPolicyBodyFile(
+  repositoryDirectory,
+  realRepository,
+  bodyPath,
+) {
+  if (!bodyPath.endsWith('.md')) {
+    return {
+      reason: 'UNSUPPORTED_TYPE',
+      explanation: 'is not a Markdown file (its name must end in ".md")',
+    };
+  }
+  const absolute = path.join(repositoryDirectory, ...bodyPath.split('/'));
+  /** @type {string} */
+  let real;
+  try {
+    real = await realpath(absolute);
+  } catch (error) {
+    const code = /** @type {NodeJS.ErrnoException} */ (error).code;
+    if (
+      code === 'ENOENT' ||
+      code === 'ENOTDIR' ||
+      code === 'ELOOP' ||
+      code === 'ENAMETOOLONG'
+    ) {
+      return {
+        reason: 'MISSING',
+        explanation: 'does not exist in the repository',
+      };
+    }
+    throw error;
+  }
+  // The schema's path type has no `..` segment, so the only way out of the
+  // repository is a symbolic link; its real location decides.
+  if (!isWithinDirectory(real, realRepository)) {
+    return {
+      reason: 'UNSUPPORTED_TYPE',
+      explanation: 'is outside the repository',
+    };
+  }
+  // `lstat`, not `stat`: a symbolic link is never followed.
+  if (!(await lstat(absolute)).isFile()) {
+    return { reason: 'MISSING', explanation: 'is not a regular file' };
+  }
+  return readFileWithDigest(absolute);
+}
+
+/**
+ * Read and render `publication.json`'s `policies` into `build-input.policies`.
+ * Every unusable page is reported together.
+ *
+ * @param {object} options the inputs
+ * @param {string} options.repositoryDirectory absolute repository root
+ * @param {string} options.publicationPath repository-relative path of `publication.json`, for messages
+ * @param {Record<string, {title: string, body: string}> | undefined} options.policies the authored `policies`, or `undefined` when absent
+ * @param {(source: string) => {html: string, bodyDigest: string}} options.normalizeAuthoredMarkdown the template's Markdown normalizer
+ * @param {{name: string, version: string, digest: string}} options.renderPolicy the current render policy identity
+ * @returns {Promise<Record<string, {title: string, body: Record<string, unknown>}> | null>}
+ *   the normalized pages, or `null` when the publication has no `policies`
+ */
+async function readPolicyPages({
+  repositoryDirectory,
+  publicationPath,
+  policies,
+  normalizeAuthoredMarkdown,
+  renderPolicy,
+}) {
+  if (policies === undefined) {
+    return null;
+  }
+  const realRepository = await realpath(repositoryDirectory);
+  /** @type {Record<string, {title: string, body: Record<string, unknown>}>} */
+  const pages = {};
+  /** @type {import('../types.js').PublishActionFinding[]} */
+  const findings = [];
+  for (const key of /** @type {const} */ (['terms', 'privacy'])) {
+    const page = /** @type {{title: string, body: string}} */ (policies[key]);
+    const read = await readPolicyBodyFile(
+      repositoryDirectory,
+      realRepository,
+      page.body,
+    );
+    if ('reason' in read) {
+      findings.push({
+        ...sourceFinding(
+          `POLICY_BODY_${read.reason}`,
+          `${publicationPath}: policies.${key}.body "${page.body}" ${read.explanation}.`,
+          { policy: key, path: page.body },
+        ),
+        location: publicationPath,
+        recovery:
+          read.reason === 'MISSING'
+            ? `Add the Markdown file at that path, or point policies.${key}.body at an existing .md file.`
+            : `Point policies.${key}.body at a Markdown (.md) file inside the repository.`,
+      });
+      continue;
+    }
+    const normalized = normalizeAuthoredMarkdown(read.bytes.toString('utf8'));
+    // A policy body has no media inventory and the template fails closed on an
+    // image in one, so refuse it here with a finding the author can act on.
+    const images = findImageSources(normalized.html);
+    if (images.length > 0) {
+      findings.push({
+        ...sourceFinding(
+          'POLICY_BODY_IMAGE_UNSUPPORTED',
+          `${page.body}: a policy page cannot contain images (found ${images.length}).`,
+          { policy: key, path: page.body, images: images.length },
+        ),
+        location: page.body,
+        recovery: 'Remove the image from the policy page and retry.',
+      });
+      continue;
+    }
+    pages[key] = {
+      title: page.title,
+      body: {
+        sourcePath: page.body,
+        sourceDigest: read.digest,
+        bodyMediaType: 'text/html',
+        body: normalized.html,
+        bodyDigest: normalized.bodyDigest,
+        renderPolicy: { ...renderPolicy },
+      },
+    };
+  }
+  if (findings.length > 0) {
+    throw new RepositoryIntakeError(
+      `${findings.length} problem(s) with the policy pages named in ${publicationPath}`,
+      findings,
+    );
+  }
+  return pages;
 }
 
 /**
@@ -939,6 +1104,15 @@ export async function buildBuildInputFromRepository({
     repository.document.modules,
   );
 
+  // --- policy pages ------------------------------------------------------------
+  const policies = await readPolicyPages({
+    repositoryDirectory,
+    publicationPath: repository.document.publication,
+    policies: publicationDoc.document.policies,
+    normalizeAuthoredMarkdown,
+    renderPolicy,
+  });
+
   // --- repository / rootDigest -----------------------------------------------
   const repositoryFiles = await listRepositoryFiles(repositoryDirectory);
   const rootEntries = [];
@@ -1004,6 +1178,7 @@ export async function buildBuildInputFromRepository({
       ...(interactions ? { interactions } : {}),
       ...(analytics ? { analytics } : {}),
     },
+    ...(policies ? { policies } : {}),
     buildEpoch,
     baseUrl: publication.canonicalBase,
     basePath: '/',

@@ -95,8 +95,9 @@ explicitly rejected scope reductions (no `publication.profile`/`footerCard`, no
 `publication.contactRef`, no author `avatarRef`, no `appearance` font assets —
 every one fails closed with a typed finding rather than being silently dropped)
 — those are this package's own scope decisions, not a DEC-006 shortfall. Content
-images (body images and `hero`), the `appearance` attribution switch and Prism
-editions are supported; they are described below.
+images (body images and `hero`), the `appearance` attribution switch, Prism
+editions and the publication's policy pages are supported; they are described
+below.
 
 A minimal deterministic fixture repository lives at
 `test/fixtures/minimal-repository` and is exercised end to end by
@@ -208,6 +209,39 @@ malformed path). The size limits above apply to them too.
 `PUBLICATION_CONTACT_UNSUPPORTED`; `appearance.fontAssetRefs` keeps
 `APPEARANCE_MEDIA_UNSUPPORTED`. `CONTENT_MEDIA_UNSUPPORTED` and
 `PUBLICATION_CONTACT_OR_DEFAULT_IMAGE_UNSUPPORTED` no longer exist.
+
+## Policy pages
+
+`publication.json`'s optional `policies` names a Terms page and a Privacy page,
+each a title and the repository path of a Markdown file:
+
+```json
+"policies": {
+  "terms": { "title": "Terms", "body": "gala/policies/terms.md" },
+  "privacy": { "title": "Privacy", "body": "gala/policies/privacy.md" }
+}
+```
+
+Both pages are required when `policies` is present, and the schema refuses any
+other member. Intake reads each file whole and renders it exactly as it renders
+a content body (`normalizeAuthoredMarkdown`, the current render policy identity,
+`text/html` and the same digests), then sets
+`build-input.policies = {terms: {title, body}, privacy: {title, body}}`, where
+each `body` is a `renderableBody` whose `sourcePath` is the path as authored. A
+policy page is not a content record: it has no front matter, is not in
+`content[]` and is never an edition source. It also cannot contain images: a
+policy body has no media inventory, so a page whose rendered body has an `<img>`
+element is refused. Without `policies` there is no `policies` member. Intake
+requires `@rathnasgala2/schemas` 3.16.0 or later.
+
+| Code                            | Severity       | Meaning                                                                                     |
+| ------------------------------- | -------------- | ------------------------------------------------------------------------------------------- |
+| `POLICY_BODY_MISSING`           | `SOURCE_ERROR` | The file does not exist or is not a regular file (a symbolic link is never followed).       |
+| `POLICY_BODY_UNSUPPORTED_TYPE`  | `SOURCE_ERROR` | The path does not end in `.md`, or the file's real location is outside the repository root. |
+| `POLICY_BODY_IMAGE_UNSUPPORTED` | `SOURCE_ERROR` | The rendered body contains an image (`evidence.images` counts them); remove it.             |
+
+Both pages are checked and every problem is reported together; each finding's
+`evidence` carries `policy` (`terms` or `privacy`) and `path`.
 
 ## Appearance attribution
 

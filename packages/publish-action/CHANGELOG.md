@@ -10,6 +10,19 @@ and this project adheres to
 
 ### Added
 
+- Repository intake reads `publication.json`'s optional `policies` (schemas
+  3.16.0: `{terms, privacy}`, each `{title, body}` with `body` the repository
+  path of a Markdown file). Each file is rendered like a content body
+  (`normalizeAuthoredMarkdown`, the render policy identity, `text/html`,
+  digests) and carried into the build input as
+  `policies = {terms: {title, body}, privacy: {title, body}}` with each `body` a
+  `renderableBody`; a policy page is not a content record (no front matter, not
+  in `content[]`, never an edition source). A file that does not exist or is not
+  a regular file is `POLICY_BODY_MISSING`; one that is not `.md`, or lies
+  outside the repository root, is `POLICY_BODY_UNSUPPORTED_TYPE`; one whose
+  rendered body contains an image is `POLICY_BODY_IMAGE_UNSUPPORTED`. Absent
+  `policies`, no `policies` member. It requires `@rathnasgala2/schemas` 3.16.0;
+  the exact pin moves at release.
 - Repository intake reads an optional `gala/modules/analytics.json`, validates
   it against `analytics-config:2.0.0` and carries it into the build input as
   `modules.analytics = {config}` (absent file, no member; a malformed file is a
