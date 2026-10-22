@@ -485,8 +485,8 @@
       "type": "library",
       "name": "theme-editorial",
       "group": "@rathnasgala2",
-      "version": "4.1.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-editorial@4.1.0",
+      "version": "4.2.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-editorial@4.2.0",
       "licenses": [
         {
           "license": {
@@ -495,15 +495,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/theme-editorial@4.1.0",
+      "purl": "pkg:npm/%40rathnasgala2/theme-editorial@4.2.0",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/@rathnasgala2/theme-editorial/-/theme-editorial-4.1.0.tgz",
+          "url": "https://registry.npmjs.org/@rathnasgala2/theme-editorial/-/theme-editorial-4.2.0.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "71fbb9673e18417c930e4a3e4b037819ca2deb3715d4f0aac1e4671ee83611ad5860e4078b03a7a3f91936145c71d7d62125956d258400ecaaf0405bd3915599"
+              "content": "05873c6f3156999572f07b68d5239a993fd871604e5b1bfb801e8964a88ae9ca34b32f1e83da18cd32af72f6ac2d3cd391fdce08f8dad36f43fe12e928acb112"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -18235,7 +18235,7 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.4.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@4.2.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@4.2.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-editorial@4.1.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-editorial@4.2.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-flashy@4.2.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-minimal@4.2.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-zebra@4.2.0",
@@ -18346,7 +18346,7 @@
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@4.2.0"
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-editorial@4.1.0"
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-editorial@4.2.0"
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-flashy@4.2.0"

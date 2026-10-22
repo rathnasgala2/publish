@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Changed
 
+- `THEME_CATALOG` serves `theme-editorial` 4.2.0 (contract 4.1.0) with its
+  registry tarball SHA-256, replacing the 4.1.0 row that template 4.4.x refuses.
+
 - Serve template 4.4.1 (exact registry pin; layout fixes, styling contract
   unchanged); themes stay at 4.2.0 and the template contract stays 4.1.0.
 

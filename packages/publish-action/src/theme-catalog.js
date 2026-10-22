@@ -57,11 +57,11 @@ export const THEME_CATALOG = Object.freeze([
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-editorial',
-    version: '4.1.0',
+    version: '4.2.0',
     integrity:
-      'sha256:b515433aacbac3845cf72dfe049bc2391b46928b6294f0a921380b3e1ff0ee23',
+      'sha256:7120107def2c7d08bd32f9206cc17ca4734f85223c148dc75dd3ef5b03409419',
     registry: THEME_REGISTRY,
-    contractVersion: '4.0.0',
+    contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({

@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Changed
 
+- Serve `theme-editorial` 4.2.0 (theme contract 4.1.0), now published: the
+  `THEME_CATALOG` row carries its 4.2.0 tarball SHA-256 and `contractVersion`
+  4.1.0, so a site locked to Editorial is admitted again under template 4.4.1.
+
 - Serve template 4.4.1 (exact registry pin; layout fixes, styling contract
   unchanged). Themes stay at 4.2.0 and the template contract stays 4.1.0.
 - Revert adapter-github-pages 0.1.2 until it is published to npm (it was never
