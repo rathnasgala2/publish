@@ -883,11 +883,16 @@ export async function observe(input) {
   /** @type {ObserveProgress} */
   const progress = {
     matched: new Map(),
+    matchedPass: new Map(),
     latest: new Map(),
+    statuses: new Map(),
     served: null,
-    gets: 0,
-    cap: null,
-    capHit: false,
+    markerPass: -1,
+    pass: 0,
+    cursor: 0,
+    confirmed: false,
+    errorCode: null,
+    errorStreak: 0,
   };
   let attempt = await observeOnce(input, progress);
   let deadline = observeDeadlineSeconds(attempt.maxAgeSeconds);
@@ -915,47 +920,6 @@ export async function observe(input) {
     delay = Math.min(delay * 2, OBSERVE_MAXIMUM_DELAY_SECONDS);
     attempt = await observeOnce(input, progress);
   }
-}
-
-/**
- * What `observe` keeps between passes so a retry reads only what is still
- * wrong: the routes whose bytes already match the staged entry, the latest
- * bytes of the others, and the marker read until it matches.
- *
- * @typedef {{
- *   matched: Map<string, import('./artifact-projection.js').ArtifactEntry>,
- *   latest: Map<string, import('./artifact-projection.js').ArtifactEntry>,
- *   served: Awaited<ReturnType<typeof readServedGeneration>> | null,
- *   gets: number,
- *   cap: number | null,
- *   capHit: boolean
- * }} ObserveProgress
- */
-
-/** Public reads allowed per staged route across all passes. */
-const OBSERVE_READS_PER_ROUTE = 3;
-/** Public reads allowed on top of the per-route allowance. */
-const OBSERVE_READS_BASE = 50;
-
-/**
- * Whether a failed public read can be waited out. The typed adapter errors
- * (a body over the ceiling, authentication or context failures) cannot; a
- * transport error such as a reset connection can.
- *
- * @param {unknown} error the thrown value
- * @returns {boolean} true when the failure is transient
- */
-function isTransientReadError(error) {
-  return !(error instanceof PagesAdapterError);
-}
-
-/**
- * @param {unknown} error the thrown value
- * @returns {string} a short, single-line description
- */
-function describeReadError(error) {
-  const text = error instanceof Error ? error.message : String(error);
-  return text.replaceAll(/\s+/gu, ' ').slice(0, 200);
 }
 
 /** First wait between observations, doubling up to the maximum. */
@@ -995,11 +959,139 @@ function defaultSleep(seconds) {
 }
 
 /**
+ * What `observe` keeps between passes so a retry reads only what is still
+ * wrong: the routes whose bytes already match the staged entry, the latest
+ * bytes of the others, and the marker read until it matches.
+ *
+ * @typedef {{
+ *   matched: Map<string, import('./artifact-projection.js').ArtifactEntry>,
+ *   matchedPass: Map<string, number>,
+ *   latest: Map<string, import('./artifact-projection.js').ArtifactEntry>,
+ *   statuses: Map<string, number>,
+ *   served: Awaited<ReturnType<typeof readServedGeneration>> | null,
+ *   markerPass: number,
+ *   pass: number,
+ *   cursor: number,
+ *   confirmed: boolean,
+ *   errorCode: string | null,
+ *   errorStreak: number
+ * }} ObserveProgress
+ */
+
+/**
+ * Stale routes re-read per pass after the first. A pass reads at most this
+ * many plus the marker until the sample matches; the request count is about
+ * passes x (K + 1) + 2 x routes, with no cap that can fire inside a CDN
+ * lifetime.
+ */
+const OBSERVE_SAMPLE_ROUTES = 20;
+/** Largest site whose early matches are confirmed again before success. */
+const OBSERVE_CONFIRM_MAXIMUM_ROUTES = 50;
+/** Consecutive passes failing with one transient code before giving up. */
+const OBSERVE_TRANSIENT_STREAK = 3;
+/** Most unmatched routes named individually in the findings. */
+const OBSERVE_FINDINGS_NAMED = 10;
+
+const TRANSIENT_CODES = new Set([
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ECONNREFUSED',
+  'EPIPE',
+  'EAI_AGAIN',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+]);
+
+/**
+ * @param {string} code a network error code
+ * @returns {boolean} whether it is a certificate, TLS or name-resolution
+ *   failure that waiting cannot cure
+ */
+function isFatalCode(code) {
+  return (
+    code === 'ENOTFOUND' ||
+    code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+    code === 'DEPTH_ZERO_SELF_SIGNED_CERT' ||
+    code.startsWith('CERT_') ||
+    code.startsWith('ERR_TLS_') ||
+    code.startsWith('ERR_SSL_')
+  );
+}
+
+/**
+ * Every error code carried by a thrown fetch failure, its cause and the
+ * causes' aggregated errors.
+ *
+ * @param {unknown} error the thrown value
+ * @returns {string[]} the codes found
+ */
+function errorCodes(error) {
+  /** @type {string[]} */
+  const codes = [];
+  /** @type {unknown[]} */
+  const queue = [error];
+  for (let depth = 0; queue.length > 0 && depth < 16; depth += 1) {
+    const current = /** @type {any} */ (queue.shift());
+    if (current === null || typeof current !== 'object') {
+      continue;
+    }
+    if (typeof current.code === 'string') {
+      codes.push(current.code);
+    }
+    queue.push(current.cause);
+    if (Array.isArray(current.errors)) {
+      queue.push(...current.errors);
+    }
+  }
+  return codes;
+}
+
+/**
+ * Classify a failed public read. Only transient transport failures are
+ * waited out; typed adapter errors, name-resolution, certificate and TLS
+ * failures and programming errors fail fast.
+ *
+ * @param {unknown} error the thrown value
+ * @returns {string | null} the transient code, or null when it must throw
+ */
+function transientCode(error) {
+  if (error instanceof PagesAdapterError) {
+    return null;
+  }
+  const codes = errorCodes(error);
+  if (codes.some(isFatalCode)) {
+    return null;
+  }
+  const code = codes.find((candidate) => TRANSIENT_CODES.has(candidate));
+  if (code !== undefined) {
+    return code;
+  }
+  if (error instanceof Error && error.name === 'TimeoutError') {
+    return 'TimeoutError';
+  }
+  return null;
+}
+
+/**
+ * @param {unknown} error the thrown value
+ * @returns {string} a short, single-line description
+ */
+function describeReadError(error) {
+  const text = error instanceof Error ? error.message : String(error);
+  return text.replaceAll(/\s+/gu, ' ').slice(0, 200);
+}
+
+/**
  * One observation pass. `retryable` is false for hard failures (a redirect,
- * or a generation this run never staged), which no waiting can change. The
- * first pass reads the marker and every route; later passes read the marker
- * only until it matches and only the routes that did not yet match their
- * staged entry, and the digest is computed over the whole coherent set.
+ * a generation this run never staged, a repeating transport failure), which
+ * no waiting can change. The first pass reads the marker and every route.
+ * Later passes read the marker until it matches and a rotating sample of the
+ * still-unmatched routes; once the sample and the marker match, the rest of
+ * the unmatched routes are read in the same pass. Before success a small
+ * site re-reads what matched in earlier passes. The digest is computed over
+ * the whole coherent set.
  *
  * @param {Parameters<typeof observe>[0]} input the observe input
  * @param {ObserveProgress} progress what earlier passes learned
@@ -1008,117 +1100,101 @@ function defaultSleep(seconds) {
  */
 async function observeOnce(input, progress) {
   const state = stateFor(input.destination);
-  const activation = state.activations.get(input.generationId);
   const staged =
-    activation ??
+    state.activations.get(input.generationId) ??
     [...state.stages.values()].find(
       (candidate) => candidate.generationId === input.generationId,
     );
   const entryPaths = staged?.entryPaths;
-  if (progress.cap === null) {
-    progress.cap =
-      OBSERVE_READS_PER_ROUTE * (entryPaths?.length ?? 0) + OBSERVE_READS_BASE;
-  }
-  /** @type {string[]} */
+  const pass = progress.pass;
+  progress.pass += 1;
+  /** @type {{text: string, code: string}[]} */
   const readErrors = [];
-  let retryable = true;
+  /** @type {number | null} */
+  let seenMaxAge = null;
+  /** @type {PublicRedirectFailure | undefined} */
+  let failure;
 
-  const markerSettled =
+  const markerMatches = () =>
     progress.served !== null &&
     progress.served.generationId === input.generationId &&
     progress.served.artifactDigest === input.expectedArtifactDigest;
-  if (!markerSettled) {
-    progress.gets += 1;
+
+  const readMarker = async () => {
     try {
       progress.served = await readServedGeneration(input.destination);
+      progress.markerPass = pass;
     } catch (error) {
-      if (!isTransientReadError(error)) {
+      const code = transientCode(error);
+      if (code === null) {
         throw error;
       }
-      readErrors.push(`${GENERATION_MARKER_PATH}: ${describeReadError(error)}`);
+      readErrors.push({
+        text: `${GENERATION_MARKER_PATH}: ${describeReadError(error)}`,
+        code,
+      });
       progress.served ??= {
         generationId: null,
         artifactDigest: null,
         findings: [],
       };
     }
-  }
-  const served = /** @type {NonNullable<typeof progress.served>} */ (
-    progress.served
-  );
-  /** @type {number | null} */
-  let seenMaxAge = maxAgeSeconds(served.cacheControl);
+    if (progress.served.failure !== undefined) {
+      failure = progress.served.failure;
+    }
+    const age = maxAgeSeconds(progress.served.cacheControl);
+    if (age !== null && age > (seenMaxAge ?? -1)) {
+      seenMaxAge = age;
+    }
+  };
 
-  /** @type {string[]} */
-  const findings = [...served.findings];
-  if (served.generationId !== input.generationId) {
-    findings.push(
-      `the public marker names generation ${JSON.stringify(served.generationId)}, not the observed generation ${JSON.stringify(input.generationId)}`,
-    );
-  }
-  const markerValid =
-    served.generationId === input.generationId &&
-    served.artifactDigest === input.expectedArtifactDigest;
-  if (!markerValid) {
-    findings.push(
-      'the public generation marker is missing, invalid or disagrees with the expected identity',
-    );
+  if (!markerMatches()) {
+    await readMarker();
   }
 
-  /** @type {string | null} */
-  let observedArtifactDigest = null;
-  /** @type {PublicRedirectFailure | undefined} */
-  let failure = served.failure;
-  if (failure !== undefined) {
-    // The origin redirects, so every route would redirect too: say so once
-    // instead of asking for each of them.
-    retryable = false;
-  } else if (entryPaths === undefined) {
-    retryable = false;
-    findings.push(
-      'this run did not stage the observed generation, so its route inventory cannot be verified here',
-    );
-  } else {
+  /** @type {string | undefined} */
+  let redirectedRoute;
+  if (failure === undefined && entryPaths !== undefined) {
     const publicContext = publicContextFor(input.destination);
     const expectedByPath = new Map(
       (staged?.entries ?? []).map((entry) => [entry.path, entry]),
     );
-    const cap = /** @type {number} */ (progress.cap);
-    for (const entryPath of entryPaths) {
-      if (progress.matched.has(entryPath)) {
-        continue;
-      }
-      if (progress.gets >= cap) {
-        progress.capHit = true;
-        break;
-      }
-      progress.gets += 1;
+    /**
+     * @param {string} entryPath the route
+     * @returns {Promise<boolean>} false when the origin redirects
+     */
+    const readRoute = async (entryPath) => {
       /** @type {Awaited<ReturnType<typeof readPublic>>} */
       let read;
       try {
         read = await readPublic(publicContext, entryPath);
       } catch (error) {
-        if (!isTransientReadError(error)) {
+        const code = transientCode(error);
+        if (code === null) {
           throw error;
         }
-        readErrors.push(`${entryPath}: ${describeReadError(error)}`);
-        continue;
+        readErrors.push({
+          text: `${entryPath}: ${describeReadError(error)}`,
+          code,
+        });
+        return true;
       }
-      const readMaxAge = maxAgeSeconds(read.cacheControl);
-      if (readMaxAge !== null && readMaxAge > (seenMaxAge ?? -1)) {
-        seenMaxAge = readMaxAge;
+      const age = maxAgeSeconds(read.cacheControl);
+      if (age !== null && age > (seenMaxAge ?? -1)) {
+        seenMaxAge = age;
       }
       if (read.status === 'redirect') {
-        retryable = false;
         failure = publicRedirectFailure(read);
-        findings.push(`${entryPath}: ${publicRedirectFinding(failure)}`);
-        break;
+        redirectedRoute = entryPath;
+        return false;
       }
       if (read.status !== 200 || read.bytes === null) {
         progress.latest.delete(entryPath);
-        findings.push(`${entryPath}: public read returned HTTP ${read.status}`);
-        continue;
+        progress.matched.delete(entryPath);
+        progress.statuses.set(entryPath, read.status);
+        return true;
       }
+      progress.statuses.delete(entryPath);
       const entry = projectEntry(entryPath, read.bytes);
       const expected = expectedByPath.get(entryPath);
       if (
@@ -1127,25 +1203,133 @@ async function observeOnce(input, progress) {
         expected.byteLength === entry.byteLength
       ) {
         progress.matched.set(entryPath, entry);
+        progress.matchedPass.set(entryPath, pass);
         progress.latest.delete(entryPath);
       } else {
+        progress.matched.delete(entryPath);
         progress.latest.set(entryPath, entry);
       }
+      return true;
+    };
+
+    const unmatched = entryPaths.filter(
+      (entryPath) => !progress.matched.has(entryPath),
+    );
+    /** @type {string[]} */
+    let sample = unmatched;
+    if (pass > 0 && unmatched.length > OBSERVE_SAMPLE_ROUTES) {
+      const start = progress.cursor % unmatched.length;
+      sample = [];
+      for (let offset = 0; offset < OBSERVE_SAMPLE_ROUTES; offset += 1) {
+        sample.push(
+          /** @type {string} */ (
+            unmatched[(start + offset) % unmatched.length]
+          ),
+        );
+      }
+      progress.cursor += OBSERVE_SAMPLE_ROUTES;
     }
-    for (const entryPath of entryPaths) {
-      if (
-        !progress.matched.has(entryPath) &&
-        !progress.latest.has(entryPath) &&
-        !findings.some((finding) => finding.startsWith(`${entryPath}: `)) &&
-        !readErrors.some((finding) => finding.startsWith(`${entryPath}: `)) &&
-        !progress.capHit &&
-        failure === undefined
+    let redirected = false;
+    for (const entryPath of sample) {
+      if (!(await readRoute(entryPath))) {
+        redirected = true;
+        break;
+      }
+    }
+    if (
+      !redirected &&
+      sample.length < unmatched.length &&
+      markerMatches() &&
+      sample.every((entryPath) => progress.matched.has(entryPath))
+    ) {
+      const sampled = new Set(sample);
+      for (const entryPath of unmatched) {
+        if (!sampled.has(entryPath) && !(await readRoute(entryPath))) {
+          redirected = true;
+          break;
+        }
+      }
+    }
+    if (
+      !redirected &&
+      !progress.confirmed &&
+      pass > 0 &&
+      entryPaths.length <= OBSERVE_CONFIRM_MAXIMUM_ROUTES &&
+      readErrors.length === 0 &&
+      markerMatches() &&
+      entryPaths.every((entryPath) => progress.matched.has(entryPath))
+    ) {
+      // About to succeed: re-read what matched only in earlier passes.
+      progress.confirmed = true;
+      if (progress.markerPass < pass) {
+        await readMarker();
+      }
+      for (const entryPath of entryPaths) {
+        if (
+          (progress.matchedPass.get(entryPath) ?? pass) < pass &&
+          !(await readRoute(entryPath))
+        ) {
+          break;
+        }
+      }
+    }
+  }
+
+  const served = /** @type {NonNullable<typeof progress.served>} */ (
+    progress.served
+  );
+  /** @type {string[]} */
+  const findings = [...served.findings];
+  if (served.generationId !== input.generationId) {
+    findings.push(
+      `the public marker names generation ${JSON.stringify(served.generationId)}, not the observed generation ${JSON.stringify(input.generationId)}`,
+    );
+  }
+  const markerValid = markerMatches();
+  if (!markerValid) {
+    findings.push(
+      'the public generation marker is missing, invalid or disagrees with the expected identity',
+    );
+  }
+
+  let retryable = true;
+  /** @type {string | null} */
+  let observedArtifactDigest = null;
+  if (failure !== undefined) {
+    // The origin redirects, so every route would redirect too: say so once
+    // instead of asking for each of them.
+    retryable = false;
+    if (redirectedRoute !== undefined) {
+      findings.push(`${redirectedRoute}: ${publicRedirectFinding(failure)}`);
+    }
+  } else if (entryPaths === undefined) {
+    retryable = false;
+    findings.push(
+      'this run did not stage the observed generation, so its route inventory cannot be verified here',
+    );
+  } else {
+    const unmatchedNow = entryPaths.filter(
+      (entryPath) => !progress.matched.has(entryPath),
+    );
+    for (const entryPath of unmatchedNow.slice(0, OBSERVE_FINDINGS_NAMED)) {
+      const status = progress.statuses.get(entryPath);
+      if (status !== undefined) {
+        findings.push(`${entryPath}: public read returned HTTP ${status}`);
+      } else if (progress.latest.has(entryPath)) {
+        findings.push(`${entryPath}: bytes do not yet match the staged entry`);
+      } else if (
+        !readErrors.some((error) => error.text.startsWith(`${entryPath}: `))
       ) {
         findings.push(`${entryPath}: not yet read`);
       }
     }
+    if (unmatchedNow.length > OBSERVE_FINDINGS_NAMED) {
+      findings.push(
+        `${unmatchedNow.length - OBSERVE_FINDINGS_NAMED} more routes do not yet match the staged entries`,
+      );
+    }
     for (const readError of readErrors) {
-      findings.push(`public read failed: ${readError}`);
+      findings.push(`public read failed: ${readError.text}`);
     }
     const coherent = [
       ...progress.matched.values(),
@@ -1158,16 +1342,25 @@ async function observeOnce(input, progress) {
           `the publicly observed artifact digest ${observedArtifactDigest} disagrees with the expected ${input.expectedArtifactDigest}`,
         );
       }
-      if (progress.latest.size === 0 && markerValid) {
-        // Every route matches its staged entry and the marker matches, yet
-        // the digest disagrees: no further reading can change that.
-        retryable = false;
-      }
     }
-    if (progress.capHit) {
+    if (unmatchedNow.length === 0 && markerValid) {
+      // Every route matches its staged entry and the marker matches, yet
+      // the digest disagrees: no further reading can change that.
+      retryable = false;
+    }
+    const code = readErrors[0]?.code ?? null;
+    if (code === null) {
+      progress.errorStreak = 0;
+    } else if (code === progress.errorCode) {
+      progress.errorStreak += 1;
+    } else {
+      progress.errorStreak = 1;
+    }
+    progress.errorCode = code;
+    if (progress.errorStreak >= OBSERVE_TRANSIENT_STREAK) {
       retryable = false;
       findings.push(
-        `the public read budget of ${cap} requests was exhausted before every route matched`,
+        `the public read failed with ${code} on ${progress.errorStreak} consecutive passes; giving up`,
       );
     }
   }

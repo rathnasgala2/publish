@@ -176,7 +176,7 @@ test('stale route bytes are polled until the CDN serves the new generation', asy
     assert.ok(bound.sleeps.every((seconds) => seconds <= 30));
     const total = bound.sleeps.reduce((a, b) => a + b, 0);
     assert.ok(total >= 400 && total < 440, `slept ${total}s`);
-    assert.ok(bound.reads.length <= 2 * (bound.sleeps.length + 1));
+    assert.ok(bound.reads.length <= 2 * (bound.sleeps.length + 1) + 4);
   } finally {
     await bound.teardown();
   }
@@ -212,7 +212,7 @@ test('content that never matches is reported unverified after the deadline with 
     );
     const total = bound.sleeps.reduce((a, b) => a + b, 0);
     assert.equal(total, 660, 'the deadline is max-age 600 plus a 60 s margin');
-    assert.ok(bound.reads.length <= 2 * (bound.sleeps.length + 1));
+    assert.ok(bound.reads.length <= 2 * (bound.sleeps.length + 1) + 4);
   } finally {
     await bound.teardown();
   }
@@ -231,7 +231,7 @@ test('a redirect fails at once without sleeping', async () => {
           return Promise.resolve();
         },
         publicFetch: () => {
-          throw Object.assign(new TypeError('fetch failed'), {
+          throw Object.assign(transport('ECONNRESET'), {
             cause: new Error('unexpected redirect'),
           });
         },
@@ -268,7 +268,10 @@ test('a retry re-reads only the routes that do not yet match, not the whole site
     const count = (/** @type {string} */ path) =>
       bound.reads.filter((read) => read === path).length;
     for (const settled of ['index.html', 'a.html', 'c.html', 'd.html']) {
-      assert.equal(count(settled), 1, `${settled} read once`);
+      assert.ok(
+        count(settled) <= 2,
+        `${settled} read once, plus a confirmation`,
+      );
     }
     assert.ok(count('b.html') > 5, 'the failing route is re-read');
     assert.ok(
@@ -284,21 +287,209 @@ test('a retry re-reads only the routes that do not yet match, not the whole site
   }
 });
 
-test('the total of public reads is capped and the cap is reported', async () => {
-  const names = Array.from({ length: 20 }, (_, index) => `p${index}.html`);
-  const stale = Object.fromEntries(names.map((name) => [name, Infinity]));
-  const bound = await bind({ ...stale, marker: 0 }, { names });
+/**
+ * @param {string} code the network error code
+ * @returns {TypeError} a fetch failure wrapping that code
+ */
+function transport(code) {
+  return Object.assign(new TypeError('fetch failed'), {
+    cause: Object.assign(new Error(code), { code }),
+  });
+}
+
+/**
+ * @param {number} count the route count
+ * @returns {string[]} the route names
+ */
+function routeNames(count) {
+  return Array.from({ length: count }, (_, index) => `p${index}.html`);
+}
+
+for (const [count, perPass] of /** @type {[number, number][]} */ ([
+  [3, 4],
+  [100, 21],
+  [2000, 21],
+])) {
+  test(`${count} routes and the marker all stale for 600 s still verify before the deadline`, async () => {
+    const names = routeNames(count);
+    const stale = Object.fromEntries(names.map((name) => [name, 600]));
+    const bound = await bind({ ...stale, marker: 600 }, { names });
+    try {
+      const observed = await observeBound(bound);
+      assert.equal(observed.verified, true, JSON.stringify(observed.findings));
+      const total = bound.sleeps.reduce((a, b) => a + b, 0);
+      assert.ok(total >= 600 && total <= 660, `slept ${total}s`);
+      const passes = bound.sleeps.length + 1;
+      assert.ok(
+        bound.reads.length <= passes * perPass + 2 * count + 2,
+        `${bound.reads.length} reads over ${passes} passes`,
+      );
+    } finally {
+      await bound.teardown();
+    }
+  });
+}
+
+test('a route that never matches is unverified at the deadline and named', async () => {
+  const names = routeNames(30);
+  const bound = await bind({ 'p7.html': Infinity, marker: 0 }, { names });
   try {
     const observed = await observeBound(bound);
     assert.equal(observed.verified, false);
     assert.ok(
-      bound.reads.length <= 3 * names.length + 50,
-      `${bound.reads.length}`,
-    );
-    assert.ok(
-      observed.findings.some((finding) => finding.includes('read budget')),
+      observed.findings.some((finding) => finding.startsWith('p7.html: ')),
       JSON.stringify(observed.findings),
     );
+    assert.equal(
+      bound.sleeps.reduce((a, b) => a + b, 0),
+      660,
+    );
+  } finally {
+    await bound.teardown();
+  }
+});
+
+test('the deadline holds when reads are slow and the clock moves on its own', async () => {
+  const bound = await bind({ 'index.html': Infinity, marker: 0 });
+  try {
+    let ms = 0;
+    const base = bound.destination;
+    let total = 0;
+    const observed = await adapter.observe({
+      destination: {
+        ...base,
+        now: () => ms,
+        publicFetch: async (
+          /** @type {any} */ url,
+          /** @type {any} */ init,
+        ) => {
+          ms += 50_000;
+          return base.publicFetch(url, init);
+        },
+        sleep: (/** @type {number} */ seconds) => {
+          total += seconds;
+          return base.sleep(seconds);
+        },
+      },
+      generationId: bound.second.generationId,
+      expectedArtifactDigest: bound.second.artifactDigest,
+    });
+    assert.equal(observed.verified, false);
+    assert.ok(total < 660, `slept ${total}s of an exhausted clock`);
+    assert.ok(ms / 1000 < 660 + 300, `clock ${ms / 1000}s`);
+  } finally {
+    await bound.teardown();
+  }
+});
+
+for (const code of [
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ECONNREFUSED',
+  'EPIPE',
+  'EAI_AGAIN',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+]) {
+  test(`${code} is transient: waited out once, then verified`, async () => {
+    const bound = await bind(
+      { 'index.html': 0, marker: 0 },
+      {
+        intercept: (path, _seconds, count) =>
+          path === 'index.html' && count === 1 ? transport(code) : undefined,
+      },
+    );
+    try {
+      const observed = await observeBound(bound);
+      assert.equal(observed.verified, true, JSON.stringify(observed.findings));
+      assert.ok(bound.sleeps.length >= 1);
+    } finally {
+      await bound.teardown();
+    }
+  });
+}
+
+test('a per-request TimeoutError is transient', async () => {
+  const bound = await bind(
+    { 'index.html': 0, marker: 0 },
+    {
+      intercept: (path, _seconds, count) =>
+        path === 'index.html' && count === 1
+          ? new DOMException('timed out', 'TimeoutError')
+          : undefined,
+    },
+  );
+  try {
+    const observed = await observeBound(bound);
+    assert.equal(observed.verified, true, JSON.stringify(observed.findings));
+  } finally {
+    await bound.teardown();
+  }
+});
+
+for (const code of [
+  'ENOTFOUND',
+  'CERT_HAS_EXPIRED',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'ERR_SSL_WRONG_VERSION_NUMBER',
+]) {
+  test(`${code} fails fast without sleeping`, async () => {
+    const bound = await bind(
+      { 'index.html': 0, marker: 0 },
+      {
+        intercept: (path) =>
+          path === 'index.html' ? transport(code) : undefined,
+      },
+    );
+    try {
+      await assert.rejects(observeBound(bound), /fetch failed/u);
+      assert.deepEqual(bound.sleeps, []);
+    } finally {
+      await bound.teardown();
+    }
+  });
+}
+
+test('a plain programming error fails fast', async () => {
+  const bound = await bind(
+    { 'index.html': 0, marker: 0 },
+    {
+      intercept: (path) =>
+        path === 'index.html'
+          ? new TypeError('x is not a function')
+          : undefined,
+    },
+  );
+  try {
+    await assert.rejects(observeBound(bound), /x is not a function/u);
+    assert.deepEqual(bound.sleeps, []);
+  } finally {
+    await bound.teardown();
+  }
+});
+
+test('the same transient code on three consecutive passes stops the wait', async () => {
+  const bound = await bind(
+    { 'index.html': 0, marker: 0 },
+    {
+      intercept: (path) =>
+        path === 'index.html' ? transport('ECONNRESET') : undefined,
+    },
+  );
+  try {
+    const observed = await observeBound(bound);
+    assert.equal(observed.verified, false);
+    assert.ok(
+      observed.findings.some((finding) =>
+        finding.includes('consecutive passes'),
+      ),
+      JSON.stringify(observed.findings),
+    );
+    assert.equal(bound.sleeps.length, 2);
   } finally {
     await bound.teardown();
   }
@@ -310,7 +501,7 @@ test('a transport error on a later pass is waited out and then verifies', async 
     {
       intercept: (path, _seconds, count) =>
         path === 'index.html' && count === 2
-          ? new TypeError('fetch failed')
+          ? transport('ECONNRESET')
           : undefined,
     },
   );
@@ -326,8 +517,10 @@ test('persistent transport errors end as findings after the deadline, not as an 
   const bound = await bind(
     { 'index.html': 0, marker: 0 },
     {
-      intercept: (path) =>
-        path === 'index.html' ? new TypeError('fetch failed') : undefined,
+      intercept: (path, _seconds, count) =>
+        path === 'index.html'
+          ? transport(count % 2 === 0 ? 'ECONNRESET' : 'ETIMEDOUT')
+          : undefined,
     },
   );
   try {
