@@ -42,19 +42,6 @@ function digestOf(text) {
 }
 
 /**
- * Each adapter's published package version (the single-source rule: the
- * capability admission is keyed on it, and the deploy job refuses an intent
- * whose version is not the installed adapter's).
- *
- * @type {Readonly<Record<'local-directory' | 'github-pages' | 'do-spaces', string>>}
- */
-export const ADAPTER_VERSIONS = Object.freeze({
-  'local-directory': '0.1.1',
-  'github-pages': '0.1.2',
-  'do-spaces': '0.1.1',
-});
-
-/**
  * The request-side provider binding each adapter sends on its destination
  * (schema 2.9.0 `ReceiptExchangeIntentRequestProviderBinding`): the
  * runner-bound repository coordinates for `github-pages`, the two DEC-097
@@ -108,7 +95,7 @@ export function retainedDestinationFor(adapterId, overrides = {}) {
   return {
     environment: adapterId,
     adapterId,
-    adapterVersion: ADAPTER_VERSIONS[adapterId],
+    adapterVersion: '0.1.1',
     targetDigest: digestOf(`destination:${adapterId}`),
     baseUrl: overrides.baseUrl ?? 'https://example.test/',
     ...(binding === undefined ? {} : { providerBinding: { ...binding } }),
@@ -133,12 +120,12 @@ export function destinationFor(adapterId, overrides = {}) {
       adapterId,
       // The adapter's published package version (PUBLISH-S4-6a single-source
       // rule; LOCAL-64: the admission row is keyed on it).
-      adapterVersion: ADAPTER_VERSIONS[adapterId],
+      adapterVersion: '0.1.1',
       adapterDigest: digestOf(`adapter:${adapterId}`),
     },
     destination: {
       adapterId,
-      adapterVersion: ADAPTER_VERSIONS[adapterId],
+      adapterVersion: '0.1.1',
       baseUrl: overrides.baseUrl ?? 'https://example.test/',
       ...(binding === undefined ? {} : { providerBinding: { ...binding } }),
     },
