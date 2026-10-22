@@ -29,17 +29,22 @@ and this project adheres to
   this run never staged still fail at once without waiting. The destination
   accepts an optional `now` clock beside `sleep` for tests.
 
-  The waiting is bounded in requests too: the first pass reads the marker and
-  every staged route, later passes re-read only the marker (until it matches)
-  and the routes whose bytes do not yet match their staged entry (kept once
-  matched), and the digest is computed over the whole coherent set. Public reads
-  are capped at 3 x routes + 50 per observation, and exhausting the cap is
-  reported as a finding. A transport error during a read is retried within the
-  deadline and, if it persists, reported as a finding (`verified: false`)
-  instead of thrown; a body over the ceiling still throws at once. The declared
-  `managedExecutionBudget` stays at the schema maximum of 1500 seconds, below
-  the true worst case (1500 s activation poll plus up to 960 s of observe
-  waiting).
+  The waiting is bounded in requests too. The first pass reads the marker and
+  every staged route. Later passes re-read the marker only until it matches,
+  plus a rotating sample of at most 20 still-unmatched routes; once the marker
+  and the sample match, the remaining unmatched routes are read in the same
+  pass. Routes that matched are kept, and a site of 50 routes or fewer re-reads
+  what matched in earlier passes once more before reporting success. The digest
+  is computed over the whole coherent set. The request count is about passes x
+  (20 + 1) + 2 x routes; there is no request cap that can end the wait early.
+  Transient transport errors (ECONNRESET, ETIMEDOUT, ECONNREFUSED, EPIPE,
+  EAI_AGAIN, the undici socket and timeout codes, TimeoutError) are retried
+  within the deadline and reported as findings (`verified: false`) if they
+  persist, and the same code on three consecutive passes stops the wait.
+  Name-resolution, certificate and TLS errors, a body over the ceiling and
+  programming errors still throw at once. The declared `managedExecutionBudget`
+  stays at the schema maximum of 1500 seconds, below the true worst case (1500 s
+  activation poll plus up to 960 s of observe waiting).
 
 - A redirecting public origin no longer throws out of the lifecycle. A site
   whose repository still carried the `github.io` base after moving to a custom
