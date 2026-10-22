@@ -202,6 +202,9 @@ export function describeCapabilities(context) {
         DOMAIN_PAGES_CREDENTIAL_EGRESS,
         CREDENTIAL_EGRESS_PROFILE,
       ),
+      // The schema caps providerExecutionSeconds and totalSeconds at 1500, so
+      // the true worst case (1500 s activation poll plus up to 960 s of
+      // observe waiting) cannot be declared here.
       managedExecutionBudget: {
         verifiedHandoffSeconds: 120,
         pagesCarrierConstructionSeconds: 300,

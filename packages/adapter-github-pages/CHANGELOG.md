@@ -29,6 +29,18 @@ and this project adheres to
   this run never staged still fail at once without waiting. The destination
   accepts an optional `now` clock beside `sleep` for tests.
 
+  The waiting is bounded in requests too: the first pass reads the marker and
+  every staged route, later passes re-read only the marker (until it matches)
+  and the routes whose bytes do not yet match their staged entry (kept once
+  matched), and the digest is computed over the whole coherent set. Public reads
+  are capped at 3 x routes + 50 per observation, and exhausting the cap is
+  reported as a finding. A transport error during a read is retried within the
+  deadline and, if it persists, reported as a finding (`verified: false`)
+  instead of thrown; a body over the ceiling still throws at once. The declared
+  `managedExecutionBudget` stays at the schema maximum of 1500 seconds, below
+  the true worst case (1500 s activation poll plus up to 960 s of observe
+  waiting).
+
 - A redirecting public origin no longer throws out of the lifecycle. A site
   whose repository still carried the `github.io` base after moving to a custom
   domain made the public read's `redirect: 'error'` fetch throw (production

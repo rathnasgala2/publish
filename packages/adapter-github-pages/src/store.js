@@ -26,6 +26,7 @@ import { DOMAIN_PAGES_DESTINATION } from './constants.js';
  *   artifactId: string,
  *   artifactDigest: string,
  *   entryPaths: readonly string[],
+ *   entries: readonly import('./artifact-projection.js').ArtifactEntry[],
  *   carrierBytes: Buffer,
  *   carrierDigest: string,
  *   pagesArtifactId: string,
@@ -37,7 +38,7 @@ import { DOMAIN_PAGES_DESTINATION } from './constants.js';
 /**
  * @typedef {{
  *   stages: Map<string, StageRecord>,
- *   activations: Map<string, {generationId: string, pagesDeploymentId: string, certifiedAt: string, entryPaths: readonly string[]}>,
+ *   activations: Map<string, {generationId: string, pagesDeploymentId: string, certifiedAt: string, entryPaths: readonly string[], entries: readonly import('./artifact-projection.js').ArtifactEntry[]}>,
  *   inFlight: Map<string, string>
  * }} DestinationState
  */

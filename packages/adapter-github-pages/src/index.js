@@ -521,6 +521,9 @@ export async function stage(input) {
     artifactId: input.artifactId,
     artifactDigest: input.artifactDigest,
     entryPaths: Object.freeze(input.files.map((file) => file.path)),
+    entries: Object.freeze(
+      input.files.map((file) => projectEntry(file.path, file.bytes)),
+    ),
     carrierBytes,
     carrierDigest,
     pagesArtifactId,
@@ -700,6 +703,8 @@ export async function activate(input) {
         certifiedAt: new Date().toISOString(),
         entryPaths:
           state.stages.get(input.stageToken)?.entryPaths ?? Object.freeze([]),
+        entries:
+          state.stages.get(input.stageToken)?.entries ?? Object.freeze([]),
       });
       return Object.freeze({
         decision: /** @type {'activate'} */ ('activate'),
@@ -829,6 +834,7 @@ export async function activate(input) {
     // staged carrier so `cleanupStaged` can discard the carrier without
     // taking `observe`'s ability to verify the live generation with it.
     entryPaths: record.entryPaths,
+    entries: record.entries,
   });
 
   return Object.freeze({
@@ -874,7 +880,16 @@ export async function observe(input) {
   const startedAt = clock();
   let slept = 0;
   let delay = OBSERVE_FIRST_DELAY_SECONDS;
-  let attempt = await observeOnce(input);
+  /** @type {ObserveProgress} */
+  const progress = {
+    matched: new Map(),
+    latest: new Map(),
+    served: null,
+    gets: 0,
+    cap: null,
+    capHit: false,
+  };
+  let attempt = await observeOnce(input, progress);
   let deadline = observeDeadlineSeconds(attempt.maxAgeSeconds);
   for (;;) {
     const result = { ...attempt };
@@ -898,8 +913,49 @@ export async function observe(input) {
     await sleep(wait);
     slept += wait;
     delay = Math.min(delay * 2, OBSERVE_MAXIMUM_DELAY_SECONDS);
-    attempt = await observeOnce(input);
+    attempt = await observeOnce(input, progress);
   }
+}
+
+/**
+ * What `observe` keeps between passes so a retry reads only what is still
+ * wrong: the routes whose bytes already match the staged entry, the latest
+ * bytes of the others, and the marker read until it matches.
+ *
+ * @typedef {{
+ *   matched: Map<string, import('./artifact-projection.js').ArtifactEntry>,
+ *   latest: Map<string, import('./artifact-projection.js').ArtifactEntry>,
+ *   served: Awaited<ReturnType<typeof readServedGeneration>> | null,
+ *   gets: number,
+ *   cap: number | null,
+ *   capHit: boolean
+ * }} ObserveProgress
+ */
+
+/** Public reads allowed per staged route across all passes. */
+const OBSERVE_READS_PER_ROUTE = 3;
+/** Public reads allowed on top of the per-route allowance. */
+const OBSERVE_READS_BASE = 50;
+
+/**
+ * Whether a failed public read can be waited out. The typed adapter errors
+ * (a body over the ceiling, authentication or context failures) cannot; a
+ * transport error such as a reset connection can.
+ *
+ * @param {unknown} error the thrown value
+ * @returns {boolean} true when the failure is transient
+ */
+function isTransientReadError(error) {
+  return !(error instanceof PagesAdapterError);
+}
+
+/**
+ * @param {unknown} error the thrown value
+ * @returns {string} a short, single-line description
+ */
+function describeReadError(error) {
+  const text = error instanceof Error ? error.message : String(error);
+  return text.replaceAll(/\s+/gu, ' ').slice(0, 200);
 }
 
 /** First wait between observations, doubling up to the maximum. */
@@ -940,18 +996,58 @@ function defaultSleep(seconds) {
 
 /**
  * One observation pass. `retryable` is false for hard failures (a redirect,
- * or a generation this run never staged), which no waiting can change.
+ * or a generation this run never staged), which no waiting can change. The
+ * first pass reads the marker and every route; later passes read the marker
+ * only until it matches and only the routes that did not yet match their
+ * staged entry, and the digest is computed over the whole coherent set.
  *
  * @param {Parameters<typeof observe>[0]} input the observe input
+ * @param {ObserveProgress} progress what earlier passes learned
  * @returns {Promise<Awaited<ReturnType<typeof observe>> & {retryable: boolean, maxAgeSeconds: number | null}>}
  *   the observation and its retry hints
  */
-async function observeOnce(input) {
+async function observeOnce(input, progress) {
   const state = stateFor(input.destination);
-  const served = await readServedGeneration(input.destination);
+  const activation = state.activations.get(input.generationId);
+  const staged =
+    activation ??
+    [...state.stages.values()].find(
+      (candidate) => candidate.generationId === input.generationId,
+    );
+  const entryPaths = staged?.entryPaths;
+  if (progress.cap === null) {
+    progress.cap =
+      OBSERVE_READS_PER_ROUTE * (entryPaths?.length ?? 0) + OBSERVE_READS_BASE;
+  }
+  /** @type {string[]} */
+  const readErrors = [];
+  let retryable = true;
+
+  const markerSettled =
+    progress.served !== null &&
+    progress.served.generationId === input.generationId &&
+    progress.served.artifactDigest === input.expectedArtifactDigest;
+  if (!markerSettled) {
+    progress.gets += 1;
+    try {
+      progress.served = await readServedGeneration(input.destination);
+    } catch (error) {
+      if (!isTransientReadError(error)) {
+        throw error;
+      }
+      readErrors.push(`${GENERATION_MARKER_PATH}: ${describeReadError(error)}`);
+      progress.served ??= {
+        generationId: null,
+        artifactDigest: null,
+        findings: [],
+      };
+    }
+  }
+  const served = /** @type {NonNullable<typeof progress.served>} */ (
+    progress.served
+  );
   /** @type {number | null} */
   let seenMaxAge = maxAgeSeconds(served.cacheControl);
-  let retryable = true;
 
   /** @type {string[]} */
   const findings = [...served.findings];
@@ -969,12 +1065,6 @@ async function observeOnce(input) {
     );
   }
 
-  const activation = state.activations.get(input.generationId);
-  const entryPaths =
-    activation?.entryPaths ??
-    [...state.stages.values()].find(
-      (candidate) => candidate.generationId === input.generationId,
-    )?.entryPaths;
   /** @type {string | null} */
   let observedArtifactDigest = null;
   /** @type {PublicRedirectFailure | undefined} */
@@ -990,10 +1080,30 @@ async function observeOnce(input) {
     );
   } else {
     const publicContext = publicContextFor(input.destination);
-    /** @type {import('./artifact-projection.js').ArtifactEntry[]} */
-    const entries = [];
+    const expectedByPath = new Map(
+      (staged?.entries ?? []).map((entry) => [entry.path, entry]),
+    );
+    const cap = /** @type {number} */ (progress.cap);
     for (const entryPath of entryPaths) {
-      const read = await readPublic(publicContext, entryPath);
+      if (progress.matched.has(entryPath)) {
+        continue;
+      }
+      if (progress.gets >= cap) {
+        progress.capHit = true;
+        break;
+      }
+      progress.gets += 1;
+      /** @type {Awaited<ReturnType<typeof readPublic>>} */
+      let read;
+      try {
+        read = await readPublic(publicContext, entryPath);
+      } catch (error) {
+        if (!isTransientReadError(error)) {
+          throw error;
+        }
+        readErrors.push(`${entryPath}: ${describeReadError(error)}`);
+        continue;
+      }
       const readMaxAge = maxAgeSeconds(read.cacheControl);
       if (readMaxAge !== null && readMaxAge > (seenMaxAge ?? -1)) {
         seenMaxAge = readMaxAge;
@@ -1005,15 +1115,59 @@ async function observeOnce(input) {
         break;
       }
       if (read.status !== 200 || read.bytes === null) {
+        progress.latest.delete(entryPath);
         findings.push(`${entryPath}: public read returned HTTP ${read.status}`);
         continue;
       }
-      entries.push(projectEntry(entryPath, read.bytes));
+      const entry = projectEntry(entryPath, read.bytes);
+      const expected = expectedByPath.get(entryPath);
+      if (
+        expected !== undefined &&
+        expected.sha256 === entry.sha256 &&
+        expected.byteLength === entry.byteLength
+      ) {
+        progress.matched.set(entryPath, entry);
+        progress.latest.delete(entryPath);
+      } else {
+        progress.latest.set(entryPath, entry);
+      }
     }
-    observedArtifactDigest = digestEntries(entries);
-    if (observedArtifactDigest !== input.expectedArtifactDigest) {
+    for (const entryPath of entryPaths) {
+      if (
+        !progress.matched.has(entryPath) &&
+        !progress.latest.has(entryPath) &&
+        !findings.some((finding) => finding.startsWith(`${entryPath}: `)) &&
+        !readErrors.some((finding) => finding.startsWith(`${entryPath}: `)) &&
+        !progress.capHit &&
+        failure === undefined
+      ) {
+        findings.push(`${entryPath}: not yet read`);
+      }
+    }
+    for (const readError of readErrors) {
+      findings.push(`public read failed: ${readError}`);
+    }
+    const coherent = [
+      ...progress.matched.values(),
+      ...progress.latest.values(),
+    ];
+    if (coherent.length === entryPaths.length) {
+      observedArtifactDigest = digestEntries(coherent);
+      if (observedArtifactDigest !== input.expectedArtifactDigest) {
+        findings.push(
+          `the publicly observed artifact digest ${observedArtifactDigest} disagrees with the expected ${input.expectedArtifactDigest}`,
+        );
+      }
+      if (progress.latest.size === 0 && markerValid) {
+        // Every route matches its staged entry and the marker matches, yet
+        // the digest disagrees: no further reading can change that.
+        retryable = false;
+      }
+    }
+    if (progress.capHit) {
+      retryable = false;
       findings.push(
-        `the publicly observed artifact digest ${observedArtifactDigest} disagrees with the expected ${input.expectedArtifactDigest}`,
+        `the public read budget of ${cap} requests was exhausted before every route matched`,
       );
     }
   }
