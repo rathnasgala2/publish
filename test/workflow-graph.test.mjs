@@ -277,7 +277,7 @@ test('deploy-do-spaces has no environment and the other two gated jobs have the 
     PUBLISH.jobs['verify-do-spaces-configuration']['timeout-minutes'],
     30,
   );
-  assert.equal(PUBLISH.jobs['deploy-github-pages']['timeout-minutes'], 30);
+  assert.equal(PUBLISH.jobs['deploy-github-pages']['timeout-minutes'], 60);
 });
 
 test('id-token: write is granted only where an OIDC exchange or attestation happens', () => {

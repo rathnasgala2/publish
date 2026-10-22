@@ -49,7 +49,7 @@ import {
 } from './deployment.js';
 import { decodeCarrier, encodeCarrier } from './carrier.js';
 import { buildValidatedMarker, parsePublicMarker } from './marker.js';
-import { readPublic } from './public-read.js';
+import { maxAgeSeconds, readPublic } from './public-read.js';
 import { requireOidcExpectation } from './oidc.js';
 import {
   resolvePriorAttempt,
@@ -117,6 +117,7 @@ export {
  *   fetch?: typeof globalThis.fetch,
  *   publicFetch?: typeof globalThis.fetch,
  *   sleep?: (seconds: number) => Promise<void>,
+ *   now?: () => number,
  *   runId?: string,
  *   runAttempt?: number,
  *   headSha?: string
@@ -252,7 +253,7 @@ function publicRedirectFinding(failure) {
  * unknown, never thrown.
  *
  * @param {PagesDestination} destination the bound destination
- * @returns {Promise<{generationId: string | null, artifactDigest: string | null, findings: string[], failure?: PublicRedirectFailure}>}
+ * @returns {Promise<{generationId: string | null, artifactDigest: string | null, findings: string[], cacheControl?: string | null | undefined, failure?: PublicRedirectFailure}>}
  *   the observed public generation
  */
 async function readServedGeneration(destination) {
@@ -270,12 +271,18 @@ async function readServedGeneration(destination) {
     };
   }
   if (observation.status === 404) {
-    return { generationId: null, artifactDigest: null, findings: [] };
+    return {
+      generationId: null,
+      artifactDigest: null,
+      findings: [],
+      cacheControl: observation.cacheControl,
+    };
   }
   if (observation.status !== 200 || observation.bytes === null) {
     return {
       generationId: null,
       artifactDigest: null,
+      cacheControl: observation.cacheControl,
       findings: [
         `public generation marker read returned HTTP ${observation.status}; the served generation is unknown, not absent`,
       ],
@@ -287,12 +294,14 @@ async function readServedGeneration(destination) {
       generationId: null,
       artifactDigest: null,
       findings: parsed.findings,
+      cacheControl: observation.cacheControl,
     };
   }
   return {
     generationId: String(parsed.marker.generationId),
     artifactDigest: String(parsed.marker.artifactDigest),
     findings: [],
+    cacheControl: observation.cacheControl,
   };
 }
 
@@ -860,8 +869,89 @@ export async function activate(input) {
  */
 export async function observe(input) {
   restContextFor(input.destination);
+  const sleep = input.destination.sleep ?? defaultSleep;
+  const clock = input.destination.now ?? Date.now;
+  const startedAt = clock();
+  let slept = 0;
+  let delay = OBSERVE_FIRST_DELAY_SECONDS;
+  let attempt = await observeOnce(input);
+  let deadline = observeDeadlineSeconds(attempt.maxAgeSeconds);
+  for (;;) {
+    const result = { ...attempt };
+    const retryable = attempt.retryable;
+    // @ts-expect-error the retry hints are internal and never returned
+    delete result.retryable;
+    // @ts-expect-error the retry hints are internal and never returned
+    delete result.maxAgeSeconds;
+    if (result.verified || !retryable) {
+      return Object.freeze(result);
+    }
+    deadline = Math.max(
+      deadline,
+      observeDeadlineSeconds(attempt.maxAgeSeconds),
+    );
+    const elapsed = Math.max(slept, (clock() - startedAt) / 1000);
+    const wait = Math.min(delay, deadline - elapsed);
+    if (wait <= 0) {
+      return Object.freeze(result);
+    }
+    await sleep(wait);
+    slept += wait;
+    delay = Math.min(delay * 2, OBSERVE_MAXIMUM_DELAY_SECONDS);
+    attempt = await observeOnce(input);
+  }
+}
+
+/** First wait between observations, doubling up to the maximum. */
+const OBSERVE_FIRST_DELAY_SECONDS = 5;
+/** Longest wait between two observations. */
+const OBSERVE_MAXIMUM_DELAY_SECONDS = 30;
+/** Lifetime assumed when the origin declares no `max-age`. */
+const OBSERVE_DEFAULT_MAX_AGE_SECONDS = 600;
+/** Longest declared `max-age` that is waited out. */
+const OBSERVE_MAXIMUM_MAX_AGE_SECONDS = 900;
+/** Margin added to the cache lifetime. */
+const OBSERVE_MARGIN_SECONDS = 60;
+
+/**
+ * How long a stale public read may keep disagreeing: the CDN lifetime plus a
+ * margin.
+ *
+ * @param {number | null} declared the largest `max-age` seen, if any
+ * @returns {number} the deadline in seconds since the first observation
+ */
+function observeDeadlineSeconds(declared) {
+  const lifetime = Math.min(
+    declared ?? OBSERVE_DEFAULT_MAX_AGE_SECONDS,
+    OBSERVE_MAXIMUM_MAX_AGE_SECONDS,
+  );
+  return Math.max(lifetime, 0) + OBSERVE_MARGIN_SECONDS;
+}
+
+/**
+ * @param {number} seconds seconds to wait
+ * @returns {Promise<void>} resolves after the wait
+ */
+function defaultSleep(seconds) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, seconds * 1000);
+  });
+}
+
+/**
+ * One observation pass. `retryable` is false for hard failures (a redirect,
+ * or a generation this run never staged), which no waiting can change.
+ *
+ * @param {Parameters<typeof observe>[0]} input the observe input
+ * @returns {Promise<Awaited<ReturnType<typeof observe>> & {retryable: boolean, maxAgeSeconds: number | null}>}
+ *   the observation and its retry hints
+ */
+async function observeOnce(input) {
   const state = stateFor(input.destination);
   const served = await readServedGeneration(input.destination);
+  /** @type {number | null} */
+  let seenMaxAge = maxAgeSeconds(served.cacheControl);
+  let retryable = true;
 
   /** @type {string[]} */
   const findings = [...served.findings];
@@ -892,7 +982,9 @@ export async function observe(input) {
   if (failure !== undefined) {
     // The origin redirects, so every route would redirect too: say so once
     // instead of asking for each of them.
+    retryable = false;
   } else if (entryPaths === undefined) {
+    retryable = false;
     findings.push(
       'this run did not stage the observed generation, so its route inventory cannot be verified here',
     );
@@ -902,7 +994,12 @@ export async function observe(input) {
     const entries = [];
     for (const entryPath of entryPaths) {
       const read = await readPublic(publicContext, entryPath);
+      const readMaxAge = maxAgeSeconds(read.cacheControl);
+      if (readMaxAge !== null && readMaxAge > (seenMaxAge ?? -1)) {
+        seenMaxAge = readMaxAge;
+      }
       if (read.status === 'redirect') {
+        retryable = false;
         failure = publicRedirectFailure(read);
         findings.push(`${entryPath}: ${publicRedirectFinding(failure)}`);
         break;
@@ -929,6 +1026,8 @@ export async function observe(input) {
     claimsCompleteInventory: /** @type {false} */ (false),
     findings: Object.freeze(findings),
     ...(failure === undefined ? {} : { failure }),
+    retryable,
+    maxAgeSeconds: seenMaxAge,
   });
 }
 

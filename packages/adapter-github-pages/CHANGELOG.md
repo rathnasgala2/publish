@@ -18,6 +18,17 @@ and this project adheres to
 
 ### Fixed
 
+- `observe` no longer reports a freshly activated generation as unverified
+  because the Pages CDN still serves the previous one. GitHub Pages serves
+  `cache-control: max-age=600` and its CDN ignores query strings and request
+  cache headers, so cache-busting is impossible. `observe` now re-observes the
+  marker and every staged route with a backoff (5 s doubling to 30 s) until the
+  marker and the artifact digest match, for at most the served `max-age`
+  (default 600 s, capped at 900 s) plus a 60 s margin, and then reports the last
+  observation's findings. A redirect (`PAGES_PUBLIC_REDIRECT`) and a generation
+  this run never staged still fail at once without waiting. The destination
+  accepts an optional `now` clock beside `sleep` for tests.
+
 - A redirecting public origin no longer throws out of the lifecycle. A site
   whose repository still carried the `github.io` base after moving to a custom
   domain made the public read's `redirect: 'error'` fetch throw (production

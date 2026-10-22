@@ -41,6 +41,17 @@ export function publicUrlFor(publicBaseUrl, artifactRelativePath) {
   return `${base}/${artifactRelativePath}`;
 }
 
+/**
+ * The `max-age` a `Cache-Control` header declares, in seconds.
+ *
+ * @param {string | null | undefined} cacheControl the header value
+ * @returns {number | null} the lifetime, `null` when none is declared
+ */
+export function maxAgeSeconds(cacheControl) {
+  const match = /(?:^|[\s,])max-age=(\d+)/iu.exec(cacheControl ?? '');
+  return match === null ? null : Number(match[1]);
+}
+
 /** How long the redirect-target probe may take before the target is unknown. */
 const REDIRECT_PROBE_TIMEOUT_MS = 10_000;
 
@@ -105,7 +116,7 @@ async function redirectTarget(doFetch, url) {
  *
  * @param {PublicContext} context the public-origin context
  * @param {string} artifactRelativePath the artifact-relative POSIX path
- * @returns {Promise<{status: number | 'redirect', bytes: Buffer | null, etag: string | null, toHost?: string | null, location?: string | null}>}
+ * @returns {Promise<{status: number | 'redirect', bytes: Buffer | null, etag: string | null, cacheControl?: string | null | undefined, toHost?: string | null, location?: string | null}>}
  *   the bounded observation; `bytes` is `null` for any non-`200` status. A
  *   `'redirect'` status carries the `toHost` and absolute `location` the
  *   origin named (`null` when it named none that could be read).
@@ -132,8 +143,9 @@ export async function readPublic(context, artifactRelativePath) {
     };
   }
   const etag = response.headers.get('etag');
+  const cacheControl = response.headers.get('cache-control');
   if (response.status !== 200) {
-    return { status: response.status, bytes: null, etag };
+    return { status: response.status, bytes: null, etag, cacheControl };
   }
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.byteLength > MAXIMUM_PUBLIC_BODY_BYTES) {
@@ -142,5 +154,5 @@ export async function readPublic(context, artifactRelativePath) {
       `${artifactRelativePath} returned ${bytes.byteLength} bytes`,
     );
   }
-  return { status: 200, bytes, etag };
+  return { status: 200, bytes, etag, cacheControl };
 }

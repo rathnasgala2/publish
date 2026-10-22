@@ -221,7 +221,12 @@ test('any other fetch failure still throws, and 200 and 404 reads are unchanged'
     { publicBaseUrl: BASE, fetch: answer(404) },
     'x',
   );
-  assert.deepEqual(missing, { status: 404, bytes: null, etag: '"e"' });
+  assert.deepEqual(missing, {
+    status: 404,
+    bytes: null,
+    etag: '"e"',
+    cacheControl: null,
+  });
 });
 
 /**
