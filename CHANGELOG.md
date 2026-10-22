@@ -8,6 +8,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Serve template 4.4.1 (exact registry pin; layout fixes, styling contract
+  unchanged). Themes stay at 4.2.0 and the template contract stays 4.1.0.
+- Revert adapter-github-pages 0.1.2 until it is published to npm (it was never
+  published, so a toolchain built from main failed every deploy with
+  `DEPLOY_ADAPTER_VERSION_MISMATCH`).
+
 ### Fixed
 
 - A failed deploy is always reported (production incident 2026-10-21: an adapter

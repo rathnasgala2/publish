@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Serve template 4.4.1 (exact registry pin; layout fixes, styling contract
+  unchanged); themes stay at 4.2.0 and the template contract stays 4.1.0.
+
 ### Added
 
 - Repository intake reads `publication.json`'s optional `policies` (schemas

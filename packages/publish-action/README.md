@@ -330,7 +330,7 @@ and sets `build-input.modules.analytics = {config}`. With no file there is no
 authority for the theme selection) names a real theme package
 (`@rathnasgala2/theme-<name>@<version>`). This workspace installs all six
 generation-4 themes (five at 4.2.0, `theme-editorial` at 4.1.0 until its 4.2.0
-is published) and template 4.4.0 from the public registry.
+is published) and template 4.4.1 from the public registry.
 `src/theme-bridge.js`'s `resolveThemeDirectory` locates the selected theme
 package directory on disk, in this fixed order — the first candidate directory
 that actually exists wins:

@@ -114,7 +114,7 @@ async function loadRenderableBuildInput() {
   buildInput.appearance.fontAssets = [];
   buildInput.appearance.theme = '@rathnasgala2/theme-default@4.2.0';
   buildInput.packages.schemas.version = '3.16.0';
-  buildInput.packages.template.version = '4.4.0';
+  buildInput.packages.template.version = '4.4.1';
   buildInput.packages.theme = {
     ...buildInput.packages.theme,
     package: '@rathnasgala2/theme-default',
@@ -188,7 +188,7 @@ function testProvenance() {
       {
         kind: 'package',
         package: '@rathnasgala2/template',
-        version: '4.4.0',
+        version: '4.4.1',
         digest: digest(4),
       },
       {

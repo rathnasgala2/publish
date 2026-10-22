@@ -368,8 +368,8 @@
       "type": "library",
       "name": "template",
       "group": "@rathnasgala2",
-      "version": "4.4.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.4.0",
+      "version": "4.4.1",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.4.1",
       "licenses": [
         {
           "license": {
@@ -378,15 +378,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/template@4.4.0",
+      "purl": "pkg:npm/%40rathnasgala2/template@4.4.1",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/@rathnasgala2/template/-/template-4.4.0.tgz",
+          "url": "https://registry.npmjs.org/@rathnasgala2/template/-/template-4.4.1.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "e07414734a499f8081e4a31d7782fe75c451314e58642b82d56f76db77704c2201eedc5e6c5e491117bbc4fa23ea64197f419a31ad326d89717e56d9aee8a373"
+              "content": "8bb96ec859f70eb43fd8dc86ea0f8adbd06491e7838f2acf1254ae300331b98fab7fdaa948fc1859357454b15c5447daf32876c844609773afee9bb29cf33146"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -18232,7 +18232,7 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.4.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.4.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@4.2.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@4.2.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-editorial@4.1.0",
@@ -18317,7 +18317,7 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.16.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.4.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.4.1",
         "@rathnasgala2/publish-workspace@0.0.0|yaml@2.9.0"
       ]
     },
@@ -18329,7 +18329,7 @@
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.4.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.4.1",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@11ty/eleventy-plugin-syntaxhighlight@5.0.2",
         "@rathnasgala2/publish-workspace@0.0.0|@11ty/eleventy@3.1.6",
