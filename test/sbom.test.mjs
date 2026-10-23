@@ -110,7 +110,7 @@ test('the SBOM is the closed projection: root members, package order and IDs, fi
       ['SPDXRef-Package-Artifact', `galascribe-artifact-${artifactHex}`],
       ['SPDXRef-Package-Direct-00', '@rathnasgala2/schemas'],
       ['SPDXRef-Package-Direct-01', '@rathnasgala2/template'],
-      ['SPDXRef-Package-Direct-02', '@rathnasgala2/theme-editorial'],
+      ['SPDXRef-Package-Direct-02', '@rathnasgala2/theme-default'],
       ['SPDXRef-Package-Direct-03', '@rathnasgala2/publish-action'],
       ['SPDXRef-Package-Direct-04', '@rathnasgala2/publish-kernel'],
       ['SPDXRef-Package-Direct-05', '@rathnasgala2/adapter-protocol'],

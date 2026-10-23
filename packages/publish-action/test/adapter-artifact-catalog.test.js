@@ -157,18 +157,12 @@ function previousPagesRelease() {
 test('a lock row that byte-equals the previous release row is admitted alongside the installed row', () => {
   const { previous, lockRow, previousRow } = previousPagesRelease();
   assert.equal(requireAdapterArtifact(lockRow, 'TEST', previous), previousRow);
+  const { adapterId: omittedAdapterId, ...catalogRow } = /** @type {any} */ (
+    findAdapterArtifact('@rathnasgala2/adapter-github-pages')
+  );
+  assert.ok(omittedAdapterId);
   assert.equal(
-    requireAdapterArtifact(
-      /** @type {any} */ (
-        (({ adapterId, ...row }) => (adapterId, row))(
-          /** @type {any} */ (
-            findAdapterArtifact('@rathnasgala2/adapter-github-pages')
-          ),
-        )
-      ),
-      'TEST',
-      previous,
-    ),
+    requireAdapterArtifact(/** @type {any} */ (catalogRow), 'TEST', previous),
     findAdapterArtifact('@rathnasgala2/adapter-github-pages'),
   );
   assert.equal(
