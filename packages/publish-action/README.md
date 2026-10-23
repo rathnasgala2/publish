@@ -416,11 +416,13 @@ and freeze accept a lock adapter row that byte-equals any admitted row; the
 deploy job runs the installed adapter whatever admitted version the lock pins
 and journals `lockedAdapterVersion` next to `installedAdapterVersion`. An
 adapter release must therefore keep the prior release admitted, or every
-existing lock becomes unpublishable until it moves: run the release through
-`prod-adapter.sh`, whose `update-adapter-catalog.mjs catalog` step moves the old
+existing lock becomes unpublishable until it moves: publish through
+`.github/workflows/release-adapters.yaml`, then run
+`scripts/release/update-adapter-catalog.mjs catalog`, which moves the old
 installed row into the previous list (one previous row per package; repeating
-the same release changes nothing). Never edit the installed row by hand to
-publish a new release.
+the same release changes nothing). The order of the whole release is in the
+repository README's "Releasing an adapter". Never edit the installed row by hand
+to publish a new release.
 
 ## Provenance
 

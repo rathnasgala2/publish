@@ -2,13 +2,18 @@
 /**
  * Structural guard for the generation-4 delivery decision. The toolchain is
  * consumed by commit, so only the adapter protocol and the destination adapters
- * (installed by npm consumers) may be publishable, and no owned workflow may invoke npm's
- * publication command.
+ * (installed by npm consumers) may be publishable, and no owned workflow may
+ * invoke npm's publication command except `release-adapters.yaml`, the one
+ * workflow that publishes those four packages through npm trusted publishing
+ * (`test/adapter-release.test.mjs` pins its shape).
  */
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import { runIfMain } from './run-if-main.mjs';
+
+/** The only workflows allowed to invoke the publication command. */
+const PUBLISHING_WORKFLOWS = new Set(['release-adapters.yaml']);
 
 /**
  * @returns {Promise<void>} resolves only when npm publication is disabled
@@ -46,9 +51,12 @@ async function main() {
   for (const workflowName of workflowNames) {
     const workflowPath = path.join(workflowRoot, workflowName);
     const source = await readFile(workflowPath, 'utf8');
-    if (/\bnpm\s+publish\b/u.test(source)) {
+    if (
+      !PUBLISHING_WORKFLOWS.has(workflowName) &&
+      /\bnpm\s+publish\b/u.test(source)
+    ) {
       diagnostics.push(
-        `${workflowPath}: npm publish is forbidden during source-only delivery`,
+        `${workflowPath}: npm publish is forbidden outside ${[...PUBLISHING_WORKFLOWS].join(', ')}`,
       );
     }
   }
@@ -57,7 +65,7 @@ async function main() {
     throw new Error(diagnostics.join('\n'));
   }
   process.stdout.write(
-    `source-only: ${packageNames.length} workspace packages are checked (protocol and adapters publishable, the rest private) and ${workflowNames.length} workflows contain no npm publish command\n`,
+    `source-only: ${packageNames.length} workspace packages are checked (protocol and adapters publishable, the rest private) and ${workflowNames.filter((name) => !PUBLISHING_WORKFLOWS.has(name)).length} of ${workflowNames.length} workflows contain no npm publish command (the rest: ${[...PUBLISHING_WORKFLOWS].join(', ')})\n`,
   );
 }
 

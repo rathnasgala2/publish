@@ -8,6 +8,21 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `.github/workflows/release-adapters.yaml` publishes the four adapter packages
+  (`adapter-protocol`, `adapter-local-directory`, `adapter-github-pages`,
+  `adapter-do-spaces`) to npm with trusted publishing (OIDC, `environment: npm`,
+  provenance, no token), on a push to `main` that changes a package or on a
+  manual run naming one package. A push that changes a packed path of a package
+  whose declared version is already on npm fails instead of skipping, and
+  publishes nothing from that push. `scripts/release/adapter-release.mjs` plans
+  the run and re-checks the version; `scripts/check-source-only-delivery.mjs`
+  now exempts only this workflow from the no-`npm publish` rule. The README's
+  "Releasing an adapter" states the release order (npm publish, catalog row, API
+  catalog and admission migration, user-template); `prod-adapter.sh` is for
+  emergencies only.
+
 ### Changed
 
 - Serve `adapter-github-pages` 0.1.2 (released 2026-10-23, `verificationBaseUrl`

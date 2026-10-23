@@ -2,6 +2,8 @@
  * Source-only delivery regression: CI, nightly and release verification use
  * the manifest-verified packages committed to this repository. They neither
  * check out mutable sibling repositories nor hold npm publication authority.
+ * (The one publishing workflow, release-adapters.yaml, is covered by
+ * adapter-release.test.mjs.)
  *
  * These tests assert the fixed shape directly from the committed YAML, so
  * A regression fails here instead of only being caught by re-reading the

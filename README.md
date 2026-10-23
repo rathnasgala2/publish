@@ -541,24 +541,62 @@ implements plus the closed capability vocabulary, negotiation and in-process
 message contract. It has no runtime dependency on any specific adapter or on
 `publish-kernel`; see `packages/adapter-protocol/README.md`.
 
-## Releasing the adapters (`prod-adapter.sh`)
+## Releasing an adapter
 
-The owner-run script `prod-adapter.sh` at the workspace root (next to
-`prod-deploy.sh`) bumps, publishes and pins the adapter packages from a
-workstation. Run `./prod-adapter.sh --dry-run` first: it typechecks, tests and
-packs each package, compares the pack's sha256 with the registry tarball of the
-same version, and prints the plan (up to date, bump then publish, or publish as
-is). A real run asks once, publishes with
+The adapter packages (`adapter-protocol`, `adapter-local-directory`,
+`adapter-github-pages`, `adapter-do-spaces`) reach npm only through
+`.github/workflows/release-adapters.yaml`, with npm trusted publishing (OIDC,
+`environment: npm`, provenance, no token). `adapter-conformance-kit` is private
+and is never released. An adapter release is four steps, **in this order**; each
+one depends on the one before it, and a pin that moves before the API admits the
+new digest strands every lock that carries it (`LOCK_ADAPTER_IDENTITY_INVALID`).
+
+1. **Publish to npm through the workflow.** Bump the package's `version`, give
+   its `CHANGELOG.md` a dated heading (`update-adapter-catalog.mjs changelog`
+   does that from the `## [Unreleased]` section; `deps` moves exact workspace
+   pins) and push to `main`. The workflow typechecks the package, checks its
+   committed declarations, runs its tests, publishes with provenance and waits
+   until npm lists the version. It publishes one package at a time, the protocol
+   first. A push that changes a packed path (`src/`, `types/`, `README.md`,
+   `CHANGELOG.md`, `LICENSE`, `package.json`) of a package whose declared
+   version is already on npm **fails** and publishes nothing from that push:
+   bump the version, then push again or dispatch the packages one at a time. To
+   release a single package without a push (for example after registering its
+   trusted publisher late), run Actions > Release adapters > Run workflow and
+   pick the package. The job summary prints the registry tarball's SHA-256 and
+   the exact catalog command for the next step.
+2. **Keep the previous release admitted.** From a clean checkout of `main`, run
+   `node scripts/release/update-adapter-catalog.mjs catalog --root . <package>=<version>=<sha256>`
+   with the digest from the job summary (`adapter-protocol` has no catalog row).
+   It moves the old installed row into `ADAPTER_PREVIOUS_RELEASES` (one previous
+   row per adapter), rewrites the fixture lock, and leaves the rest to you:
+   `npm run sbom`, the targeted checks (`changelog:check`, `pins:check`,
+   `sbom:check`, `format:check`,
+   `packages/publish-action/test/adapter-artifact-catalog.test.js`,
+   `test/adapter-version.test.mjs`, `test/artifact-digest-agreement.test.mjs`)
+   and one commit. Never edit the installed row by hand.
+3. **API.** Add the new release to the API's `AdapterArtifactCatalog` (code),
+   ship the database admission migration for it, and deploy the API, so intake
+   and freeze admit the new digest.
+4. **user-template.** Only after step 3 is live, move the user-template caller
+   pin and lock to the new toolchain commit, and move the `user-template` ref
+   that this repository's `ci.yml` and `release.yaml` check out to that same
+   commit. Locks that still pin the previous release keep publishing because
+   step 2 kept that release admitted.
+
+Once per package, the owner registers the trusted publisher on npmjs.com
+(package > Settings > Trusted publisher > GitHub Actions): owner `rathnasgala2`,
+repository `publish`, workflow filename `release-adapters.yaml`, environment
+`npm`. Until it is registered the publish step fails with a message that names
+this.
+
+`prod-adapter.sh` at the workspace root is for emergencies only, when the
+workflow cannot run. It bumps, publishes and pins from a workstation with
 `npm publish --access public --provenance=false` (npm's browser sign-in is the
-only authentication), refuses to continue unless each registry tarball equals
-the local pack, rewrites the artifact-catalog rows and the fixture lock through
-`scripts/release/update-adapter-catalog.mjs`, runs the targeted checks and
-commits `Release adapter packages: ...`. It requires this checkout on a clean
-`main` equal to `origin/main` and Node from `.nvmrc`. `adapter-conformance-kit`
-is private in source, so the script skips it with one printed line (and refuses
-it when it is named explicitly). The new digests change the toolchain commit;
-the user-template pin and lock, the API catalog and the live sites move in a
-separate pin round.
+only authentication, and the version carries no provenance attestation), then
+runs the catalog step itself and commits `Release adapter packages: ...`. Steps
+3 and 4 still follow it. Run `./prod-adapter.sh --dry-run` first; it requires a
+clean `main` equal to `origin/main` and Node from `.nvmrc`.
 
 ## License
 
