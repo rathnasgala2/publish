@@ -300,6 +300,7 @@ export type PagesDestination = Readonly<{
     fetch?: typeof globalThis.fetch;
     publicFetch?: typeof globalThis.fetch;
     sleep?: (seconds: number) => Promise<void>;
+    now?: () => number;
     runId?: string;
     runAttempt?: number;
     headSha?: string;
@@ -307,6 +308,41 @@ export type PagesDestination = Readonly<{
 export type StagedFile = Readonly<{
     path: string;
     bytes: Buffer;
+}>;
+/**
+ * What `observe` keeps between passes so a retry reads only what is still
+ * wrong: the routes whose bytes already match the staged entry, the latest
+ * bytes of the others, and the marker read until it matches.
+ */
+export type ObserveProgress = {
+    matched: Map<string, import("./artifact-projection.js").ArtifactEntry>;
+    matchedPass: Map<string, number>;
+    latest: Map<string, import("./artifact-projection.js").ArtifactEntry>;
+    statuses: Map<string, number>;
+    served: Awaited<ReturnType<typeof readServedGeneration>> | null;
+    markerPass: number;
+    pass: number;
+    cursor: number;
+    confirmed: boolean;
+    errorCode: string | null;
+    errorStreak: number;
+};
+/**
+ * Read the generation identity the public origin currently serves, or
+ * `null` when nothing has ever been activated. A redirecting origin is
+ * reported as the `PAGES_PUBLIC_REDIRECT` failure with the generation
+ * unknown, never thrown.
+ *
+ * @param {PagesDestination} destination the bound destination
+ * @returns {Promise<{generationId: string | null, artifactDigest: string | null, findings: string[], cacheControl?: string | null | undefined, failure?: PublicRedirectFailure}>}
+ *   the observed public generation
+ */
+declare function readServedGeneration(destination: PagesDestination): Promise<{
+    generationId: string | null;
+    artifactDigest: string | null;
+    findings: string[];
+    cacheControl?: string | null | undefined;
+    failure?: PublicRedirectFailure;
 }>;
 export { EXPECT_NOTHING_SERVED, fenceFor, generateUuidV7 } from "@rathnasgala2/adapter-protocol";
 export { decodeCarrier, encodeCarrier } from "./carrier.js";

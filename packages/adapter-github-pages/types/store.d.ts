@@ -48,6 +48,7 @@ export type StageRecord = Readonly<{
     artifactId: string;
     artifactDigest: string;
     entryPaths: readonly string[];
+    entries: readonly import("./artifact-projection.js").ArtifactEntry[];
     carrierBytes: Buffer;
     carrierDigest: string;
     pagesArtifactId: string;
@@ -61,6 +62,7 @@ export type DestinationState = {
         pagesDeploymentId: string;
         certifiedAt: string;
         entryPaths: readonly string[];
+        entries: readonly import("./artifact-projection.js").ArtifactEntry[];
     }>;
     inFlight: Map<string, string>;
 };

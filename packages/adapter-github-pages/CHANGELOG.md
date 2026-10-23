@@ -8,6 +8,19 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-23
+
+### Fixed
+
+- The shipped TypeScript declarations (`types/`) are regenerated from `src/`.
+  The 0.1.2 package shipped the `observe` CDN wait and the transport error
+  policy in `src/` but declarations that predated them, so a TypeScript consumer
+  saw no `now` clock on the destination, no `cacheControl` on a public read and
+  no `entries` on the staged and certified records. The declarations now carry
+  `PagesDestination.now`, the `ObserveProgress` type, `readServedGeneration`,
+  `maxAgeSeconds` and the `cacheControl` and `entries` members. There is no
+  runtime change from 0.1.2.
+
 ## [0.1.2] - 2026-10-23
 
 ### Added
