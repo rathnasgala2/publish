@@ -4,6 +4,14 @@
  * `gala.lock.json` must carry; partial or locally substituted identities are
  * not admitted.
  *
+ * Each adapter package has one INSTALLED row (`ADAPTER_ARTIFACT_CATALOG`: the
+ * release this toolchain's workspace installs and runs) and at most one
+ * PREVIOUS row (`ADAPTER_PREVIOUS_RELEASES`: the release before it, admitted so
+ * locks that still pin it stay publishable after an adapter release). An
+ * adapter release moves the old installed row into the previous list
+ * (`scripts/release/update-adapter-catalog.mjs`). The previous list may be
+ * empty.
+ *
  * @module
  */
 
@@ -55,6 +63,11 @@ export const ADAPTER_ARTIFACT_CATALOG = Object.freeze([
   }),
 ]);
 
+// previous-releases:begin
+/** @type {readonly AdapterArtifactCatalogEntry[]} */
+export const ADAPTER_PREVIOUS_RELEASES = Object.freeze([]);
+// previous-releases:end
+
 /** Package name to protocol adapter id, derived from the authoritative rows. */
 export const ADAPTER_PACKAGES = Object.freeze(
   Object.fromEntries(
@@ -73,13 +86,61 @@ export function findAdapterArtifact(packageName) {
 }
 
 /**
- * Fail closed unless a lock row byte-equals the complete catalog identity.
+ * @param {string} packageName npm package name
+ * @param {readonly AdapterArtifactCatalogEntry[]} [previous] previous release
+ *   rows; the catalog's own list unless a test supplies one
+ * @returns {readonly AdapterArtifactCatalogEntry[]} every admitted row of the
+ *   package: the installed row first, then the previous rows
+ */
+export function admittedAdapterArtifacts(
+  packageName,
+  previous = ADAPTER_PREVIOUS_RELEASES,
+) {
+  const installed = findAdapterArtifact(packageName);
+  return installed === undefined
+    ? []
+    : [installed, ...previous.filter((entry) => entry.package === packageName)];
+}
+
+/**
+ * @param {string} packageName npm package name
+ * @param {string} version exact package version
+ * @param {readonly AdapterArtifactCatalogEntry[]} [previous] previous release rows
+ * @returns {boolean} whether the version is an admitted release of the package
+ */
+export function isAdmittedAdapterVersion(
+  packageName,
+  version,
+  previous = ADAPTER_PREVIOUS_RELEASES,
+) {
+  return admittedAdapterArtifacts(packageName, previous).some(
+    (entry) => entry.version === version,
+  );
+}
+
+const ROW_MEMBERS = [
+  'package',
+  'version',
+  'integrity',
+  'registry',
+  'contractVersion',
+  'compatibleWith',
+];
+
+/**
+ * Fail closed unless a lock row byte-equals the complete identity of an
+ * admitted row: the installed row or a previous release row.
  *
  * @param {Record<string, unknown>} row selected lock row
  * @param {string} diagnosticPrefix stable caller-specific error prefix
+ * @param {readonly AdapterArtifactCatalogEntry[]} [previous] previous release rows
  * @returns {AdapterArtifactCatalogEntry} the matching catalog entry
  */
-export function requireAdapterArtifact(row, diagnosticPrefix) {
+export function requireAdapterArtifact(
+  row,
+  diagnosticPrefix,
+  previous = ADAPTER_PREVIOUS_RELEASES,
+) {
   const entry =
     typeof row.package === 'string'
       ? findAdapterArtifact(row.package)
@@ -87,31 +148,42 @@ export function requireAdapterArtifact(row, diagnosticPrefix) {
   if (entry === undefined) {
     throw new Error(`${diagnosticPrefix}: selected adapter is not cataloged`);
   }
-  const members = [
-    'package',
-    'version',
-    'integrity',
-    'registry',
-    'contractVersion',
-    'compatibleWith',
-  ];
   if (
-    Object.keys(row).length !== members.length ||
-    members.some((member) => !Object.hasOwn(row, member))
+    Object.keys(row).length !== ROW_MEMBERS.length ||
+    ROW_MEMBERS.some((member) => !Object.hasOwn(row, member))
   ) {
     throw new Error(
       `${diagnosticPrefix}: ${entry.package} does not carry exactly the catalog package-row members`,
     );
   }
-  for (const member of members) {
+  const admitted = admittedAdapterArtifacts(entry.package, previous).find(
+    (candidate) =>
+      ROW_MEMBERS.every(
+        (member) =>
+          row[member] ===
+          candidate[/** @type {keyof AdapterArtifactCatalogEntry} */ (member)],
+      ),
+  );
+  if (admitted !== undefined) {
+    return admitted;
+  }
+  // Report against the row the lock names when it is an admitted version, so
+  // the diagnostic points at the member that differs; otherwise the installed row.
+  const reference =
+    admittedAdapterArtifacts(entry.package, previous).find(
+      (candidate) => candidate.version === row.version,
+    ) ?? entry;
+  for (const member of ROW_MEMBERS) {
     if (
       row[member] !==
-      entry[/** @type {keyof AdapterArtifactCatalogEntry} */ (member)]
+      reference[/** @type {keyof AdapterArtifactCatalogEntry} */ (member)]
     ) {
       throw new Error(
         `${diagnosticPrefix}: ${entry.package} ${member} does not match the closed artifact catalog`,
       );
     }
   }
-  return entry;
+  throw new Error(
+    `${diagnosticPrefix}: ${entry.package} does not match the closed artifact catalog`,
+  );
 }

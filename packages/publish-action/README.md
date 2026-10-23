@@ -407,6 +407,21 @@ override that is not itself a `v2/theme-<name>` sibling checkout.
 `test/theme-bridge.test.js` covers the resolution-order precedence and every
 fail-closed path.
 
+## Adapter releases and the artifact catalog
+
+`src/adapter-artifact-catalog.js` admits, per adapter package, the INSTALLED
+release row (`ADAPTER_ARTIFACT_CATALOG`, the version the workspace installs and
+runs) and at most one PREVIOUS release row (`ADAPTER_PREVIOUS_RELEASES`). Intake
+and freeze accept a lock adapter row that byte-equals any admitted row; the
+deploy job runs the installed adapter whatever admitted version the lock pins
+and journals `lockedAdapterVersion` next to `installedAdapterVersion`. An
+adapter release must therefore keep the prior release admitted, or every
+existing lock becomes unpublishable until it moves: run the release through
+`prod-adapter.sh`, whose `update-adapter-catalog.mjs catalog` step moves the old
+installed row into the previous list (one previous row per package; repeating
+the same release changes nothing). Never edit the installed row by hand to
+publish a new release.
+
 ## Provenance
 
 `options.provenance` (`builder`, `repositoryCoordinate`, `workflowIdentity`,

@@ -62,6 +62,43 @@ test('the catalog rewrite sets one row, leaves the others and is idempotent', as
   }
 });
 
+test('a new version moves the old installed row into the previous list, keeping one previous row per package', async () => {
+  const source = await readFile(path.join(ROOT, CATALOG_PATH), 'utf8');
+  const installed = ADAPTER_ARTIFACT_CATALOG.find((e) => e.package === NAME);
+  assert.ok(installed);
+  const first = rewriteCatalogSource(source, [
+    { package: NAME, version: '0.1.2', hex: HEX },
+  ]);
+  const second = rewriteCatalogSource(first, [
+    { package: NAME, version: '0.1.3', hex: 'b'.repeat(64) },
+  ]);
+  const previousOf = (/** @type {string} */ text) =>
+    text.slice(
+      text.indexOf('previous-releases:begin'),
+      text.indexOf('previous-releases:end'),
+    );
+  assert.ok(previousOf(first).includes(`version: '${installed.version}'`));
+  assert.ok(previousOf(first).includes(installed.integrity));
+  assert.ok(previousOf(second).includes("version: '0.1.2'"));
+  assert.ok(previousOf(second).includes(HEX));
+  assert.ok(
+    !previousOf(second).includes(installed.integrity),
+    'the release before the previous one is dropped',
+  );
+  assert.equal(
+    rewriteCatalogSource(second, [
+      { package: NAME, version: '0.1.3', hex: 'b'.repeat(64) },
+    ]),
+    second,
+    'repeating the release changes nothing',
+  );
+  const refreshed = rewriteCatalogSource(second, [
+    { package: NAME, version: '0.1.3', hex: 'e'.repeat(64) },
+  ]);
+  assert.equal(previousOf(refreshed), previousOf(second));
+  assert.ok(refreshed.includes('e'.repeat(64)));
+});
+
 test('the catalog rewrite refuses unknown packages and malformed values', async () => {
   const source = await readFile(path.join(ROOT, CATALOG_PATH), 'utf8');
   assert.throws(

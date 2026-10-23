@@ -5,7 +5,8 @@
  * idempotent, none of which evaluates repository source:
  *
  * - `catalog --root <dir> <package>=<version>=<hex>...` rewrites the version
- *   and `sha256:<hex>` integrity of the named rows in
+ *   and `sha256:<hex>` integrity of the named installed rows (moving the old
+ *   installed row into the previous-releases list when the version changes) in
  *   `packages/publish-action/src/adapter-artifact-catalog.js` and of the
  *   matching package row in the minimal-repository fixture lock (whose
  *   `lockDigest` is recomputed with the lock digest profile).
@@ -55,8 +56,16 @@ function validateUpdates(updates) {
   }
 }
 
+const PREVIOUS_BEGIN = '// previous-releases:begin\n';
+const PREVIOUS_END = '// previous-releases:end';
+const ROW_CHUNK = /^ {2}Object\.freeze\(\{\n[\s\S]*?\n {2}\}\),?$/gmu;
+
 /**
- * Rewrite catalog rows in the catalog module source.
+ * Rewrite catalog rows in the catalog module source. A new version moves the
+ * package's old installed row into the previous-releases list (replacing any
+ * older previous row of that package, so at most one stays admitted) so locks
+ * that still pin it remain publishable; the same version only refreshes the
+ * integrity and leaves the previous row alone.
  *
  * @param {string} source the catalog module text
  * @param {readonly RowUpdate[]} updates the rows to set
@@ -67,22 +76,69 @@ export function rewriteCatalogSource(source, updates) {
   let next = source;
   for (const update of updates) {
     const pattern = new RegExp(
-      `(package: '${escapeRegExp(update.package)}',\\n\\s+version: ')[^']*(',\\n\\s+integrity:\\n\\s+'sha256:)[0-9a-f]{64}(')`,
+      `(package: '${escapeRegExp(update.package)}',\\n\\s+version: ')([^']*)(',\\n\\s+integrity:\\n\\s+'sha256:)([0-9a-f]{64})(')`,
       'gu',
     );
-    const matches = [...next.matchAll(pattern)];
+    const cut = next.indexOf(PREVIOUS_BEGIN);
+    const matches = [
+      ...next.slice(0, cut === -1 ? undefined : cut).matchAll(pattern),
+    ];
     if (matches.length !== 1) {
       throw new Error(
         `catalog row for ${update.package} found ${matches.length} times, expected 1`,
       );
     }
-    next = next.replace(
-      pattern,
-      (_all, head, middle, tail) =>
-        `${head}${update.version}${middle}${update.hex}${tail}`,
-    );
+    if (matches[0]?.[2] !== update.version) {
+      next = movePreviousRow(next, update.package);
+    }
+    const split = next.indexOf(PREVIOUS_BEGIN);
+    const installedPart = next.slice(0, split === -1 ? undefined : split);
+    next =
+      installedPart.replace(
+        pattern,
+        (_all, head, _version, middle, _hex, tail) =>
+          `${head}${update.version}${middle}${update.hex}${tail}`,
+      ) + (split === -1 ? '' : next.slice(split));
   }
   return next;
+}
+
+/**
+ * Copy the installed row of a package into the previous-releases list,
+ * dropping any earlier previous row of the same package.
+ *
+ * @param {string} source the catalog module text
+ * @param {string} packageName npm package name
+ * @returns {string} the text with the previous-releases list rewritten
+ */
+function movePreviousRow(source, packageName) {
+  const begin = source.indexOf(PREVIOUS_BEGIN);
+  const end = source.indexOf(PREVIOUS_END);
+  if (begin === -1 || end === -1 || end < begin) {
+    throw new Error('catalog has no previous-releases markers');
+  }
+  const bodyStart = begin + PREVIOUS_BEGIN.length;
+  const kept = [...source.slice(bodyStart, end).matchAll(ROW_CHUNK)]
+    .map((match) => match[0].replace(/,$/u, ''))
+    .filter((chunk) => !chunk.includes(`package: '${packageName}'`));
+  const installed = new RegExp(
+    `^ {2}Object\\.freeze\\(\\{\\n(?:(?! {2}\\}\\)).*\\n)*? {4}package: '${escapeRegExp(packageName)}',\\n[\\s\\S]*?\\n {2}\\}\\)`,
+    'mu',
+  ).exec(source.slice(0, begin));
+  if (installed === null) {
+    throw new Error(`installed catalog row for ${packageName} not found`);
+  }
+  const rows = [...kept, installed[0]];
+  const list =
+    rows.length === 0
+      ? 'Object.freeze([]);'
+      : `Object.freeze([\n${rows.map((row) => `${row},`).join('\n')}\n]);`;
+  const declaration = 'export const ADAPTER_PREVIOUS_RELEASES = ';
+  const listStart = source.indexOf(declaration, bodyStart);
+  if (listStart === -1 || listStart > end) {
+    throw new Error('catalog has no ADAPTER_PREVIOUS_RELEASES declaration');
+  }
+  return `${source.slice(0, listStart)}${declaration}${list}\n${source.slice(end)}`;
 }
 
 /**

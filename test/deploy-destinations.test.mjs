@@ -149,6 +149,60 @@ test('the installed adapter must be the release the intent authorizes', () => {
   );
 });
 
+test('the installed adapter runs when the intent names the admitted previous release, and both versions are returned', () => {
+  const previous = [
+    {
+      adapterId: 'do-spaces',
+      package: '@rathnasgala2/adapter-do-spaces',
+      version: '0.0.9',
+      integrity: `sha256:${'c'.repeat(64)}`,
+      registry: 'https://registry.npmjs.org/',
+      contractVersion: '2.0.0',
+      compatibleWith: '^2.0.0',
+    },
+  ];
+  assert.deepEqual(
+    requireAdapterVersionAgreement(
+      spaces.ADAPTER_VERSION,
+      { adapterId: 'do-spaces', adapterVersion: '0.0.9' },
+      previous,
+    ),
+    {
+      lockedAdapterVersion: '0.0.9',
+      installedAdapterVersion: spaces.ADAPTER_VERSION,
+    },
+  );
+  assert.deepEqual(
+    requireAdapterVersionAgreement(
+      spaces.ADAPTER_VERSION,
+      { adapterId: 'do-spaces', adapterVersion: spaces.ADAPTER_VERSION },
+      previous,
+    ),
+    {
+      lockedAdapterVersion: spaces.ADAPTER_VERSION,
+      installedAdapterVersion: spaces.ADAPTER_VERSION,
+    },
+  );
+  assert.throws(
+    () =>
+      requireAdapterVersionAgreement(
+        spaces.ADAPTER_VERSION,
+        { adapterId: 'do-spaces', adapterVersion: '0.0.8' },
+        previous,
+      ),
+    /DEPLOY_ADAPTER_VERSION_MISMATCH: .*do-spaces@0\.0\.8 .*/u,
+  );
+  assert.throws(
+    () =>
+      requireAdapterVersionAgreement(spaces.ADAPTER_VERSION, {
+        adapterId: 'do-spaces',
+        adapterVersion: '0.0.9',
+      }),
+    /DEPLOY_ADAPTER_VERSION_MISMATCH/u,
+    'the shipped catalog has no previous row',
+  );
+});
+
 test('a do-spaces intent through the fake: the deploy job’s own recomputation of the two closed records agrees with the issued capabilityDecisionDigest, and spacesDestination binds the caller-mapped key over the retained coordinates', async () => {
   const operationId = stableId();
   const repositoryId = '4242';

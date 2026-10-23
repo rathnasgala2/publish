@@ -115,3 +115,14 @@ frame/message helpers respect the DEC-086 1,048,576-byte ceiling;
 dependency-cruiser adapter-isolation gate passes; near-complete unit/property
 coverage on `adapter-protocol`; SBOM and license inventory are current; no
 secret in source, fixture, log or test output.
+
+## Adapter catalog keeps two releases
+
+`packages/publish-action/src/adapter-artifact-catalog.js` holds the installed
+row and the previous release row of each adapter (`ADAPTER_PREVIOUS_RELEASES`).
+An adapter release must keep the prior release admitted: use
+`scripts/release/update-adapter-catalog.mjs catalog` (run by `prod-adapter.sh`),
+which moves the old installed row into the previous list. Replacing the row
+without it strands every lock that pins the old version (intake
+`LOCK_ADAPTER_IDENTITY_INVALID`). Deploy runs the installed adapter and journals
+`lockedAdapterVersion` and `installedAdapterVersion`.

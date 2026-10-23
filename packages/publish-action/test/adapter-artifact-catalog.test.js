@@ -13,6 +13,7 @@ import {
   ADAPTER_PACKAGES,
   ADAPTER_REGISTRY,
   findAdapterArtifact,
+  isAdmittedAdapterVersion,
   requireAdapterArtifact,
 } from '../src/adapter-artifact-catalog.js';
 
@@ -133,5 +134,85 @@ test('catalog admission rejects missing and extra package-row members', () => {
         'TEST_ADAPTER_IDENTITY_INVALID',
       ),
     /TEST_ADAPTER_IDENTITY_INVALID/u,
+  );
+});
+
+/**
+ * @returns {{previous: readonly any[], lockRow: Record<string, string>, previousRow: any}} a previous release of the Pages adapter
+ */
+function previousPagesRelease() {
+  const installed = /** @type {any} */ (
+    findAdapterArtifact('@rathnasgala2/adapter-github-pages')
+  );
+  const previousRow = {
+    ...installed,
+    version: '0.0.9',
+    integrity: `sha256:${'c'.repeat(64)}`,
+  };
+  const { adapterId: ignored, ...lockRow } = previousRow;
+  assert.equal(ignored, 'github-pages');
+  return { previous: [previousRow], lockRow, previousRow };
+}
+
+test('a lock row that byte-equals the previous release row is admitted alongside the installed row', () => {
+  const { previous, lockRow, previousRow } = previousPagesRelease();
+  assert.equal(requireAdapterArtifact(lockRow, 'TEST', previous), previousRow);
+  assert.equal(
+    requireAdapterArtifact(
+      /** @type {any} */ (
+        (({ adapterId, ...row }) => (adapterId, row))(
+          /** @type {any} */ (
+            findAdapterArtifact('@rathnasgala2/adapter-github-pages')
+          ),
+        )
+      ),
+      'TEST',
+      previous,
+    ),
+    findAdapterArtifact('@rathnasgala2/adapter-github-pages'),
+  );
+  assert.equal(
+    isAdmittedAdapterVersion(
+      '@rathnasgala2/adapter-github-pages',
+      '0.0.9',
+      previous,
+    ),
+    true,
+  );
+  assert.equal(
+    isAdmittedAdapterVersion('@rathnasgala2/adapter-github-pages', '0.0.9'),
+    false,
+    'the shipped catalog has no previous row, so behaviour is unchanged',
+  );
+});
+
+test('a non-admitted version, or a previous version with another integrity, is still refused', () => {
+  const { previous, lockRow } = previousPagesRelease();
+  assert.throws(
+    () =>
+      requireAdapterArtifact(
+        { ...lockRow, version: '0.0.8' },
+        'TEST',
+        previous,
+      ),
+    /TEST: .*adapter-github-pages .*does not match the closed artifact catalog/u,
+  );
+  assert.throws(
+    () =>
+      requireAdapterArtifact(
+        { ...lockRow, integrity: `sha256:${'d'.repeat(64)}` },
+        'TEST',
+        previous,
+      ),
+    /integrity does not match the closed artifact catalog/u,
+  );
+  assert.throws(
+    () => requireAdapterArtifact(lockRow, 'TEST'),
+    /TEST: .*does not match the closed artifact catalog/u,
+    'without the previous row the older release is refused',
+  );
+  assert.throws(
+    () => requireAdapterArtifact({ ...lockRow, extra: 'x' }, 'TEST', previous),
+    /exactly the catalog package-row members/u,
   );
 });

@@ -52,6 +52,10 @@ import {
   requireRunner,
   verificationBaseUrlOf,
 } from './authorized-intent.mjs';
+import {
+  ADAPTER_PACKAGES,
+  isAdmittedAdapterVersion,
+} from '../../packages/publish-action/src/adapter-artifact-catalog.js';
 import { readAuthorization } from './build-pages-carrier.mjs';
 import {
   DEPLOY_PHASE_MEMBERS,
@@ -479,8 +483,11 @@ async function deploy(argv, run) {
     destination = await classified('BINDING_INVALID', 'destination', () =>
       spacesDestination(intent),
     );
-    await classified('INTENT_MISMATCH', 'adapter-version', () =>
-      requireAdapterVersionAgreement(adapterModule.ADAPTER_VERSION, bound),
+    Object.assign(
+      journalHead,
+      await classified('INTENT_MISMATCH', 'adapter-version', () =>
+        requireAdapterVersionAgreement(adapterModule.ADAPTER_VERSION, bound),
+      ),
     );
     journalHead.adapterVersion = adapterModule.ADAPTER_VERSION;
     await classified('BINDING_INVALID', 'destination', () => {
@@ -505,8 +512,11 @@ async function deploy(argv, run) {
   } else {
     adapterModule = await import('@rathnasgala2/adapter-github-pages');
     journalHead.adapterVersion = adapterModule.ADAPTER_VERSION;
-    await classified('INTENT_MISMATCH', 'adapter-version', () =>
-      requireAdapterVersionAgreement(adapterModule.ADAPTER_VERSION, bound),
+    Object.assign(
+      journalHead,
+      await classified('INTENT_MISMATCH', 'adapter-version', () =>
+        requireAdapterVersionAgreement(adapterModule.ADAPTER_VERSION, bound),
+      ),
     );
     const { pagesArtifactId, pagesArtifactDigest } = await classified(
       'OPTIONS_INVALID',
@@ -691,21 +701,40 @@ function requireEnvelopeIntentAgreement(intent, envelope) {
 }
 
 /**
- * The installed adapter must be the adapter release the intent authorizes.
- * The intent names `adapter.adapterVersion`; the toolchain checkout is
- * pinned by `publish_toolchain_ref`, so a disagreement means this workflow
- * revision is not the one the operation was authorized against.
+ * The installed adapter must be an adapter release the intent may name. The
+ * intent names `adapter.adapterVersion`, the version the lock pins. The
+ * INSTALLED adapter always runs; the locked version may be the installed one
+ * or the previous release the catalog still admits, so an adapter release does
+ * not strand locks that pin the release before it. A locked version the
+ * catalog does not admit is refused. Both versions are returned for the
+ * kernel journal so provenance records which release was locked and which ran.
  *
  * @param {unknown} installed the installed adapter's `ADAPTER_VERSION`
  * @param {{adapterId: string, adapterVersion: string}} bound the binding
- * @returns {void}
+ * @param {readonly import('../../packages/publish-action/src/adapter-artifact-catalog.js').AdapterArtifactCatalogEntry[]} [previous]
+ *   previous release rows; the catalog's own list unless a test supplies one
+ * @returns {{lockedAdapterVersion: string, installedAdapterVersion: string}}
+ *   the locked and installed versions
  */
-function requireAdapterVersionAgreement(installed, bound) {
-  if (installed !== bound.adapterVersion) {
+function requireAdapterVersionAgreement(installed, bound, previous) {
+  const packageName = Object.keys(ADAPTER_PACKAGES).find(
+    (name) => ADAPTER_PACKAGES[name] === bound.adapterId,
+  );
+  if (
+    installed !== bound.adapterVersion &&
+    (typeof installed !== 'string' ||
+      packageName === undefined ||
+      !isAdmittedAdapterVersion(packageName, installed, previous) ||
+      !isAdmittedAdapterVersion(packageName, bound.adapterVersion, previous))
+  ) {
     throw new Error(
       `DEPLOY_ADAPTER_VERSION_MISMATCH: the authorized intent names ${bound.adapterId}@${bound.adapterVersion} but this toolchain installs ${String(installed)}`,
     );
   }
+  return {
+    lockedAdapterVersion: bound.adapterVersion,
+    installedAdapterVersion: String(installed),
+  };
 }
 
 /**

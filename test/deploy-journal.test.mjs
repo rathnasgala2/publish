@@ -341,6 +341,8 @@ test('the fixture run activates when nothing is wrong, and writes the kernel jou
   const journal = JSON.parse(await readFile(run.out, 'utf8'));
   assert.equal(journal.outcome, 'failed');
   assert.ok(journal.attempts.length > 0, 'the kernel ran and journalled');
+  assert.equal(journal.lockedAdapterVersion, pages.ADAPTER_VERSION);
+  assert.equal(journal.installedAdapterVersion, pages.ADAPTER_VERSION);
 });
 
 test('OPTIONS_INVALID: an unreadable or incomplete argument list leaves a journal at --out', async () => {
