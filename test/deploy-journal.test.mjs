@@ -28,7 +28,12 @@ import * as pages from '@rathnasgala2/adapter-github-pages';
 
 import { carrierDigest } from '../scripts/workflow/carrier.mjs';
 import { requireCapabilityDecisionAgreement } from '../scripts/workflow/capability-decision.mjs';
-import { classifyFailure, runDeploy } from '../scripts/workflow/deploy.mjs';
+import { assertJournalAgreesWithIntent } from '../scripts/workflow/authorized-intent.mjs';
+import {
+  classifyFailure,
+  requireAdapterVersionAgreement,
+  runDeploy,
+} from '../scripts/workflow/deploy.mjs';
 import { buildDeploymentIntentRequest } from '../scripts/workflow/workload-requests.mjs';
 import { frozenEnvelopeFor } from './fixtures/artifact-manifest.mjs';
 import {
@@ -343,6 +348,81 @@ test('the fixture run activates when nothing is wrong, and writes the kernel jou
   assert.ok(journal.attempts.length > 0, 'the kernel ran and journalled');
   assert.equal(journal.lockedAdapterVersion, pages.ADAPTER_VERSION);
   assert.equal(journal.installedAdapterVersion, pages.ADAPTER_VERSION);
+});
+
+test('deploy to report: the journal the deploy wrote agrees with the intent the report step checks it against (locked == installed)', async () => {
+  globalThis.fetch = networkStub();
+  const run = await scenario();
+  await assert.rejects(runDeploy(run.argv), /DEPLOY_NOT_ACTIVATED/u);
+  const journal = JSON.parse(await readFile(run.out, 'utf8'));
+  assert.ok(journal.attempts.length > 0);
+  assertJournalAgreesWithIntent(journal, run.intent);
+});
+
+test('deploy to report: a lock on the admitted previous release runs the installed adapter, journals both versions, and the report agreement passes', async () => {
+  const previousRow = {
+    adapterId: 'github-pages',
+    package: '@rathnasgala2/adapter-github-pages',
+    version: '0.0.9',
+    integrity: `sha256:${'c'.repeat(64)}`,
+    registry: 'https://registry.npmjs.org/',
+    contractVersion: '2.0.0',
+    compatibleWith: '^2.0.0',
+  };
+  const run = await scenario();
+  const intent = structuredClone(run.intent);
+  intent.adapter.adapterVersion = '0.0.9';
+  // The head the deploy builds: the installed version as `adapterVersion`
+  // plus the agreement members, exactly as deploy.mjs merges them.
+  const head = {
+    operationId: intent.operationId,
+    attemptId: intent.attemptId,
+    generationId: intent.proposedGenerationId,
+    adapterId: intent.adapter.adapterId,
+    adapterVersion: pages.ADAPTER_VERSION,
+    authorization: { intentDigest: intent.intentDigest },
+    ...requireAdapterVersionAgreement(
+      pages.ADAPTER_VERSION,
+      { adapterId: 'github-pages', adapterVersion: '0.0.9' },
+      [previousRow],
+    ),
+  };
+  assert.equal(head.lockedAdapterVersion, '0.0.9');
+  assert.equal(head.installedAdapterVersion, pages.ADAPTER_VERSION);
+  assertJournalAgreesWithIntent(head, intent, [previousRow]);
+  // The pre-fix check compared the installed version and refused this.
+  assert.notEqual(head.adapterVersion, intent.adapter.adapterVersion);
+
+  // An unadmitted locked version is still refused at the deploy.
+  assert.throws(
+    () =>
+      requireAdapterVersionAgreement(
+        pages.ADAPTER_VERSION,
+        { adapterId: 'github-pages', adapterVersion: '0.0.8' },
+        [previousRow],
+      ),
+    /DEPLOY_ADAPTER_VERSION_MISMATCH/u,
+  );
+  // An unadmitted installed version never passes the report check.
+  assert.throws(
+    () =>
+      assertJournalAgreesWithIntent(
+        { ...head, installedAdapterVersion: '0.0.8' },
+        intent,
+        [previousRow],
+      ),
+    /DEPLOY_INTENT_IDENTITY_MISMATCH.*installedAdapterVersion/u,
+  );
+  // A journal for another locked version disagrees.
+  assert.throws(
+    () =>
+      assertJournalAgreesWithIntent(
+        { ...head, lockedAdapterVersion: '0.0.8' },
+        intent,
+        [previousRow],
+      ),
+    /adapterVersion/u,
+  );
 });
 
 test('OPTIONS_INVALID: an unreadable or incomplete argument list leaves a journal at --out', async () => {

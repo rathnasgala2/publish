@@ -17,10 +17,13 @@ and this project adheres to
   lock whose adapter version is admitted even when it differs from the installed
   `ADAPTER_VERSION` (`DEPLOY_ADAPTER_VERSION_MISMATCH` still refuses any version
   the catalog does not admit). The installed adapter runs, and the kernel
-  journal records `lockedAdapterVersion` and `installedAdapterVersion`.
-  `update-adapter-catalog.mjs catalog` now moves the old installed row into the
-  previous list instead of replacing it. The shipped previous list is empty, so
-  behaviour is unchanged until an adapter release adds a row.
+  journal records `lockedAdapterVersion` and `installedAdapterVersion`. The
+  report step's intent agreement compares the locked version (falling back to
+  `adapterVersion` for older journals) with the intent and requires the
+  installed version to be admitted. `update-adapter-catalog.mjs catalog` now
+  moves the old installed row into the previous list instead of replacing it.
+  The shipped previous list is empty, so behaviour is unchanged until an adapter
+  release adds a row.
 - Serve `theme-editorial` 4.2.0 (theme contract 4.1.0), now published: the
   `THEME_CATALOG` row carries its 4.2.0 tarball SHA-256 and `contractVersion`
   4.1.0, so a site locked to Editorial is admitted again under template 4.4.1.

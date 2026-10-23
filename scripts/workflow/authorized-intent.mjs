@@ -68,6 +68,10 @@ import {
   canonicalJson,
   operationIdFromPublishRef,
 } from './workload-identity.mjs';
+import {
+  ADAPTER_PACKAGES,
+  isAdmittedAdapterVersion,
+} from '../../packages/publish-action/src/adapter-artifact-catalog.js';
 
 /** The kernel audience every issued intent is addressed to. */
 export const KERNEL_AUDIENCE = 'urn:gala:deployment-kernel:v2';
@@ -625,9 +629,11 @@ export function bindAuthorizedIntent(input) {
  *
  * @param {Record<string, unknown>} journal the kernel journal carrier
  * @param {Record<string, unknown>} intent the retained intent
+ * @param {readonly import('../../packages/publish-action/src/adapter-artifact-catalog.js').AdapterArtifactCatalogEntry[]} [previous]
+ *   previous release rows; the catalog's own list unless a test supplies one
  * @returns {void}
  */
-export function assertJournalAgreesWithIntent(journal, intent) {
+export function assertJournalAgreesWithIntent(journal, intent, previous) {
   const adapter = object(intent.adapter, '/adapter');
   const authorization =
     typeof journal.authorization === 'object' && journal.authorization !== null
@@ -638,13 +644,42 @@ export function assertJournalAgreesWithIntent(journal, intent) {
     ['attemptId', journal.attemptId, intent.attemptId],
     ['generationId', journal.generationId, intent.proposedGenerationId],
     ['adapterId', journal.adapterId, adapter.adapterId],
-    ['adapterVersion', journal.adapterVersion, adapter.adapterVersion],
+    [
+      'adapterVersion',
+      journal.lockedAdapterVersion ?? journal.adapterVersion,
+      adapter.adapterVersion,
+    ],
     [
       'authorization.intentDigest',
       authorization.intentDigest,
       intent.intentDigest,
     ],
   ].filter(([, recorded, expected]) => recorded !== expected);
+  // The intent names the LOCKED adapter version; the INSTALLED adapter is the
+  // one that ran, and may be the release after it. The installed version is
+  // accepted only when it is admitted for the adapter package, so an
+  // unadmitted adapter never passes. Journals written before the two members
+  // existed carry neither and are compared on `adapterVersion` alone.
+  if (journal.installedAdapterVersion !== undefined) {
+    const packageName = Object.keys(ADAPTER_PACKAGES).find(
+      (name) => ADAPTER_PACKAGES[name] === adapter.adapterId,
+    );
+    if (
+      typeof journal.installedAdapterVersion !== 'string' ||
+      packageName === undefined ||
+      !isAdmittedAdapterVersion(
+        packageName,
+        journal.installedAdapterVersion,
+        previous,
+      )
+    ) {
+      disagreements.push([
+        'installedAdapterVersion',
+        journal.installedAdapterVersion,
+        adapter.adapterVersion,
+      ]);
+    }
+  }
   if (disagreements.length > 0) {
     throw new AuthorizedIntentError(
       'DEPLOY_INTENT_IDENTITY_MISMATCH',
