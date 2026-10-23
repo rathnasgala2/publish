@@ -36,9 +36,9 @@ export const ADAPTER_ARTIFACT_CATALOG = Object.freeze([
   Object.freeze({
     adapterId: 'github-pages',
     package: '@rathnasgala2/adapter-github-pages',
-    version: '0.1.1',
+    version: '0.1.2',
     integrity:
-      'sha256:ab1deb308aa6712baa2461c4aacae613f666fe7054a74817a60f980f74edf554',
+      'sha256:384c2ea89c2bf55828a0da7d6c0e5ecd2c7431546a3544d9e14661c2b11a878f',
     registry: ADAPTER_REGISTRY,
     contractVersion: '2.0.0',
     compatibleWith: '^2.0.0',

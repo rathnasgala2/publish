@@ -258,8 +258,8 @@
       "type": "library",
       "name": "adapter-github-pages",
       "group": "@rathnasgala2",
-      "version": "0.1.1",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.1",
+      "version": "0.1.2",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.2",
       "licenses": [
         {
           "license": {
@@ -268,7 +268,7 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/adapter-github-pages@0.1.1",
+      "purl": "pkg:npm/%40rathnasgala2/adapter-github-pages@0.1.2",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -18227,7 +18227,7 @@
         "@rathnasgala2/publish-workspace@0.0.0|@eslint/js@10.0.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-do-spaces@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.1",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-local-directory@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
@@ -18288,7 +18288,7 @@
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.1",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-github-pages@0.1.2",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-conformance-kit@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
