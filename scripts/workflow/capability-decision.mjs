@@ -206,6 +206,7 @@ export const ADMISSION_ROWS = Object.freeze(
     ['do-spaces', '0.1.0', '2026-10-02T06:00:00.000Z'],
     ['local-directory', '0.1.1', null],
     ['github-pages', '0.1.1', null],
+    ['github-pages', '0.1.2', null],
     ['do-spaces', '0.1.1', null],
   ]).map(([adapterId, adapterVersion, supersededAt]) =>
     Object.freeze({

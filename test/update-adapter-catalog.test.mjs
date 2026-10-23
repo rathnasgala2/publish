@@ -67,10 +67,10 @@ test('a new version moves the old installed row into the previous list, keeping 
   const installed = ADAPTER_ARTIFACT_CATALOG.find((e) => e.package === NAME);
   assert.ok(installed);
   const first = rewriteCatalogSource(source, [
-    { package: NAME, version: '0.1.2', hex: HEX },
+    { package: NAME, version: '0.1.3', hex: HEX },
   ]);
   const second = rewriteCatalogSource(first, [
-    { package: NAME, version: '0.1.3', hex: 'b'.repeat(64) },
+    { package: NAME, version: '0.1.4', hex: 'b'.repeat(64) },
   ]);
   const previousOf = (/** @type {string} */ text) =>
     text.slice(
@@ -79,7 +79,7 @@ test('a new version moves the old installed row into the previous list, keeping 
     );
   assert.ok(previousOf(first).includes(`version: '${installed.version}'`));
   assert.ok(previousOf(first).includes(installed.integrity));
-  assert.ok(previousOf(second).includes("version: '0.1.2'"));
+  assert.ok(previousOf(second).includes("version: '0.1.3'"));
   assert.ok(previousOf(second).includes(HEX));
   assert.ok(
     !previousOf(second).includes(installed.integrity),
@@ -87,13 +87,13 @@ test('a new version moves the old installed row into the previous list, keeping 
   );
   assert.equal(
     rewriteCatalogSource(second, [
-      { package: NAME, version: '0.1.3', hex: 'b'.repeat(64) },
+      { package: NAME, version: '0.1.4', hex: 'b'.repeat(64) },
     ]),
     second,
     'repeating the release changes nothing',
   );
   const refreshed = rewriteCatalogSource(second, [
-    { package: NAME, version: '0.1.3', hex: 'e'.repeat(64) },
+    { package: NAME, version: '0.1.4', hex: 'e'.repeat(64) },
   ]);
   assert.equal(previousOf(refreshed), previousOf(second));
   assert.ok(refreshed.includes('e'.repeat(64)));

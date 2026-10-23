@@ -80,6 +80,16 @@ export const RETAINED_PROVIDER_BINDINGS = Object.freeze({
 });
 
 /**
+ * The installed package version of each adapter (the admission row is keyed
+ * on it). Only adapter-github-pages is at 0.1.2; the others stay at 0.1.1.
+ */
+const ADAPTER_FIXTURE_VERSIONS = Object.freeze({
+  'local-directory': '0.1.1',
+  'github-pages': '0.1.2',
+  'do-spaces': '0.1.1',
+});
+
+/**
  * The retained `destinationIdentity` for one adapter, as the API renders it
  * from its own record: the five required members (the adapter's environment
  * constant, LOCAL-60a) plus the retained provider binding where the adapter
@@ -95,7 +105,7 @@ export function retainedDestinationFor(adapterId, overrides = {}) {
   return {
     environment: adapterId,
     adapterId,
-    adapterVersion: '0.1.1',
+    adapterVersion: ADAPTER_FIXTURE_VERSIONS[adapterId],
     targetDigest: digestOf(`destination:${adapterId}`),
     baseUrl: overrides.baseUrl ?? 'https://example.test/',
     ...(binding === undefined ? {} : { providerBinding: { ...binding } }),
@@ -120,12 +130,12 @@ export function destinationFor(adapterId, overrides = {}) {
       adapterId,
       // The adapter's published package version (PUBLISH-S4-6a single-source
       // rule; LOCAL-64: the admission row is keyed on it).
-      adapterVersion: '0.1.1',
+      adapterVersion: ADAPTER_FIXTURE_VERSIONS[adapterId],
       adapterDigest: digestOf(`adapter:${adapterId}`),
     },
     destination: {
       adapterId,
-      adapterVersion: '0.1.1',
+      adapterVersion: ADAPTER_FIXTURE_VERSIONS[adapterId],
       baseUrl: overrides.baseUrl ?? 'https://example.test/',
       ...(binding === undefined ? {} : { providerBinding: { ...binding } }),
     },

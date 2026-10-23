@@ -10,6 +10,12 @@ and this project adheres to
 
 ### Changed
 
+- Serve `adapter-github-pages` 0.1.2 (released 2026-10-23, `verificationBaseUrl`
+  and the Pages CDN-lag `observe` retry): the installed catalog row carries its
+  tarball SHA-256, the workspace source is byte-identical to the published
+  tarball, and 0.1.1 is the admitted PREVIOUS row (`ADAPTER_PREVIOUS_RELEASES`)
+  and a capability-decision admission row, so locks pinned to either release
+  stay publishable.
 - The adapter artifact catalog keeps the INSTALLED release row of each adapter
   plus at most one PREVIOUS release row (`ADAPTER_PREVIOUS_RELEASES`), as the
   theme catalog already keeps two releases. Repository intake and freeze admit a
