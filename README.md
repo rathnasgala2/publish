@@ -548,34 +548,50 @@ The adapter packages (`adapter-protocol`, `adapter-local-directory`,
 `.github/workflows/release.yaml`, with npm trusted publishing (OIDC,
 `environment: npm`, provenance, no token). `adapter-conformance-kit` is private
 and is never released. An adapter release is four steps, **in this order**; each
-one depends on the one before it, and a pin that moves before the API admits the
-new digest strands every lock that carries it (`LOCK_ADAPTER_IDENTITY_INVALID`).
+one depends on the one before it. The catalog row goes in BEFORE the publish:
+the release workflow runs the complete repository gate (`npm run verify`) before
+it publishes anything, and that gate proves the catalog's SHA-256 is the digest
+of the deterministic `npm pack` of the workspace source, so a catalog that still
+names the old release fails it. A pin that moves before the API admits the new
+digest strands every lock that carries it (`LOCK_ADAPTER_IDENTITY_INVALID`).
 
-1. **Publish to npm through the workflow.** Bump the package's `version`, give
-   its `CHANGELOG.md` a dated heading (`update-adapter-catalog.mjs changelog`
-   does that from the `## [Unreleased]` section; `deps` moves exact workspace
-   pins) and push to `main`. The workflow runs the complete repository gate
-   (`npm run verify`) once, then typechecks each package, checks its committed
-   declarations, runs its tests, publishes with provenance and waits until npm
-   lists the version. It publishes one package at a time, the protocol first. A
-   push that changes a packed path (`src/`, `types/`, `README.md`,
-   `CHANGELOG.md`, `LICENSE`, `package.json`) of a package whose declared
-   version is already on npm **fails** and publishes nothing from that push:
-   bump the version, then push again or dispatch the packages one at a time. To
-   release a single package without a push (for example after registering its
-   trusted publisher late), run Actions > Release > Run workflow and pick the
-   package. The job summary prints the registry tarball's SHA-256 and the exact
-   catalog command for the next step.
-2. **Keep the previous release admitted.** From a clean checkout of `main`, run
-   `node scripts/release/update-adapter-catalog.mjs catalog --root . <package>=<version>=<sha256>`
-   with the digest from the job summary (`adapter-protocol` has no catalog row).
-   It moves the old installed row into `ADAPTER_PREVIOUS_RELEASES` (one previous
-   row per adapter), rewrites the fixture lock, and leaves the rest to you:
-   `npm run sbom`, the targeted checks (`changelog:check`, `pins:check`,
-   `sbom:check`, `format:check`,
-   `packages/publish-action/test/adapter-artifact-catalog.test.js`,
-   `test/adapter-version.test.mjs`, `test/artifact-digest-agreement.test.mjs`)
-   and one commit. Never edit the installed row by hand.
+1. **Catalog and release commit, then push.** In ONE commit on `main`:
+   - bump the package's `version` (`update-adapter-catalog.mjs deps` moves exact
+     workspace pins) and regenerate its declarations
+     (`npm --workspace packages/<name> run declarations:generate`);
+   - give its `CHANGELOG.md` a dated heading
+     (`update-adapter-catalog.mjs changelog` does that from the
+     `## [Unreleased]` section);
+   - pack it locally (`npm pack --ignore-scripts --pack-destination <empty dir>`
+     inside the package directory, then `shasum -a 256` the tarball) and run
+     `node scripts/release/update-adapter-catalog.mjs catalog --root . <package>=<version>=<sha256>`
+     with that digest (`adapter-protocol` has no catalog row). The installed row
+     becomes the new version with the local pack's digest; the old installed row
+     moves into `ADAPTER_PREVIOUS_RELEASES` (one previous row per adapter) and
+     the fixture lock is rewritten. Never edit the installed row by hand;
+   - add the `[adapterId, '<version>', null]` row to `ADMISSION_ROWS` in
+     `scripts/workflow/capability-decision.mjs` and keep the earlier rows;
+   - run `npm run sbom` and add the repository `CHANGELOG.md` Unreleased line;
+   - run the targeted checks (`changelog:check`, `pins:check`, `sbom:check`,
+     `format:check`,
+     `packages/publish-action/test/adapter-artifact-catalog.test.js`,
+     `test/adapter-version.test.mjs`, `test/artifact-digest-agreement.test.mjs`,
+     `test/capability-decision.test.mjs`).
+2. **Publish to npm through the workflow.** The push to `main` starts
+   `release.yaml`. It runs the complete repository gate once, then typechecks
+   each package, checks its committed declarations, runs its tests, packs the
+   reviewed bytes, publishes with provenance, waits until npm lists the version,
+   and fails unless the registry tarball's SHA-256 equals the local pack's. It
+   publishes one package at a time, the protocol first. A push that changes a
+   packed path (`src/`, `types/`, `README.md`, `CHANGELOG.md`, `LICENSE`,
+   `package.json`) of a package whose declared version is already on npm
+   **fails** and publishes nothing from that push: bump the version, then push
+   again or dispatch the packages one at a time. To release a single package
+   without a push (for example after registering its trusted publisher late),
+   run Actions > Release > Run workflow and pick the package. The job summary
+   prints the registry tarball's SHA-256: verify that the catalog row equals it.
+   If the registry digest differs from the catalog row, do not deploy; npm
+   versions are immutable, so correct the row with a new patch release.
 3. **API.** Add the new release to the API's `AdapterArtifactCatalog` (code),
    ship the database admission migration for it, and deploy the API, so intake
    and freeze admit the new digest.
@@ -583,7 +599,7 @@ new digest strands every lock that carries it (`LOCK_ADAPTER_IDENTITY_INVALID`).
    pin and lock to the new toolchain commit, and move the `user-template` ref
    that this repository's `ci.yml`, `source-only.yaml` and `release.yaml` check
    out to that same commit. Locks that still pin the previous release keep
-   publishing because step 2 kept that release admitted.
+   publishing because step 1 kept that release admitted.
 
 Once per package, the owner registers the trusted publisher on npmjs.com
 (package > Settings > Trusted publisher > GitHub Actions): owner `rathnasgala2`,

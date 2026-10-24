@@ -18,10 +18,13 @@ name: Release
 # (workflow_dispatch) releases the one package it names, e.g. to retry after
 # the trusted publisher was registered late.
 #
-# Publishing is only step one of an adapter release. Read "Releasing an
-# adapter" in README.md for the rest, in order: update-adapter-catalog.mjs,
-# then the API catalog + admission migration + deploy, then user-template.
-# prod-adapter.sh at the workspace root is for emergencies only.
+# Publishing is step two of an adapter release. Read "Releasing an adapter" in
+# README.md, in order: the catalog commit FIRST (update-adapter-catalog.mjs with
+# the SHA-256 of the local pack, the admission row, sbom and CHANGELOG, in one
+# commit with the version bump, because the gate below proves the catalog equals
+# that pack), then this workflow, then the API catalog + admission migration +
+# deploy, then user-template. prod-adapter.sh at the workspace root is for
+# emergencies only.
 #
 # One-time owner setup on npmjs.com, per package (Settings > Trusted
 # publishing > GitHub Actions): owner rathnasgala2, repository publish,
@@ -263,8 +266,9 @@ jobs:
           exit 1
 
       # The artifact catalog admits a release by the registry tarball's
-      # SHA-256, so print the registry's digest and refuse a mismatch with the
-      # reviewed bytes.
+      # SHA-256, and its row was committed from the reviewed local pack before
+      # this run (the gate above proved it). Print the registry's digest and
+      # refuse a mismatch with the reviewed bytes.
       - name: Record the registry digest
         shell: bash
         env:
@@ -285,7 +289,7 @@ jobs:
             echo "Next, in this order (README.md, \"Releasing an adapter\"):"
             if [ "${PACKAGE}" != "adapter-protocol" ]; then
               echo
-              echo "1. \`node scripts/release/update-adapter-catalog.mjs catalog --root . ${PACKAGE_NAME}=${PACKAGE_VERSION}=${registry_sha256}\`"
+              echo "1. Verify that the catalog row in \`packages/publish-action/src/adapter-artifact-catalog.js\` for ${PACKAGE_NAME}@${PACKAGE_VERSION} equals this sha256 (it was committed before this release, from the local pack)"
               echo "2. API code catalog + database admission migration + deploy"
               echo "3. user-template pin and lock"
             else
@@ -294,7 +298,7 @@ jobs:
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
           if [ "${registry_sha256}" != "${LOCAL_SHA256}" ]; then
-            echo "::error::The registry tarball for ${PACKAGE_NAME}@${PACKAGE_VERSION} has sha256 ${registry_sha256}, but the reviewed pack was ${LOCAL_SHA256}. Do not catalog this release until the difference is understood." >&2
+            echo "::error::The registry tarball for ${PACKAGE_NAME}@${PACKAGE_VERSION} has sha256 ${registry_sha256}, but the reviewed pack was ${LOCAL_SHA256}. Do not deploy this release: the catalog row is the reviewed pack's digest, so it does not match the registry until the difference is understood." >&2
             exit 1
           fi
           echo "Registry digest equals the reviewed pack: ${registry_sha256}"

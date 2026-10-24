@@ -121,9 +121,12 @@ secret in source, fixture, log or test output.
 `packages/publish-action/src/adapter-artifact-catalog.js` holds the installed
 row and the previous release row of each adapter (`ADAPTER_PREVIOUS_RELEASES`).
 An adapter release must keep the prior release admitted: use
-`scripts/release/update-adapter-catalog.mjs catalog` (run by hand after
-`.github/workflows/release.yaml` publishes; `prod-adapter.sh` runs it too but is
-for emergencies only), which moves the old installed row into the previous list.
-Replacing the row without it strands every lock that pins the old version
-(intake `LOCK_ADAPTER_IDENTITY_INVALID`). Deploy runs the installed adapter and
-journals `lockedAdapterVersion` and `installedAdapterVersion`.
+`scripts/release/update-adapter-catalog.mjs catalog` (run by hand BEFORE the
+release, with the SHA-256 of the deterministic local pack, in the same commit as
+the version bump, because `.github/workflows/release.yaml` runs the full gate
+before it publishes and then proves the registry tarball equals that pack;
+`prod-adapter.sh` runs it after its own publish but is for emergencies only),
+which moves the old installed row into the previous list. Replacing the row
+without it strands every lock that pins the old version (intake
+`LOCK_ADAPTER_IDENTITY_INVALID`). Deploy runs the installed adapter and journals
+`lockedAdapterVersion` and `installedAdapterVersion`.

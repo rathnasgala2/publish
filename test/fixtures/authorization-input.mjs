@@ -20,6 +20,7 @@ import { createHash } from 'node:crypto';
 
 import { computeArtifactDigest } from '@rathnasgala2/adapter-local-directory';
 
+import { ADAPTER_ARTIFACT_CATALOG } from '../../packages/publish-action/src/adapter-artifact-catalog.js';
 import { deriveArtifactFacts } from '../../scripts/workflow/workload-requests.mjs';
 import { frozenEnvelopeFor } from './artifact-manifest.mjs';
 
@@ -81,13 +82,14 @@ export const RETAINED_PROVIDER_BINDINGS = Object.freeze({
 
 /**
  * The installed package version of each adapter (the admission row is keyed
- * on it). Only adapter-github-pages is at 0.1.2; the others stay at 0.1.1.
+ * on it), read from the adapter artifact catalog's installed rows so an adapter
+ * release moves it without a fixture edit.
  */
-const ADAPTER_FIXTURE_VERSIONS = Object.freeze({
-  'local-directory': '0.1.1',
-  'github-pages': '0.1.2',
-  'do-spaces': '0.1.1',
-});
+const ADAPTER_FIXTURE_VERSIONS = Object.freeze(
+  Object.fromEntries(
+    ADAPTER_ARTIFACT_CATALOG.map((entry) => [entry.adapterId, entry.version]),
+  ),
+);
 
 /**
  * The retained `destinationIdentity` for one adapter, as the API renders it

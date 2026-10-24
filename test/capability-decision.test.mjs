@@ -31,6 +31,10 @@ import { fileURLToPath } from 'node:url';
 import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
 
 import {
+  ADAPTER_ARTIFACT_CATALOG,
+  ADAPTER_PREVIOUS_RELEASES,
+} from '../packages/publish-action/src/adapter-artifact-catalog.js';
+import {
   ADMISSION_ROWS,
   DEPLOY_PHASE_MEMBERS,
   ISSUANCE_PHASE_MEMBERS,
@@ -285,6 +289,20 @@ test('the mirrored admission rows retain superseded releases 0045/0046 and admit
     /CAPABILITY_ADMISSION_UNKNOWN/u,
     'a never-seeded version has no admitted row either',
   );
+});
+
+test('every release the adapter artifact catalog admits has an admission row', () => {
+  for (const entry of [
+    ...ADAPTER_ARTIFACT_CATALOG,
+    ...ADAPTER_PREVIOUS_RELEASES,
+  ]) {
+    const admitted = admissionRow(entry.adapterId, entry.version);
+    assert.equal(
+      admitted.adapterVersion,
+      entry.version,
+      `${entry.adapterId}@${entry.version}`,
+    );
+  }
 });
 
 /**

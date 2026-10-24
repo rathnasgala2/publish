@@ -34,12 +34,23 @@ and this project adheres to
   `release.yaml`, which publishes. Its concurrency group is `source-only-<ref>`,
   and the `user-template` sibling ref it carries still moves together with the
   ones in `ci.yml` and `release.yaml`.
-- Serve `adapter-github-pages` 0.1.2 (released 2026-10-23, `verificationBaseUrl`
-  and the Pages CDN-lag `observe` retry): the installed catalog row carries its
-  tarball SHA-256, the workspace source is byte-identical to the published
-  tarball, and 0.1.1 is the admitted PREVIOUS row (`ADAPTER_PREVIOUS_RELEASES`)
-  and a capability-decision admission row, so locks pinned to either release
-  stay publishable.
+- Serve `adapter-github-pages` 0.1.3 (declarations regenerated from `src/`; no
+  runtime change from 0.1.2, which added `verificationBaseUrl` and the Pages
+  CDN-lag `observe` retry): the installed catalog row carries the SHA-256 of the
+  deterministic local pack, which the release job later proves equals the
+  registry tarball, and 0.1.2 is the admitted PREVIOUS row
+  (`ADAPTER_PREVIOUS_RELEASES`), so locks pinned to either release stay
+  publishable. 0.1.3 joins the capability-decision admission rows beside 0.1.1
+  and 0.1.2, and a test proves every release the catalog admits has one.
+- The adapter release order now puts the catalog row first: the version bump,
+  regenerated declarations, `update-adapter-catalog.mjs catalog` (from the local
+  pack), the admission row, the SBOM and the CHANGELOG go in one commit, and
+  `release.yaml` then publishes and proves the registry tarball equals that
+  pack. The release gate (`npm run verify`) runs before the publish and checks
+  the catalog against the pack, so a catalog committed after the publish could
+  never pass it (the 0.1.3 release failed there without publishing). The
+  README's "Releasing an adapter", the `release.yaml` header and job summary and
+  `CLAUDE.md` state this order.
 - The adapter artifact catalog keeps the INSTALLED release row of each adapter
   plus at most one PREVIOUS release row (`ADAPTER_PREVIOUS_RELEASES`), as the
   theme catalog already keeps two releases. Repository intake and freeze admit a
@@ -52,8 +63,6 @@ and this project adheres to
   `adapterVersion` for older journals) with the intent and requires the
   installed version to be admitted. `update-adapter-catalog.mjs catalog` now
   moves the old installed row into the previous list instead of replacing it.
-  The shipped previous list is empty, so behaviour is unchanged until an adapter
-  release adds a row.
 - Serve `theme-editorial` 4.2.0 (theme contract 4.1.0), now published: the
   `THEME_CATALOG` row carries its 4.2.0 tarball SHA-256 and `contractVersion`
   4.1.0, so a site locked to Editorial is admitted again under template 4.4.1.

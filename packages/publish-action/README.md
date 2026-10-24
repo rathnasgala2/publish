@@ -417,13 +417,17 @@ and freeze accept a lock adapter row that byte-equals any admitted row; the
 deploy job runs the installed adapter whatever admitted version the lock pins
 and journals `lockedAdapterVersion` next to `installedAdapterVersion`. An
 adapter release must therefore keep the prior release admitted, or every
-existing lock becomes unpublishable until it moves: publish through
-`.github/workflows/release.yaml`, then run
-`scripts/release/update-adapter-catalog.mjs catalog`, which moves the old
-installed row into the previous list (one previous row per package; repeating
-the same release changes nothing). The order of the whole release is in the
-repository README's "Releasing an adapter". Never edit the installed row by hand
-to publish a new release.
+existing lock becomes unpublishable until it moves. Before the release, in the
+same commit as the version bump, run
+`scripts/release/update-adapter-catalog.mjs catalog` with the SHA-256 of the
+deterministic local `npm pack`: it makes the new version the installed row and
+moves the old installed row into the previous list (one previous row per
+package; repeating the same release changes nothing). Then
+`.github/workflows/release.yaml` runs the repository gate (which proves the
+catalog digest equals the pack), publishes, and proves the registry tarball
+equals the same pack. The order of the whole release is in the repository
+README's "Releasing an adapter". Never edit the installed row by hand to publish
+a new release.
 
 ## Provenance
 
