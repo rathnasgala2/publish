@@ -90,7 +90,7 @@ test('red when reverted: excluding a real test file drops measured coverage belo
 test("PUB-M9 follow-up: adapter-local-directory's measured coverage is stable across repeated runs, given the WORKSPACE_ROOT sibling checkout CI always provides", () => {
   if (!process.env.WORKSPACE_ROOT || process.env.WORKSPACE_ROOT.length === 0) {
     // Not a skip in CI (WORKSPACE_ROOT is always set there per ci.yml/
-    // nightly.yml/release.yaml); locally, without it this package's own
+    // nightly.yml/source-only.yaml/release.yaml); locally, without it this package's own
     // e2e-kernel-template.test.js falls back to whatever v2/template
     // happens to be checked out to, so two runs are only guaranteed to
     // agree with each other, not with the CI-pinned measurement this

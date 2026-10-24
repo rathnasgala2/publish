@@ -1,9 +1,10 @@
 /**
- * Source-only delivery regression: CI, nightly and release verification use
- * the manifest-verified packages committed to this repository. They neither
+ * Source-only delivery regression: CI, nightly and source-only verification
+ * use the manifest-verified packages committed to this repository. They neither
  * check out mutable sibling repositories nor hold npm publication authority.
- * (The one publishing workflow, release-adapters.yaml, is covered by
- * adapter-release.test.mjs.)
+ * (The one publishing workflow, release.yaml, is covered by
+ * adapter-release.test.mjs for its publishing shape; here it only has to keep
+ * the same sibling and WORKSPACE_ROOT discipline in its verify job.)
  *
  * These tests assert the fixed shape directly from the committed YAML, so
  * A regression fails here instead of only being caught by re-reading the
@@ -15,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { parse } from 'yaml';
 
+const SOURCE_ONLY_PATH = '.github/workflows/source-only.yaml';
 const RELEASE_PATH = '.github/workflows/release.yaml';
 const CI_PATH = '.github/workflows/ci.yml';
 const NIGHTLY_PATH = '.github/workflows/nightly.yml';
@@ -61,7 +63,7 @@ function checkoutSteps(doc) {
   return out;
 }
 
-for (const file of [RELEASE_PATH, CI_PATH, NIGHTLY_PATH]) {
+for (const file of [SOURCE_ONLY_PATH, RELEASE_PATH, CI_PATH, NIGHTLY_PATH]) {
   test(`${file}: no template or theme sibling repository is checked out`, () => {
     const { doc } = loadWorkflow(file);
     const siblings = checkoutSteps(doc);
@@ -74,8 +76,8 @@ for (const file of [RELEASE_PATH, CI_PATH, NIGHTLY_PATH]) {
   });
 }
 
-test('release.yaml: the push path filter covers everything verify runs, not only packages/ (PUB-L8)', () => {
-  const { doc } = loadWorkflow(RELEASE_PATH);
+test('source-only.yaml: the push path filter covers everything verify runs, not only packages/ (PUB-L8)', () => {
+  const { doc } = loadWorkflow(SOURCE_ONLY_PATH);
   const on = /** @type {{push?: {paths?: readonly string[]}}} */ (doc.on);
   const paths = on.push?.paths ?? [];
   for (const expected of [
@@ -84,22 +86,22 @@ test('release.yaml: the push path filter covers everything verify runs, not only
     'package-lock.json',
     'scripts/**',
     'pins/**',
-    '.github/workflows/release.yaml',
+    '.github/workflows/source-only.yaml',
   ]) {
     assert.ok(
       paths.includes(expected),
-      `release.yaml's push.paths must include ${JSON.stringify(expected)}`,
+      `source-only.yaml's push.paths must include ${JSON.stringify(expected)}`,
     );
   }
 });
 
-test('release.yaml: source-only delivery defines only an uncredentialed verify job', () => {
-  const { doc } = loadWorkflow(RELEASE_PATH);
+test('source-only.yaml: source-only delivery defines only an uncredentialed verify job', () => {
+  const { doc } = loadWorkflow(SOURCE_ONLY_PATH);
   const jobs =
     /** @type {Record<string, {environment?: unknown, permissions?: Record<string, string>, steps?: Record<string, unknown>[]}>} */ (
       doc.jobs
     );
-  assert.ok(jobs.verify, 'release.yaml must define a verify job');
+  assert.ok(jobs.verify, 'source-only.yaml must define a verify job');
   assert.deepEqual(Object.keys(jobs), ['verify']);
   assert.equal(jobs.verify.environment, undefined);
   assert.notEqual(jobs.verify.permissions?.['id-token'], 'write');
@@ -108,18 +110,18 @@ test('release.yaml: source-only delivery defines only an uncredentialed verify j
   assert.notEqual(
     workflowPermissions?.['id-token'],
     'write',
-    'source-only release verification must not mint npm OIDC assertions',
+    'source-only verification must not mint npm OIDC assertions',
   );
   assert.ok(
     !(jobs.verify.steps ?? []).some(
       (step) =>
         typeof step.run === 'string' && /\bnpm\s+publish\b/u.test(step.run),
     ),
-    'source-only release verification must not invoke npm publish',
+    'source-only verification must not invoke npm publish',
   );
 });
 
-for (const file of [RELEASE_PATH, CI_PATH, NIGHTLY_PATH]) {
+for (const file of [SOURCE_ONLY_PATH, RELEASE_PATH, CI_PATH, NIGHTLY_PATH]) {
   test(`${file}: WORKSPACE_ROOT resolves committed installed packages`, () => {
     const { source } = loadWorkflow(file);
     assert.doesNotMatch(source, /\.siblings\/(?:template|theme-)/u);

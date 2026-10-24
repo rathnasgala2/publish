@@ -3,7 +3,7 @@
  * Structural guard for the generation-4 delivery decision. The toolchain is
  * consumed by commit, so only the adapter protocol and the destination adapters
  * (installed by npm consumers) may be publishable, and no owned workflow may
- * invoke npm's publication command except `release-adapters.yaml`, the one
+ * invoke npm's publication command except `release.yaml`, the one
  * workflow that publishes those four packages through npm trusted publishing
  * (`test/adapter-release.test.mjs` pins its shape).
  */
@@ -13,7 +13,7 @@ import path from 'node:path';
 import { runIfMain } from './run-if-main.mjs';
 
 /** The only workflows allowed to invoke the publication command. */
-const PUBLISHING_WORKFLOWS = new Set(['release-adapters.yaml']);
+const PUBLISHING_WORKFLOWS = new Set(['release.yaml']);
 
 /**
  * @returns {Promise<void>} resolves only when npm publication is disabled

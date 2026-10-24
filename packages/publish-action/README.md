@@ -6,15 +6,16 @@ Author-facing publish orchestration entry: GitHub Action plus local `npx`
 ## Status
 
 Implemented (S2-T20, extended by S2-T20b's theme wiring) and **source-only**:
-every workspace package except the three destination adapters is private and
-`release.yaml` is verification-only. The publish repository installs this
-package's template/theme dependencies from the public registry at exact
-versions. This package is the workspace's sole composition root: it normalizes
-an author repository into a validated `build-input:2.0.0` document, resolves and
-verifies the `gala.lock.json`-pinned theme package (see "Theme resolution"
-below), calls `@rathnasgala2/template`'s `renderPublication`, and drives
-`@rathnasgala2/publish-kernel` plus the selected `@rathnasgala2/adapter-*`
-implementation.
+every workspace package except the adapter protocol and the three destination
+adapters is private, `release.yaml` publishes those four through npm trusted
+publishing and `source-only.yaml` is verification-only. The publish repository
+installs this package's template/theme dependencies from the public registry at
+exact versions. This package is the workspace's sole composition root: it
+normalizes an author repository into a validated `build-input:2.0.0` document,
+resolves and verifies the `gala.lock.json`-pinned theme package (see "Theme
+resolution" below), calls `@rathnasgala2/template`'s `renderPublication`, and
+drives `@rathnasgala2/publish-kernel` plus the selected
+`@rathnasgala2/adapter-*` implementation.
 
 `adapter-github-pages` and `adapter-do-spaces` are themselves fully implemented
 (S4-T04/S4-T05) — the gap is in this package's own wiring, not in those
@@ -417,7 +418,7 @@ deploy job runs the installed adapter whatever admitted version the lock pins
 and journals `lockedAdapterVersion` next to `installedAdapterVersion`. An
 adapter release must therefore keep the prior release admitted, or every
 existing lock becomes unpublishable until it moves: publish through
-`.github/workflows/release-adapters.yaml`, then run
+`.github/workflows/release.yaml`, then run
 `scripts/release/update-adapter-catalog.mjs catalog`, which moves the old
 installed row into the previous list (one previous row per package; repeating
 the same release changes nothing). The order of the whole release is in the

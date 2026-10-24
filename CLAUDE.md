@@ -101,8 +101,8 @@ external service dependency; its tests are pure unit and property tests.
 `packages/publish-action`'s build/theme tests (`test/theme-bridge.test.js`,
 `test/e2e-npx-and-action.test.js`) resolve installed `rathnasgala2/template` and
 generation-4 `rathnasgala2/theme-*` packages by setting
-`WORKSPACE_ROOT="$PWD/node_modules/@rathnasgala2"`. CI, nightly and release
-verification set that path.
+`WORKSPACE_ROOT="$PWD/node_modules/@rathnasgala2"`. CI, nightly, source-only
+verification and release set that path.
 
 ## Review checklist
 
@@ -122,8 +122,8 @@ secret in source, fixture, log or test output.
 row and the previous release row of each adapter (`ADAPTER_PREVIOUS_RELEASES`).
 An adapter release must keep the prior release admitted: use
 `scripts/release/update-adapter-catalog.mjs catalog` (run by hand after
-`.github/workflows/release-adapters.yaml` publishes; `prod-adapter.sh` runs it
-too but is for emergencies only), which moves the old installed row into the
-previous list. Replacing the row without it strands every lock that pins the old
-version (intake `LOCK_ADAPTER_IDENTITY_INVALID`). Deploy runs the installed
-adapter and journals `lockedAdapterVersion` and `installedAdapterVersion`.
+`.github/workflows/release.yaml` publishes; `prod-adapter.sh` runs it too but is
+for emergencies only), which moves the old installed row into the previous list.
+Replacing the row without it strands every lock that pins the old version
+(intake `LOCK_ADAPTER_IDENTITY_INVALID`). Deploy runs the installed adapter and
+journals `lockedAdapterVersion` and `installedAdapterVersion`.

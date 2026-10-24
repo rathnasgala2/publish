@@ -10,21 +10,30 @@ and this project adheres to
 
 ### Added
 
-- `.github/workflows/release-adapters.yaml` publishes the four adapter packages
+- `.github/workflows/release.yaml` publishes the four adapter packages
   (`adapter-protocol`, `adapter-local-directory`, `adapter-github-pages`,
   `adapter-do-spaces`) to npm with trusted publishing (OIDC, `environment: npm`,
   provenance, no token), on a push to `main` that changes a package or on a
-  manual run naming one package. A push that changes a packed path of a package
-  whose declared version is already on npm fails instead of skipping, and
-  publishes nothing from that push. `scripts/release/adapter-release.mjs` plans
-  the run and re-checks the version; `scripts/check-source-only-delivery.mjs`
-  now exempts only this workflow from the no-`npm publish` rule. The README's
-  "Releasing an adapter" states the release order (npm publish, catalog row, API
-  catalog and admission migration, user-template); `prod-adapter.sh` is for
-  emergencies only.
+  manual run naming one package. It is named `release.yaml`, as in the schema,
+  template and theme repositories, and the npm trusted publisher of each package
+  is registered for that workflow filename. The complete repository gate
+  (`npm run verify`) runs once before any package is published, and each package
+  then passes its own typecheck, declarations and tests. A push that changes a
+  packed path of a package whose declared version is already on npm fails
+  instead of skipping, and publishes nothing from that push.
+  `scripts/release/adapter-release.mjs` plans the run and re-checks the version;
+  `scripts/check-source-only-delivery.mjs` now exempts only this workflow from
+  the no-`npm publish` rule. The README's "Releasing an adapter" states the
+  release order (npm publish, catalog row, API catalog and admission migration,
+  user-template); `prod-adapter.sh` is for emergencies only.
 
 ### Changed
 
+- The read-only verification workflow is now
+  `.github/workflows/source-only.yaml` ("Source-only verification"), no longer
+  `release.yaml`, which publishes. Its concurrency group is `source-only-<ref>`,
+  and the `user-template` sibling ref it carries still moves together with the
+  ones in `ci.yml` and `release.yaml`.
 - Serve `adapter-github-pages` 0.1.2 (released 2026-10-23, `verificationBaseUrl`
   and the Pages CDN-lag `observe` retry): the installed catalog row carries its
   tarball SHA-256, the workspace source is byte-identical to the published

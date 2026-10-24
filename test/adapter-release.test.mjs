@@ -2,7 +2,7 @@
  * The adapter release path: `scripts/release/adapter-release.mjs` (which
  * packages a run releases, and the loud failure for a packed change under an
  * already-published version) and the shape of
- * `.github/workflows/release-adapters.yaml`, the one workflow that publishes to
+ * `.github/workflows/release.yaml`, the one workflow that publishes to
  * npm (trusted publishing: OIDC, `environment: npm`, provenance, no token).
  */
 
@@ -21,7 +21,7 @@ import {
   selectChangedPackages,
 } from '../scripts/release/adapter-release.mjs';
 
-const WORKFLOW_PATH = '.github/workflows/release-adapters.yaml';
+const WORKFLOW_PATH = '.github/workflows/release.yaml';
 
 /** @typedef {import('../scripts/release/adapter-release.mjs').ReleaseIo} ReleaseIo */
 
@@ -343,7 +343,7 @@ function loadWorkflow() {
   return { source, doc: parse(source) };
 }
 
-test('release-adapters.yaml: offers and watches exactly the publishable adapter family', () => {
+test('release.yaml: offers and watches exactly the publishable adapter family', () => {
   const { doc } = loadWorkflow();
   assert.deepEqual(doc.on.workflow_dispatch.inputs.package.options, [
     ...RELEASE_ORDER,
@@ -363,7 +363,7 @@ test('release-adapters.yaml: offers and watches exactly the publishable adapter 
   }
 });
 
-test('release-adapters.yaml: trusted publishing only, with minimal permissions', () => {
+test('release.yaml: trusted publishing only, with minimal permissions', () => {
   const { doc, source } = loadWorkflow();
   assert.deepEqual(doc.permissions, { contents: 'read' });
   assert.equal(doc.jobs.plan.permissions, undefined);
@@ -374,7 +374,19 @@ test('release-adapters.yaml: trusted publishing only, with minimal permissions',
     contents: 'read',
     'id-token': 'write',
   });
-  assert.deepEqual(Object.keys(doc.jobs), ['plan', 'publish']);
+  assert.deepEqual(Object.keys(doc.jobs), ['plan', 'verify', 'publish']);
+  assert.deepEqual(publish.needs, ['plan', 'verify']);
+  // The complete repository gate holds no npm credentials and runs once,
+  // before any package is published.
+  const verify = doc.jobs.verify;
+  assert.equal(verify.needs, 'plan');
+  assert.equal(verify.environment, undefined);
+  assert.equal(verify.permissions, undefined);
+  const verifyRuns = /** @type {Record<string, string>[]} */ (verify.steps).map(
+    (step) => step.run,
+  );
+  assert.ok(verifyRuns.includes('npm ci --ignore-scripts'));
+  assert.ok(verifyRuns.includes('npm run verify'));
   const code = source
     .split('\n')
     .filter((line) => !line.trimStart().startsWith('#'))
@@ -389,7 +401,7 @@ test('release-adapters.yaml: trusted publishing only, with minimal permissions',
   });
 });
 
-test('release-adapters.yaml: the publish job gates, publishes with provenance and waits for the listing', () => {
+test('release.yaml: the publish job gates, publishes with provenance and waits for the listing', () => {
   const { doc } = loadWorkflow();
   /** @type {Record<string, string>[]} */
   const steps = doc.jobs.publish.steps;

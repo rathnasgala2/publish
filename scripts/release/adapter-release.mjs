@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Release planning for `.github/workflows/release-adapters.yaml`, the only
+ * Release planning for `.github/workflows/release.yaml`, the only
  * workflow that publishes to npm. Two subcommands, both read-only against the
  * repository and the public npm registry:
  *
