@@ -88,6 +88,14 @@ aliases, merge keys, duplicate keys, non-string keys and non-finite numbers all
 rejected before the parsed frontmatter is schema-validated against
 `content-frontmatter:2.0.0`.
 
+A content file may carry the optional `publishAfter` member (`YYYY-MM-DD`,
+schemas 3.19.0), which Galascribe's staggered release puts on a `status: draft`
+file. Intake only checks its shape. A draft that carries it is accepted and,
+like every draft, is not built in publish mode; the member is never copied into
+`build-input.content[].frontmatter`, so a file that still carries it after it is
+published builds exactly as without it. A value that is not `YYYY-MM-DD`-shaped
+is a schema refusal naming the file.
+
 Every authored document is schema-validated with `@rathnasgala2/schemas` before
 use. Every authored Markdown body is normalized exactly once through
 `template`'s `normalizeAuthoredMarkdown` (DEC-097 section 5's division of

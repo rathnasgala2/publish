@@ -109,6 +109,13 @@
  * into the build-input appearance after schema validation; `{}` stays `{}`
  * (the theme's default palette). The template derives and checks the palette.
  *
+ * **Staggered release** (schemas 3.19.0): a content file may carry the
+ * optional `publishAfter` member (`YYYY-MM-DD`, a `status: draft` marker the
+ * API writes). Intake validates its shape only; `normalizeContentFrontmatter`
+ * copies an explicit list of members, so the value never reaches the
+ * build-input or the template, on a draft (never built in publish mode) or on a
+ * published file.
+ *
  * **Policy pages** (schemas 3.16.0): `publication.json`'s optional `policies`
  * (`{terms, privacy}`, each `{title, body}` where `body` is the repository path
  * of a Markdown file) becomes `build-input.policies`, each page

@@ -10,6 +10,16 @@ and this project adheres to
 
 ### Changed
 
+- Serve schemas 3.19.0 (exact pin of this package; the adapters stay on 3.8.0).
+  Repository intake validates content front matter against
+  `content-frontmatter:2.0.0` of that release, which adds the optional
+  `publishAfter` member (`YYYY-MM-DD`, schema shape only). A `status: draft`
+  file that carries it is accepted and, like any draft, is not built in publish
+  mode. The member is never copied into `build-input.content[].frontmatter`
+  (that copy is an explicit allow-list), so a published file that still carries
+  it builds exactly as without it. A malformed value is a
+  `SchemaValidationError` naming the file.
+
 - `THEME_CATALOG` serves `theme-editorial` 4.2.0 (contract 4.1.0) with its
   registry tarball SHA-256, replacing the 4.1.0 row that template 4.4.x refuses.
 

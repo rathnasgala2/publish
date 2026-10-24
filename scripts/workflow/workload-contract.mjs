@@ -176,9 +176,10 @@ export const ADAPTER_ENVIRONMENTS = Object.freeze({
 });
 
 /**
- * `destination` declared members: the closed retained `destinationIdentity`
- * and the request-side `ReceiptExchangeIntentRequestDestination` declare
- * the same six.
+ * `destination` members this repository sends and reads since schema 2.9.0:
+ * the closed retained `destinationIdentity` and the request-side
+ * `ReceiptExchangeIntentRequestDestination` declare these six, and since
+ * schemas 3.17.0 also `verificationBaseUrl` (`DESTINATION_EXTENSION_FIELDS`).
  */
 export const DESTINATION_FIELDS = Object.freeze([
   'environment',
@@ -190,13 +191,14 @@ export const DESTINATION_FIELDS = Object.freeze([
 ]);
 
 /**
- * Retained destination members the pinned contract does not declare yet: the
- * additive `verificationBaseUrl`, the origin that is serving right now and
- * answers over HTTPS. `DESTINATION_FIELDS` above is held to the pinned
- * schemas by the parity test and so is unchanged; the retained destination
- * admits these beside it. The value is checked separately, by
- * `checkVerificationBaseUrl`, so a malformed one is refused as a mismatch with
- * the intent rather than as a malformed authorization.
+ * Destination members the pinned contract declares beside the six above since
+ * schemas 3.17.0: the additive `verificationBaseUrl`, the origin that is
+ * serving right now and answers over HTTPS. The parity test holds
+ * `DESTINATION_FIELDS` plus these to the pinned schemas. The retained
+ * destination admits them; the request-side destination does not, because the
+ * API derives the value and this repository never sends it. The value is checked
+ * separately, by `checkVerificationBaseUrl`, so a malformed one is refused as a
+ * mismatch with the intent rather than as a malformed authorization.
  */
 export const DESTINATION_EXTENSION_FIELDS = Object.freeze([
   'verificationBaseUrl',
@@ -262,7 +264,10 @@ export const RECEIPT_FIELDS = Object.freeze([
   'reportChallengeId',
 ]);
 
-/** The receipt submission's 21 declared members. */
+/**
+ * The receipt submission's 21 original members; `SUBMISSION_EXTENSION_FIELDS`
+ * adds the two the contract has declared since 3.17.0.
+ */
 export const SUBMISSION_FIELDS = Object.freeze([
   'operationId',
   'repositoryId',
@@ -287,6 +292,19 @@ export const SUBMISSION_FIELDS = Object.freeze([
   'kernelJournal',
 ]);
 
+/**
+ * Submission members the pinned contract declares beside the 21 above since
+ * schemas 3.17.0, both optional: `deployFailure` (a failed deploy's classified
+ * code; `kernelJournal` is required unless `deployFailure.journal` is `absent`,
+ * and omitted then) and `verifiedAt` (the origin the deploy's public reads were
+ * made against). The parity test holds `SUBMISSION_FIELDS` plus these to the
+ * pinned schemas; the validators below check each one by shape.
+ */
+export const SUBMISSION_EXTENSION_FIELDS = Object.freeze([
+  'deployFailure',
+  'verifiedAt',
+]);
+
 /** The 19 submission members that are never optional. */
 export const SUBMISSION_REQUIRED = Object.freeze(
   SUBMISSION_FIELDS.filter(
@@ -297,10 +315,10 @@ export const SUBMISSION_REQUIRED = Object.freeze(
 
 /**
  * The journal-less failure submission's members: the receipt submission
- * without a `kernelJournal`, plus `deployFailure`. This shape is not in the
- * pinned `@rathnasgala2/schemas` contract (so `SUBMISSION_FIELDS` above, which
- * the parity test holds to it, is unchanged); it is the body a failed deploy
- * with no kernel journal posts to the same route, for the API to accept.
+ * without a `kernelJournal`, plus `deployFailure`. The pinned
+ * `@rathnasgala2/schemas` contract declares this shape since 3.17.0
+ * (`SUBMISSION_EXTENSION_FIELDS`); it is the body a failed deploy with no
+ * kernel journal posts to the same route.
  */
 export const JOURNAL_ABSENT_SUBMISSION_FIELDS = Object.freeze([
   ...SUBMISSION_FIELDS.filter((name) => name !== 'kernelJournal'),
@@ -1287,8 +1305,8 @@ export function checkHttpsOrigin(value, pointer) {
  * `verifiedAt: {origin}` extension (the strict origin, `https://host[:port]`
  * with no path, of the base URL the deploy's public reads were made against,
  * recorded by the API beside the build `publicBaseUrl`).
- * `verifiedAt` is not in the pinned contract, so it is checked and removed
- * here and the rest goes to the shape's own validator.
+ * `verifiedAt` is checked and removed here and the rest goes to the shape's own
+ * validator.
  *
  * @param {unknown} value the request body
  * @returns {void}
@@ -1334,7 +1352,8 @@ export function validateJournalAbsentSubmission(value) {
  * Validate a receipt submission that carries its `kernelJournal` and also
  * states the deploy's classified failure beside it
  * (`deployFailure.journal: 'present'`), so the API reads the code without
- * parsing attempts. Everything but `deployFailure` is the pinned contract.
+ * parsing attempts. Everything but `deployFailure` is the plain receipt
+ * submission.
  *
  * @param {unknown} value the request body
  * @returns {void}

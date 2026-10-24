@@ -29,6 +29,17 @@ and this project adheres to
 
 ### Changed
 
+- Serve schemas 3.19.0 (exact registry pin in `publish-action` and
+  `publish-kernel`; the adapters stay on 3.8.0). Content front matter may now
+  carry the optional `publishAfter` member (`YYYY-MM-DD`) that staggered release
+  puts on a `status: draft` file, so a draft that carries it is no longer
+  refused by intake and no longer fails the whole site publish. The renderer and
+  the template never see the member. The pin also crosses schemas 3.17.0, whose
+  receipt submission declares `deployFailure` and `verifiedAt` and whose
+  destination declares `verificationBaseUrl`: the workload-contract parity gate
+  now holds those members to the contract (`SUBMISSION_EXTENSION_FIELDS`,
+  `DESTINATION_EXTENSION_FIELDS`), with the validators' behavior unchanged.
+
 - The read-only verification workflow is now
   `.github/workflows/source-only.yaml` ("Source-only verification"), no longer
   `release.yaml`, which publishes. Its concurrency group is `source-only-<ref>`,

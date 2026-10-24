@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Depend on `@rathnasgala2/schemas` 3.19.0 (exact pin; was 3.16.0). No kernel
+  behavior changes.
+
 ## [0.1.1] - 2026-09-26
 
 ### Changed

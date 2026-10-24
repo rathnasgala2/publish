@@ -15,6 +15,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   truncate,
@@ -534,6 +535,160 @@ test('candidate mode admits a draft as unlisted', async () => {
   }
 });
 
+const STAGGERED_POST = {
+  slug: 'later',
+  id: '01912345-6789-7abc-89ab-0123456789b1',
+  title: 'Later',
+};
+
+test('a draft carrying publishAfter is accepted and is not built in publish mode', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addDocument(
+      dir,
+      'later.md',
+      {
+        ...STAGGERED_POST,
+        status: 'draft',
+        publishedAt: undefined,
+        publishAfter: '2026-11-01',
+      },
+      'Body\n',
+    );
+    const { buildInput, warnings } = await buildWithWarnings(dir);
+    assert.deepEqual(contentPaths(buildInput), ['content/hello-world.md']);
+    assert.deepEqual(warnings, []);
+    // The same draft makes validate succeed too: intake, not the build, is
+    // where a schema refusal would have failed the whole site publish.
+    const validated = await runValidate({ repositoryDirectory: dir });
+    assert.equal(validated.resultCode, 'SUCCESS');
+    assert.deepEqual(validated.findings, []);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('candidate mode admits a draft carrying publishAfter as unlisted without the member', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addDocument(
+      dir,
+      'later.md',
+      {
+        ...STAGGERED_POST,
+        status: 'draft',
+        publishedAt: undefined,
+        publishAfter: '2026-11-01',
+      },
+      'Body\n',
+    );
+    const { buildInput } = await buildWithWarnings(dir, true);
+    const { frontmatter } = recordOf(buildInput, 'content/later.md');
+    assert.equal(frontmatter.status, 'unlisted');
+    assert.equal('publishAfter' in frontmatter, false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a published post still carrying publishAfter builds exactly like one without it', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  const work = await mkdtemp(path.join(tmpdir(), 'gala-publish-after-'));
+  try {
+    await addDocument(dir, 'later.md', STAGGERED_POST, 'Body\n');
+    const without = recordOf(
+      (await buildWithWarnings(dir)).buildInput,
+      'content/later.md',
+    );
+    await addDocument(
+      dir,
+      'later.md',
+      { ...STAGGERED_POST, publishAfter: '2026-11-01' },
+      'Body\n',
+    );
+    const { buildInput, warnings } = await buildWithWarnings(dir);
+    const record = recordOf(buildInput, 'content/later.md');
+    assert.deepEqual(warnings, []);
+    assert.equal('publishAfter' in record.frontmatter, false);
+    assert.deepEqual(record.frontmatter, without.frontmatter);
+
+    // The whole pipeline: the template renders the post and the output carries
+    // no trace of the member.
+    const built = await runBuild({
+      repositoryDirectory: dir,
+      outputDirectory: path.join(work, 'output'),
+      workDirectory: path.join(work, 'work'),
+    });
+    assert.equal(built.resultCode, 'SUCCESS', JSON.stringify(built.findings));
+    assert.deepEqual(built.findings, []);
+    const pages = await listFiles(path.join(work, 'output'));
+    assert.ok(
+      pages.some((file) => file.includes('later')),
+      `expected a page for the post among ${pages.join(', ')}`,
+    );
+    for (const file of pages.filter((name) =>
+      /\.(html|xml|json)$/u.test(name),
+    )) {
+      assert.equal(
+        (await readFile(file, 'utf8')).includes('publishAfter'),
+        false,
+        file,
+      );
+    }
+  } finally {
+    await cleanup();
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+const MALFORMED_PUBLISH_AFTER = [
+  ['a date without zero padding', '2026-1-5', 'SCHEMA_PATTERN_INVALID'],
+  ['a timestamp', '2026-11-01T00:00:00.000Z', 'SCHEMA_PATTERN_INVALID'],
+  ['a word', 'tomorrow', 'SCHEMA_PATTERN_INVALID'],
+  ['a number', 20261101, 'SCHEMA_TYPE_INVALID'],
+];
+
+for (const [rule, value, code] of MALFORMED_PUBLISH_AFTER) {
+  test(`publishAfter as ${rule} is refused by the schema, naming the file`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await addDocument(
+        dir,
+        'later.md',
+        {
+          ...STAGGERED_POST,
+          status: 'draft',
+          publishedAt: undefined,
+          publishAfter: value,
+        },
+        'Body\n',
+      );
+      await assert.rejects(
+        buildBuildInputFromRepository({ repositoryDirectory: dir }),
+        (/** @type {SchemaValidationError} */ error) => {
+          assert.ok(error instanceof SchemaValidationError);
+          assert.equal(error.location, 'content/later.md');
+          assert.equal(
+            error.schemaId,
+            'urn:gala:schema:content-frontmatter:2.0.0',
+          );
+          assert.ok(
+            error.diagnostics.some(
+              (diagnostic) =>
+                diagnostic.code === code &&
+                diagnostic.instancePointer === '/publishAfter',
+            ),
+            JSON.stringify(error.diagnostics),
+          );
+          return true;
+        },
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
 test('an archived entry is omitted even in candidate mode', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {
@@ -866,6 +1021,20 @@ async function addDocument(dir, name, fields, body) {
     path.join(dir, 'content', name),
     contentDocument(fields, body),
   );
+}
+
+/**
+ * @param {string} directory a directory to walk
+ * @returns {Promise<string[]>} the absolute path of every regular file below it
+ */
+async function listFiles(directory) {
+  const entries = await readdir(directory, {
+    recursive: true,
+    withFileTypes: true,
+  });
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(entry.parentPath, entry.name));
 }
 
 /**

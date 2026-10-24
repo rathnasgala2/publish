@@ -32,7 +32,7 @@ npm ci
 npm run verify
 ```
 
-Schemas 3.16.0, template 4.4.1 and the six generation-4 themes (all at 4.2.0)
+Schemas 3.19.0, template 4.4.1 and the six generation-4 themes (all at 4.2.0)
 are installed from the public npm registry at exact versions; the lockfile
 carries their integrity. `THEME_CATALOG` records each theme tarball's registry
 SHA-256.
@@ -238,9 +238,9 @@ base URL the run's public reads were made against
 right now, else `baseUrl`) and its strict origin (`https://host[:port]`, no
 path); the receipt submission carries only the optional `verifiedAt: {origin}`.
 A malformed `verificationBaseUrl` refuses the run as `INTENT_MISMATCH` before
-any destination contact. This shape is not in the pinned schemas contract, so it
-is validated here by `validateJournalAbsentSubmission` and awaits the API's
-acceptance.
+any destination contact. The pinned schemas contract declares this shape
+(`deployFailure`, `verifiedAt`; schemas 3.17.0) and
+`validateJournalAbsentSubmission` validates it here.
 
 **Freeze, on the real path.** `freeze.mjs` freezes the envelope under the
 adapter the verified source's lock selects (DEC-097 section 3's closed

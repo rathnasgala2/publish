@@ -165,10 +165,10 @@ test('the three conditional adapter branches admit each member only for its own 
 test('the request-side destination (2.9.0) requires the lock-derived adapter and canonical base, keys providerBinding and environment on the adapter, and admits nothing for do-spaces', () => {
   const destination = intentArm.properties.destination;
   assert.equal(destination.additionalProperties, false);
-  assertSameMembers(
-    Object.keys(destination.properties),
-    contract.DESTINATION_FIELDS,
-  );
+  assertSameMembers(Object.keys(destination.properties), [
+    ...contract.DESTINATION_FIELDS,
+    ...contract.DESTINATION_EXTENSION_FIELDS,
+  ]);
   assertSameMembers(
     destination.required,
     contract.REQUEST_DESTINATION_REQUIRED,
@@ -251,10 +251,10 @@ test('the retained destinationIdentity is unchanged apart from the closed enviro
   );
   const retained = root.$defs.destinationIdentity;
   assert.equal(retained.additionalProperties, false);
-  assertSameMembers(
-    Object.keys(retained.properties),
-    contract.DESTINATION_FIELDS,
-  );
+  assertSameMembers(Object.keys(retained.properties), [
+    ...contract.DESTINATION_FIELDS,
+    ...contract.DESTINATION_EXTENSION_FIELDS,
+  ]);
   assertSameMembers(retained.required, contract.DESTINATION_REQUIRED);
   assertSameMembers(
     retained.properties.environment.enum,
@@ -398,15 +398,32 @@ test('the request-side rebuildRecord (2.9.0) declares the retained record’s me
   }
 });
 
-test('the receipt submission declares 21 members and requires exactly 19', () => {
+test('the receipt submission declares 23 members, requires exactly 18 and requires kernelJournal unless deployFailure.journal is absent', () => {
   assert.equal(submission.additionalProperties, false);
+  assertSameMembers(Object.keys(submission.properties), [
+    ...contract.SUBMISSION_FIELDS,
+    ...contract.SUBMISSION_EXTENSION_FIELDS,
+  ]);
   assertSameMembers(
-    Object.keys(submission.properties),
-    contract.SUBMISSION_FIELDS,
+    submission.required,
+    contract.SUBMISSION_REQUIRED.filter((name) => name !== 'kernelJournal'),
   );
-  assertSameMembers(submission.required, contract.SUBMISSION_REQUIRED);
-  assert.equal(contract.SUBMISSION_FIELDS.length, 21);
+  assert.equal(
+    contract.SUBMISSION_FIELDS.length +
+      contract.SUBMISSION_EXTENSION_FIELDS.length,
+    23,
+  );
+  assert.equal(submission.required.length, 18);
   assert.equal(contract.SUBMISSION_REQUIRED.length, 19);
+  const [journalRule] = submission.allOf;
+  assert.equal(submission.allOf.length, 1);
+  assert.deepEqual(journalRule.if.required, ['deployFailure']);
+  assert.equal(
+    journalRule.if.properties.deployFailure.properties.journal['x-gala-const'],
+    'absent',
+  );
+  assert.deepEqual(journalRule.then.not.required, ['kernelJournal']);
+  assert.deepEqual(journalRule.else.required, ['kernelJournal']);
   assert.equal(
     submission.properties.publisherPackage['x-gala-const'],
     contract.PUBLISHER_PACKAGE,
