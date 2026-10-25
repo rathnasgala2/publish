@@ -116,7 +116,7 @@ test('candidate build includes a draft as unlisted without changing the source f
     const content = /** @type {{frontmatter: {status: string}}[]} */ (
       buildInput.content
     );
-    assert.equal(content.length, 1);
+    assert.equal(content.length, 2);
     assert.equal(content[0]?.frontmatter.status, 'unlisted');
     assert.equal(
       await readFile(path.join(repository, 'content/hello-world.md'), 'utf8'),

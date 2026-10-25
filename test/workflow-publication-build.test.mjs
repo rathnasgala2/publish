@@ -117,8 +117,11 @@ function publishContent(repository) {
   // The user template's two starter pages ship published since user-template 09d33b8 (the
   // owner's "about and welcome page published"); a template that still ships them as drafts
   // is published here so the build has public content either way.
-  for (const name of ['about.md', 'welcome-to-your-publication.md']) {
-    const contentPath = path.join(repository, 'content', name);
+  for (const relativePath of [
+    'gala/theme-pages/about.md',
+    'content/welcome-to-your-publication.md',
+  ]) {
+    const contentPath = path.join(repository, relativePath);
     if (!existsSync(contentPath)) {
       continue;
     }
@@ -133,7 +136,7 @@ function publishContent(repository) {
     assert.notEqual(
       after,
       before,
-      `${name} must be a draft or already published`,
+      `${relativePath} must be a draft or already published`,
     );
     writeFileSync(contentPath, after);
   }
@@ -261,7 +264,7 @@ test(
       assert.ok(manifest.routes.length > 0);
       assert.ok(existsSync(path.join(output, 'artifact/index.html')));
       const expectedArticle = existsSync(
-        path.join(generatedRepository, 'content/about.md'),
+        path.join(generatedRepository, 'gala/theme-pages/about.md'),
       )
         ? 'about/index.html'
         : 'hello-world/index.html';

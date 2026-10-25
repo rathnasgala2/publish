@@ -16,6 +16,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  rename,
   rm,
   symlink,
   truncate,
@@ -95,7 +96,7 @@ test('the fixture repository normalizes to a schema-valid build-input', async ()
   assert.equal(buildInput.schemaId, 'urn:gala:schema:build-input:2.0.0');
   assert.equal(
     /** @type {{content: unknown[]}} */ (buildInput).content.length,
-    1,
+    2,
   );
   assert.equal(
     /** @type {{modules: object}} */ (buildInput).modules &&
@@ -340,6 +341,71 @@ test('rejects an author reference not present in publication.json (author member
   }
 });
 
+test('the About page is read from gala/theme-pages/about.md as a content document', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const { buildInput } = await buildWithWarnings(dir);
+    const about = recordOf(buildInput, 'gala/theme-pages/about.md');
+    assert.equal(about.frontmatter.kind, 'page');
+    assert.equal(about.frontmatter.slug, 'about');
+    assert.equal(about.sourcePath, 'gala/theme-pages/about.md');
+    assert.match(about.sourceDigest, /^sha256:[0-9a-f]{64}$/u);
+    assert.equal(about.bodyMediaType, 'text/html');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a repository with content/about.md and no theme-pages About fails closed with THEME_PAGE_MISSING', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await rename(
+      path.join(dir, 'gala/theme-pages/about.md'),
+      path.join(dir, 'content/about.md'),
+    );
+    const findings = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+    );
+    const finding = findings.find(({ code }) => code === 'THEME_PAGE_MISSING');
+    assert.equal(finding?.location, 'gala/theme-pages/about.md');
+    assert.equal(finding?.severity, 'SOURCE_ERROR');
+    assert.match(finding?.recovery ?? '', /gala\/theme-pages\/about\.md/u);
+    assert.equal(
+      findings.some(({ code }) => code === 'REPOSITORY_CONTENT_EMPTY'),
+      false,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a theme-pages About with an image gets media[] like a content document', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    const photo = imageBytes('png', 'about-photo');
+    await addFile(dir, 'assets/content/about-photo.png', photo);
+    const aboutPath = path.join(dir, 'gala/theme-pages/about.md');
+    await writeFile(
+      aboutPath,
+      `${await readFile(aboutPath, 'utf8')}\n![Team](assets/content/about-photo.png)\n`,
+    );
+    const { buildInput } = await buildWithWarnings(dir);
+    const about = recordOf(buildInput, 'gala/theme-pages/about.md');
+    assert.deepEqual(about.media, [
+      {
+        path: 'assets/content/about-photo.png',
+        sourceDigest: digestOf(photo),
+        mediaType: 'image/png',
+        byteLength: photo.byteLength,
+      },
+    ]);
+    assert.match(about.body, /<img /u);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('rejects a repository with no content files', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {
@@ -511,10 +577,11 @@ test('a draft is omitted from build-input in publish mode', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {
     await setHelloWorldStatus(dir, 'draft');
-    await assert.rejects(
-      buildBuildInputFromRepository({ repositoryDirectory: dir }),
-      SchemaValidationError,
-    );
+    // Only the About page is left in the build.
+    const buildInput = await buildBuildInputFromRepository({
+      repositoryDirectory: dir,
+    });
+    assert.deepEqual(contentPaths(buildInput), ['gala/theme-pages/about.md']);
   } finally {
     await cleanup();
   }
@@ -525,7 +592,7 @@ test('candidate mode admits a draft as unlisted', async () => {
   try {
     await setHelloWorldStatus(dir, 'draft');
     const content = await builtContent(dir, true);
-    assert.equal(content.length, 1);
+    assert.equal(content.length, 2);
     const [entry] = /** @type {[{frontmatter: {status: string}}]} */ (
       /** @type {unknown} */ (content)
     );
@@ -556,7 +623,10 @@ test('a draft carrying publishAfter is accepted and is not built in publish mode
       'Body\n',
     );
     const { buildInput, warnings } = await buildWithWarnings(dir);
-    assert.deepEqual(contentPaths(buildInput), ['content/hello-world.md']);
+    assert.deepEqual(contentPaths(buildInput), [
+      'content/hello-world.md',
+      'gala/theme-pages/about.md',
+    ]);
     assert.deepEqual(warnings, []);
     // The same draft makes validate succeed too: intake, not the build, is
     // where a schema refusal would have failed the whole site publish.
@@ -693,7 +763,11 @@ test('an archived entry is omitted even in candidate mode', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {
     await setHelloWorldStatus(dir, 'archived');
-    await assert.rejects(builtContent(dir, true), SchemaValidationError);
+    const content = await builtContent(dir, true);
+    assert.deepEqual(
+      content.map((record) => record.sourcePath),
+      ['gala/theme-pages/about.md'],
+    );
   } finally {
     await cleanup();
   }
@@ -1959,6 +2033,7 @@ test('an edition of an unchanged article is passed through with its front matter
       'content/hello-world.md',
       'content/post.edition.quick-read.md',
       'content/post.md',
+      'gala/theme-pages/about.md',
     ]);
     const edition = buildInput.content[1].frontmatter;
     assert.equal(edition.kind, 'edition');
@@ -2042,6 +2117,7 @@ test('changing only the article front matter does not make its edition stale; ch
     assert.deepEqual(contentPaths(buildInput), [
       'content/hello-world.md',
       'content/post.md',
+      'gala/theme-pages/about.md',
     ]);
     assert.equal(warnings.length, 1);
     assert.equal(warnings[0]?.code, 'EDITION_STALE');
@@ -2106,6 +2182,7 @@ test('an edition with no article, or whose article is not in the build, is dropp
     assert.deepEqual(contentPaths(missing.buildInput), [
       'content/hello-world.md',
       'content/post.md',
+      'gala/theme-pages/about.md',
     ]);
     assert.deepEqual(
       missing.warnings.map((warning) => warning.code),
@@ -2121,6 +2198,7 @@ test('an edition with no article, or whose article is not in the build, is dropp
     const draft = await buildWithWarnings(dir);
     assert.deepEqual(contentPaths(draft.buildInput), [
       'content/hello-world.md',
+      'gala/theme-pages/about.md',
     ]);
     assert.deepEqual(
       draft.warnings.map((warning) => warning.code),
@@ -2128,7 +2206,7 @@ test('an edition with no article, or whose article is not in the build, is dropp
     );
     const candidate = await buildWithWarnings(dir, true);
     assert.deepEqual(candidate.warnings, []);
-    assert.equal(candidate.buildInput.content.length, 3);
+    assert.equal(candidate.buildInput.content.length, 4);
   } finally {
     await cleanup();
   }
@@ -2207,6 +2285,7 @@ test('warnings are optional: without a collector a dropped edition is simply lef
     assert.deepEqual(contentPaths(buildInput), [
       'content/hello-world.md',
       'content/post.md',
+      'gala/theme-pages/about.md',
     ]);
   } finally {
     await cleanup();
@@ -2398,8 +2477,8 @@ const POLICY_TEXT = Object.freeze({
  */
 function authoredPolicies() {
   return {
-    terms: { title: 'Terms of use', body: 'gala/policies/terms.md' },
-    privacy: { title: 'Privacy notice', body: 'gala/policies/privacy.md' },
+    terms: { title: 'Terms of use', body: 'gala/theme-pages/terms.md' },
+    privacy: { title: 'Privacy notice', body: 'gala/theme-pages/privacy.md' },
   };
 }
 
@@ -2410,8 +2489,8 @@ function authoredPolicies() {
  * @returns {Promise<void>} resolves once written
  */
 async function addPolicyFiles(dir) {
-  await addFile(dir, 'gala/policies/terms.md', POLICY_TEXT.terms);
-  await addFile(dir, 'gala/policies/privacy.md', POLICY_TEXT.privacy);
+  await addFile(dir, 'gala/theme-pages/terms.md', POLICY_TEXT.terms);
+  await addFile(dir, 'gala/theme-pages/privacy.md', POLICY_TEXT.privacy);
 }
 
 test('an absent publication.policies leaves no build-input.policies member', async () => {
@@ -2441,13 +2520,13 @@ test('publication.policies renders both Markdown files into build-input.policies
       [
         'terms',
         'Terms of use',
-        'gala/policies/terms.md',
+        'gala/theme-pages/terms.md',
         'agree to these terms',
       ],
       [
         'privacy',
         'Privacy notice',
-        'gala/policies/privacy.md',
+        'gala/theme-pages/privacy.md',
         'as little reader data as we can',
       ],
     ]);
@@ -2470,7 +2549,10 @@ test('publication.policies renders both Markdown files into build-input.policies
     const contentPaths = buildInput.content.map(
       (/** @type {{sourcePath: string}} */ record) => record.sourcePath,
     );
-    assert.deepEqual(contentPaths, ['content/hello-world.md']);
+    assert.deepEqual(contentPaths, [
+      'content/hello-world.md',
+      'gala/theme-pages/about.md',
+    ]);
   } finally {
     await cleanup();
   }
@@ -2479,7 +2561,7 @@ test('publication.policies renders both Markdown files into build-input.policies
 test('a policy body that does not exist or is not a regular file is POLICY_BODY_MISSING naming the page', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {
-    await addFile(dir, 'gala/policies/terms.md', POLICY_TEXT.terms);
+    await addFile(dir, 'gala/theme-pages/terms.md', POLICY_TEXT.terms);
     await setPublication(dir, { policies: authoredPolicies() });
     const findings = await intakeFindings(
       buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
@@ -2491,13 +2573,13 @@ test('a policy body that does not exist or is not a regular file is POLICY_BODY_
     assert.match(findings[0]?.detail ?? '', /policies\.privacy\.body/u);
     assert.deepEqual(findings[0]?.evidence, {
       policy: 'privacy',
-      path: 'gala/policies/privacy.md',
+      path: 'gala/theme-pages/privacy.md',
     });
 
     // A directory where the file should be is not a regular file either, and
     // both pages are reported together.
-    await rm(path.join(dir, 'gala/policies/terms.md'));
-    await mkdir(path.join(dir, 'gala/policies/terms.md'));
+    await rm(path.join(dir, 'gala/theme-pages/terms.md'));
+    await mkdir(path.join(dir, 'gala/theme-pages/terms.md'));
     const both = await intakeFindings(
       buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
     );
@@ -2512,8 +2594,11 @@ test('a policy body that is not a .md file is refused by the schema before intak
   const { dir, cleanup } = await mutableFixtureCopy();
   try {
     await addPolicyFiles(dir);
-    await addFile(dir, 'gala/policies/terms.txt', POLICY_TEXT.terms);
-    for (const body of ['gala/policies/terms.txt', 'gala/policies/terms']) {
+    await addFile(dir, 'gala/theme-pages/terms.txt', POLICY_TEXT.terms);
+    for (const body of [
+      'gala/theme-pages/terms.txt',
+      'gala/theme-pages/terms',
+    ]) {
       const policies = authoredPolicies();
       policies.terms.body = body;
       await setPublication(dir, { policies });
@@ -2537,12 +2622,12 @@ test('a policy body that links to a file outside the repository is POLICY_BODY_U
   const { dir, cleanup } = await mutableFixtureCopy();
   const outside = await mkdtemp(path.join(tmpdir(), 'gala-policy-outside-'));
   try {
-    await addFile(dir, 'gala/policies/terms.md', POLICY_TEXT.terms);
+    await addFile(dir, 'gala/theme-pages/terms.md', POLICY_TEXT.terms);
     await writeFile(path.join(outside, 'privacy.md'), POLICY_TEXT.privacy);
-    await mkdir(path.join(dir, 'gala/policies'), { recursive: true });
+    await mkdir(path.join(dir, 'gala/theme-pages'), { recursive: true });
     await symlink(
       path.join(outside, 'privacy.md'),
-      path.join(dir, 'gala/policies/privacy.md'),
+      path.join(dir, 'gala/theme-pages/privacy.md'),
     );
     await setPublication(dir, { policies: authoredPolicies() });
     const findings = await intakeFindings(
@@ -2553,7 +2638,7 @@ test('a policy body that links to a file outside the repository is POLICY_BODY_U
     assert.match(findings[0]?.detail ?? '', /is outside the repository/u);
     assert.deepEqual(findings[0]?.evidence, {
       policy: 'privacy',
-      path: 'gala/policies/privacy.md',
+      path: 'gala/theme-pages/privacy.md',
     });
   } finally {
     await cleanup();
@@ -2567,11 +2652,11 @@ test('a policy body that is a symbolic link inside the repository, or one that d
     await addPolicyFiles(dir);
     // terms.md becomes a link to an ordinary file inside the repository and
     // privacy.md a link to nothing; neither is the file itself.
-    await rm(path.join(dir, 'gala/policies/terms.md'));
-    await addFile(dir, 'gala/policies/real-terms.md', POLICY_TEXT.terms);
-    await symlink('real-terms.md', path.join(dir, 'gala/policies/terms.md'));
-    await rm(path.join(dir, 'gala/policies/privacy.md'));
-    await symlink('absent.md', path.join(dir, 'gala/policies/privacy.md'));
+    await rm(path.join(dir, 'gala/theme-pages/terms.md'));
+    await addFile(dir, 'gala/theme-pages/real-terms.md', POLICY_TEXT.terms);
+    await symlink('real-terms.md', path.join(dir, 'gala/theme-pages/terms.md'));
+    await rm(path.join(dir, 'gala/theme-pages/privacy.md'));
+    await symlink('absent.md', path.join(dir, 'gala/theme-pages/privacy.md'));
     await setPublication(dir, { policies: authoredPolicies() });
     const findings = await intakeFindings(
       buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
@@ -2607,7 +2692,7 @@ function assertTermsBodyFinding(findings, code, extraEvidence = {}) {
   assert.match(findings[0]?.detail ?? '', /policies\.terms\.body/u);
   assert.deepEqual(findings[0]?.evidence, {
     policy: 'terms',
-    path: 'gala/policies/terms.md',
+    path: 'gala/theme-pages/terms.md',
     ...extraEvidence,
   });
 }
@@ -2623,7 +2708,7 @@ test('a policy body over 131072 bytes is POLICY_BODY_TOO_LARGE; exactly 131072 b
       'x'.repeat(POLICY_BODY_LIMIT + 1),
       '\u00e9'.repeat(POLICY_BODY_LIMIT / 2 + 1),
     ]) {
-      await addFile(dir, 'gala/policies/terms.md', text);
+      await addFile(dir, 'gala/theme-pages/terms.md', text);
       const findings = await intakeFindings(
         buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
       );
@@ -2635,7 +2720,7 @@ test('a policy body over 131072 bytes is POLICY_BODY_TOO_LARGE; exactly 131072 b
 
     const atLimit = `${'x'.repeat(POLICY_BODY_LIMIT - 1)}\n`;
     assert.equal(Buffer.byteLength(atLimit, 'utf8'), POLICY_BODY_LIMIT);
-    await addFile(dir, 'gala/policies/terms.md', atLimit);
+    await addFile(dir, 'gala/theme-pages/terms.md', atLimit);
     const buildInput = /** @type {any} */ (
       await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
     );
@@ -2654,7 +2739,7 @@ test('an empty or whitespace-only policy body is POLICY_BODY_EMPTY', async () =>
     await addPolicyFiles(dir);
     await setPublication(dir, { policies: authoredPolicies() });
     for (const text of ['', '\n', ' \t \r\n\n  ']) {
-      await addFile(dir, 'gala/policies/terms.md', text);
+      await addFile(dir, 'gala/theme-pages/terms.md', text);
       const findings = await intakeFindings(
         buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
       );
@@ -2662,7 +2747,7 @@ test('an empty or whitespace-only policy body is POLICY_BODY_EMPTY', async () =>
     }
 
     // Both pages are reported together.
-    await addFile(dir, 'gala/policies/privacy.md', '\n');
+    await addFile(dir, 'gala/theme-pages/privacy.md', '\n');
     const both = await intakeFindings(
       buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
     );
@@ -2683,7 +2768,7 @@ test('a policy body whose rendered HTML has an image is POLICY_BODY_IMAGE_UNSUPP
     ]) {
       await addFile(
         dir,
-        'gala/policies/terms.md',
+        'gala/theme-pages/terms.md',
         `${POLICY_TEXT.terms}\n${reference}\n`,
       );
       await setPublication(dir, { policies: authoredPolicies() });
@@ -2693,10 +2778,10 @@ test('a policy body whose rendered HTML has an image is POLICY_BODY_IMAGE_UNSUPP
       assert.equal(findings.length, 1);
       assert.equal(findings[0]?.code, 'POLICY_BODY_IMAGE_UNSUPPORTED');
       assert.equal(findings[0]?.severity, 'SOURCE_ERROR');
-      assert.equal(findings[0]?.location, 'gala/policies/terms.md');
+      assert.equal(findings[0]?.location, 'gala/theme-pages/terms.md');
       assert.deepEqual(findings[0]?.evidence, {
         policy: 'terms',
-        path: 'gala/policies/terms.md',
+        path: 'gala/theme-pages/terms.md',
         images: 1,
       });
     }

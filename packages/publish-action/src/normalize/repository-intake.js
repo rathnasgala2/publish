@@ -20,6 +20,7 @@
  *     authors/*.json               # one author:2.0.0 document per file
  *   gala.lock.json                   # lock:2.0.0 (the fixed lockfile path)
  *   content/*.md                       # bounded YAML frontmatter + Markdown
+ *   gala/theme-pages/about.md          # the About page: a content document
  * ```
  *
  * `repository.json`'s own `publication`/`navigation`/`appearance` fields
@@ -115,6 +116,14 @@
  * copies an explicit list of members, so the value never reaches the
  * build-input or the template, on a draft (never built in publish mode) or on a
  * published file.
+ *
+ * **Theme pages**: the About page is the content document
+ * `gala/theme-pages/about.md`, read in the same pass as `content/*.md` with the
+ * same split, parse and validation (its `sourcePath` is the theme-pages path,
+ * placed after the `content/` documents). It is mandatory: a missing file is
+ * `THEME_PAGE_MISSING`, which fails closed; `REPOSITORY_CONTENT_EMPTY` stays
+ * about `content/`. The Terms and Privacy bodies live beside it in
+ * `gala/theme-pages/`.
  *
  * **Policy pages** (schemas 3.16.0): `publication.json`'s optional `policies`
  * (`{terms, privacy}`, each `{title, body}` where `body` is the repository path
@@ -214,6 +223,9 @@ export class RepositoryIntakeError extends Error {
     this.findings = Object.freeze([...findings]);
   }
 }
+
+/** The mandatory About page: a content document in the theme-pages folder. */
+const THEME_PAGE_ABOUT_PATH = 'gala/theme-pages/about.md';
 
 /**
  * @param {string} code stable finding code
@@ -990,6 +1002,23 @@ export async function buildBuildInputFromRepository({
     );
   }
 
+  // The About page is a mandatory content document outside `content/`.
+  const aboutStat = await stat(
+    path.join(repositoryDirectory, THEME_PAGE_ABOUT_PATH),
+  ).catch(() => null);
+  if (aboutStat === null || !aboutStat.isFile()) {
+    throw new RepositoryIntakeError(
+      `the About page ${THEME_PAGE_ABOUT_PATH} is missing`,
+      [
+        {
+          ...sourceFinding('THEME_PAGE_MISSING', THEME_PAGE_ABOUT_PATH),
+          location: THEME_PAGE_ABOUT_PATH,
+          recovery: `Add the About page as a content document at ${THEME_PAGE_ABOUT_PATH} (front matter with kind: page and slug: about), or restore it by running Galascribe's repository set-up.`,
+        },
+      ],
+    );
+  }
+
   const { normalizeAuthoredMarkdown } =
     /** @type {{normalizeAuthoredMarkdown: (source: string) => {html: string, bodyDigest: string}}} */ (
       await importTemplatePublicEntry()
@@ -1003,8 +1032,11 @@ export async function buildBuildInputFromRepository({
   // `post.md`), so no document can be judged until every document is read.
   /** @type {{relativePath: string, sourceDigest: string, frontmatter: Record<string, any>, markdownBody: string, rawBody: string}[]} */
   const documents = [];
-  for (const fileName of contentFileNames) {
-    const relativePath = `content/${fileName}`;
+  const documentPaths = [
+    ...contentFileNames.map((fileName) => `content/${fileName}`),
+    THEME_PAGE_ABOUT_PATH,
+  ];
+  for (const relativePath of documentPaths) {
     const absolutePath = path.join(repositoryDirectory, relativePath);
     const { bytes, digest: sourceDigest } =
       await readFileWithDigest(absolutePath);

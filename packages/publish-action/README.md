@@ -69,6 +69,7 @@ documents a _recommended_ (not required) tree for everything else, which
     authors/*.json               # author:2.0.0, one per file
   gala.lock.json                   # lock:2.0.0 (the fixed lockfile path)
   content/*.md                       # bounded YAML frontmatter + Markdown
+  gala/theme-pages/about.md          # the About page, a content document (mandatory)
 ```
 
 `repository.json`'s own `publication`/`navigation`/`appearance` fields still
@@ -219,6 +220,15 @@ malformed path). The size limits above apply to them too.
 `APPEARANCE_MEDIA_UNSUPPORTED`. `CONTENT_MEDIA_UNSUPPORTED` and
 `PUBLICATION_CONTACT_OR_DEFAULT_IMAGE_UNSUPPORTED` no longer exist.
 
+## Theme pages
+
+`gala/theme-pages/` holds the pages every publication must have. The About page
+is `gala/theme-pages/about.md`, a content document (front matter, `kind: page`,
+`slug: about`) read in the same pass as `content/*.md` and published at
+`/about`; its `sourcePath` is the theme-pages path. A missing file fails closed
+with `THEME_PAGE_MISSING` (location `gala/theme-pages/about.md`). The Terms and
+Privacy bodies below live in the same folder.
+
 ## Policy pages
 
 `publication.json`'s optional `policies` names a Terms page and a Privacy page,
@@ -226,8 +236,8 @@ each a title and the repository path of a Markdown file:
 
 ```json
 "policies": {
-  "terms": { "title": "Terms", "body": "gala/policies/terms.md" },
-  "privacy": { "title": "Privacy", "body": "gala/policies/privacy.md" }
+  "terms": { "title": "Terms", "body": "gala/theme-pages/terms.md" },
+  "privacy": { "title": "Privacy", "body": "gala/theme-pages/privacy.md" }
 }
 ```
 
