@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Added
 
+- Template 4.5.1: the language chip reads "English" and translated pages use the
+  author's localized name.
 - Language variants: the toolchain serves template 4.5.0 and schemas 3.21.0 and
   carries the optional `translationOf` front-matter key through repository
   intake into the build-input content record.

@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Changed
 
+- The workspace serves template 4.5.1 (language chip label and localized author
+  name on translated pages).
 - Language variants: repository intake passes `translationOf` through to the
   build-input content record; the workspace serves template 4.5.0 and schemas
   3.21.0.
