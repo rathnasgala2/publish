@@ -573,6 +573,37 @@ async function builtContent(dir, includeDraftsAsUnlisted) {
   return /** @type {Record<string, unknown>[]} */ (buildInput.content);
 }
 
+test('a translationOf document reaches the build-input and the input stays schema-valid', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addDocument(
+      dir,
+      'tamil.md',
+      {
+        id: '01912345-6789-7abc-89ab-0123456789b1',
+        title: 'Oru pathivu',
+        language: 'ta',
+        slug: 'oru-pathivu',
+        translationOf: 'a-post',
+      },
+      'Body\n',
+    );
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir })
+    );
+    const record = recordOf(buildInput, 'content/tamil.md');
+    assert.equal(record.frontmatter.language, 'ta');
+    assert.equal(record.frontmatter.translationOf, 'a-post');
+    assert.equal(
+      'translationOf' in
+        recordOf(buildInput, 'content/hello-world.md').frontmatter,
+      false,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
 test('a draft is omitted from build-input in publish mode', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {

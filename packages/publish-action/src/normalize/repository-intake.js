@@ -675,6 +675,9 @@ function normalizeContentFrontmatter(frontmatter, mediaFiles) {
     ...(frontmatter.updatedAt ? { updatedAt: frontmatter.updatedAt } : {}),
     slug: frontmatter.slug,
     ...(frontmatter.route ? { route: frontmatter.route } : {}),
+    ...(frontmatter.translationOf
+      ? { translationOf: frontmatter.translationOf }
+      : {}),
     ...(frontmatter.hero
       ? {
           hero: {
