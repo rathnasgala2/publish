@@ -348,7 +348,7 @@ and sets `build-input.modules.analytics = {config}`. With no file there is no
 `gala.lock.json`'s `theme` entry (`buildInput.packages.theme`, the sole
 authority for the theme selection) names a real theme package
 (`@rathnasgala2/theme-<name>@<version>`). This workspace installs all six
-generation-4 themes (all at 4.2.0) and template 4.4.1 from the public registry.
+generation-4 themes (all at 4.2.0) and template 4.5.0 from the public registry.
 `src/theme-bridge.js`'s `resolveThemeDirectory` locates the selected theme
 package directory on disk, in this fixed order — the first candidate directory
 that actually exists wins:

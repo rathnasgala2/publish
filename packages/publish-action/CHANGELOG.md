@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Changed
 
+- Language variants: repository intake passes `translationOf` through to the
+  build-input content record; the workspace serves template 4.5.0 and schemas
+  3.21.0.
 - Serve schemas 3.19.0 (exact pin of this package; the adapters stay on 3.8.0).
   Repository intake validates content front matter against
   `content-frontmatter:2.0.0` of that release, which adds the optional

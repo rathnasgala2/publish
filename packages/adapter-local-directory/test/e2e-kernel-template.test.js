@@ -113,8 +113,8 @@ async function loadRenderableBuildInput() {
   // this test does not exercise the S2-T05 media pipeline.
   buildInput.appearance.fontAssets = [];
   buildInput.appearance.theme = '@rathnasgala2/theme-default@4.2.0';
-  buildInput.packages.schemas.version = '3.19.0';
-  buildInput.packages.template.version = '4.4.1';
+  buildInput.packages.schemas.version = '3.21.0';
+  buildInput.packages.template.version = '4.5.0';
   buildInput.packages.theme = {
     ...buildInput.packages.theme,
     package: '@rathnasgala2/theme-default',
@@ -182,13 +182,13 @@ function testProvenance() {
       {
         kind: 'package',
         package: '@rathnasgala2/schemas',
-        version: '3.19.0',
+        version: '3.21.0',
         digest: digest(3),
       },
       {
         kind: 'package',
         package: '@rathnasgala2/template',
-        version: '4.4.1',
+        version: '4.5.0',
         digest: digest(4),
       },
       {

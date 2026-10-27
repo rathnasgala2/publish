@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Added
 
+- Language variants: the toolchain serves template 4.5.0 and schemas 3.21.0 and
+  carries the optional `translationOf` front-matter key through repository
+  intake into the build-input content record.
 - `.github/workflows/release.yaml` publishes the four adapter packages
   (`adapter-protocol`, `adapter-local-directory`, `adapter-github-pages`,
   `adapter-do-spaces`) to npm with trusted publishing (OIDC, `environment: npm`,
