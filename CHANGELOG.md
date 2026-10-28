@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Added
 
+- Schemas 3.23.0 (the audience HTTP contract; no repository-side change from
+  3.22.0): the workspace packages that consume schemas pin it exactly, the
+  adapters stay on 3.8.0.
 - Audience features: the toolchain serves template 4.6.1 and schemas 3.22.0
   (share buttons, the Galascribe newsletter, the contact page, author Follow).
   Template 4.6.1 is a renderer fix: Eleventy's input path is passed relative to

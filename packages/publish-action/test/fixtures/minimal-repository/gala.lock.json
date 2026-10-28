@@ -11,7 +11,7 @@
   },
   "schemas": {
     "package": "@rathnasgala2/schemas",
-    "version": "3.22.0",
+    "version": "3.23.0",
     "integrity": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
     "registry": "https://local-development.invalid/rathnasgala2/",
     "contractVersion": "3.0.0",
@@ -70,5 +70,5 @@
   ],
   "dependencies": [],
   "dependencyDag": [],
-  "lockDigest": "sha256:06f38f028e455d508258355ce654182e06b5c31bc419833d02f27f1eea206268"
+  "lockDigest": "sha256:9d01c8b373d3609f14b90e32195029a4a839ffee61c8fc89d8f29e646596bfb3"
 }
