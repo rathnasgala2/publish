@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Changed
 
+- Depend on `@rathnasgala2/schemas` 3.22.0 (exact pin; was 3.21.0). No kernel
+  behavior changes.
 - Depend on `@rathnasgala2/schemas` 3.19.0 (exact pin; was 3.16.0). No kernel
   behavior changes.
 

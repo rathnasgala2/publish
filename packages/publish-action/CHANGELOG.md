@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Changed
 
+- Audience features: the workspace serves template 4.6.1 and schemas 3.22.0
+  (exact pin of this package; the adapters stay on 3.8.0).
 - The workspace serves template 4.5.1 (language chip label and localized author
   name on translated pages).
 - Language variants: repository intake passes `translationOf` through to the

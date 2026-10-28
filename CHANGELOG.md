@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Added
 
+- Audience features: the toolchain serves template 4.6.1 and schemas 3.22.0
+  (share buttons, the Galascribe newsletter, the contact page, author Follow).
+  Template 4.6.1 is a renderer fix: Eleventy's input path is passed relative to
+  the working directory.
 - Template 4.5.1: the language chip reads "English" and translated pages use the
   author's localized name.
 - Language variants: the toolchain serves template 4.5.0 and schemas 3.21.0 and
