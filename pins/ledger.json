@@ -49,10 +49,9 @@
     },
     {
       "name": "minio",
-      "reference": "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e",
+      "reference": "chainguard/minio@sha256:e70b2b1e74d79457f808710483bd726ff364529ca30736eaa15a6ab547d3a5a7",
       "purpose": "Throwaway S3-compatible server for the opt-in do-spaces conformance run.",
-      "usedBy": ["scripts/minio-spaces.sh"],
-      "mirrorOf": "infra/release/container-images.json#images.minio"
+      "usedBy": ["scripts/minio-spaces.sh"]
     }
   ],
   "binaries": [

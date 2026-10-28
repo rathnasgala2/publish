@@ -127,39 +127,6 @@ test('a self-reference with a changed pin is refused', () => {
   assert.match(String(diagnostics[0]), /but the ledger records/u);
 });
 
-test('the minio image digest mirrors infra/release/container-images.json exactly', () => {
-  const workspaceRoot =
-    process.env.WORKSPACE_ROOT ?? new URL('../../..', import.meta.url).pathname;
-  /** @type {Record<string, any> | null} */
-  let images;
-  try {
-    images = JSON.parse(
-      readFileSync(
-        `${workspaceRoot}/infra/release/container-images.json`,
-        'utf8',
-      ),
-    );
-  } catch {
-    images = null;
-  }
-  if (images === null) {
-    // The infra sibling is optional in a bare checkout; the ledger still
-    // records where the digest came from.
-    const recorded = LEDGER.containerImages.find(
-      (/** @type {any} */ entry) => entry.name === 'minio',
-    );
-    assert.equal(
-      recorded.mirrorOf,
-      'infra/release/container-images.json#images.minio',
-    );
-    return;
-  }
-  const recorded = LEDGER.containerImages.find(
-    (/** @type {any} */ entry) => entry.name === 'minio',
-  );
-  assert.ok(images.images.minio.endsWith(recorded.reference.split('@')[1]));
-});
-
 test('every ledger action pin is a full 40-character lowercase commit SHA', () => {
   for (const entry of LEDGER.actions) {
     assert.match(entry.sha, /^[0-9a-f]{40}$/u, entry.reference);

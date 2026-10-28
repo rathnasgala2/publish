@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Start (or remove) a throwaway MinIO server for the opt-in `do-spaces`
 # conformance run, pinned to the exact digest recorded in
-# `pins/ledger.json` and mirrored from `infra/release/container-images.json`.
+# `pins/ledger.json`. MinIO no longer publishes `minio/minio` images, so this
+# is Chainguard's build; it runs as a non-root user, hence `--user 0:0` so
+# `server /data` can create its data directory in the throwaway container.
 #
 # The container is deliberately *not* the local stack's MinIO: this adapter
 # must never be proven against a server that other work also writes to.
@@ -12,14 +14,14 @@
 #   scripts/minio-spaces.sh down
 set -euo pipefail
 
-IMAGE="quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
+IMAGE="chainguard/minio@sha256:e70b2b1e74d79457f808710483bd726ff364529ca30736eaa15a6ab547d3a5a7"
 NAME="${SPACES_MINIO_NAME:-gala-s4-minio}"
 PORT="${SPACES_MINIO_PORT:-59310}"
 
 case "${1:-up}" in
   up)
     docker rm --force "${NAME}" >/dev/null 2>&1 || true
-    docker run --detach --name "${NAME}" --publish "${PORT}:9000" \
+    docker run --detach --name "${NAME}" --user 0:0 --publish "${PORT}:9000" \
       --env MINIO_ROOT_USER=galas4testkey \
       --env MINIO_ROOT_PASSWORD=galas4testsecret0123456789 \
       --env MINIO_DOMAIN=nyc3.digitaloceanspaces.com \

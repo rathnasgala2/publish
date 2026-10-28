@@ -18,7 +18,7 @@
  * defaults below, `SPACES_MINIO_ACCESS_KEY_ID` /
  * `SPACES_MINIO_SECRET_ACCESS_KEY`) to enable it. `scripts/minio-spaces.sh`
  * starts and removes a container pinned to the digest in
- * `infra/release/container-images.json`.
+ * `pins/ledger.json`.
  */
 
 import { request as httpRequest } from 'node:http';
