@@ -2855,3 +2855,528 @@ for (const [rule, mutate] of INVALID_POLICIES_MUTATIONS) {
     }
   });
 }
+
+// --- Audience settings (schemas 3.22.0) -------------------------------------
+
+/**
+ * @param {string} dir the mutable repository copy
+ * @param {Record<string, unknown>} fields publication.json fields to set
+ * @returns {Promise<any>} the build input
+ */
+async function buildWithPublication(dir, fields) {
+  await setPublication(dir, fields);
+  return /** @type {any} */ (
+    await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+  );
+}
+
+/**
+ * Assert building with these `publication.json` fields is a schema refusal
+ * naming publication.json.
+ *
+ * @param {string} dir the mutable repository copy
+ * @param {Record<string, unknown>} fields publication.json fields to set
+ * @returns {Promise<void>} resolves once asserted
+ */
+async function assertPublicationRefused(dir, fields) {
+  await setPublication(dir, fields);
+  await assert.rejects(
+    buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    (/** @type {SchemaValidationError} */ error) => {
+      assert.ok(error instanceof SchemaValidationError, String(error));
+      assert.equal(error.location, 'gala/publication.json');
+      assert.equal(error.schemaId, 'urn:gala:schema:publication:2.0.0');
+      assert.ok(error.diagnostics.length > 0);
+      return true;
+    },
+  );
+}
+
+test('a repository with no audience settings builds a publication without sharing, newsletter or contactForm', async () => {
+  const buildInput = /** @type {any} */ (
+    await buildBuildInputFromRepository({
+      repositoryDirectory: FIXTURE_REPOSITORY,
+      env: {},
+    })
+  );
+  for (const key of ['sharing', 'newsletter', 'contactForm']) {
+    assert.equal(key in buildInput.publication, false, key);
+  }
+  assert.deepEqual(buildInput.modules, {});
+});
+
+test('publication.sharing reaches the build input in its authored order, and an empty list stays empty', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const targets = ['x', 'copy-link', 'native', 'email'];
+    const ordered = await buildWithPublication(dir, { sharing: { targets } });
+    assert.deepEqual(ordered.publication.sharing, { targets });
+    const none = await buildWithPublication(dir, { sharing: { targets: [] } });
+    assert.deepEqual(none.publication.sharing, { targets: [] });
+  } finally {
+    await cleanup();
+  }
+});
+
+const INVALID_SHARING = [
+  ['an unknown target', { targets: ['copy-link', 'myspace'] }],
+  ['a duplicate target', { targets: ['x', 'x'] }],
+  [
+    'more than eleven targets',
+    { targets: Array.from({ length: 12 }, () => 'x') },
+  ],
+  ['a missing targets member', {}],
+  ['a member other than targets', { targets: ['x'], order: 'alpha' }],
+  ['targets that is not a list', { targets: 'x' }],
+];
+
+for (const [rule, sharing] of INVALID_SHARING) {
+  test(`publication.sharing with ${rule} is a schema refusal naming publication.json`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await assertPublicationRefused(dir, { sharing });
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+const LINK_NEWSLETTER = Object.freeze({
+  url: 'https://news.example.invalid/',
+  title: 'My newsletter',
+  text: 'Letters from the author.',
+});
+const GALASCRIBE_NEWSLETTER = Object.freeze({
+  mode: 'galascribe',
+  title: 'Subscribe',
+  text: 'New posts by email.',
+  emailContent: 'full',
+  replyToOwner: true,
+});
+
+test('publication.newsletter reaches the build input in link mode with or without mode, and in Galascribe mode', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    for (const newsletter of [
+      LINK_NEWSLETTER,
+      { mode: 'link', ...LINK_NEWSLETTER },
+      GALASCRIBE_NEWSLETTER,
+      { ...GALASCRIBE_NEWSLETTER, emailContent: 'card', replyToOwner: false },
+    ]) {
+      const buildInput = await buildWithPublication(dir, { newsletter });
+      assert.deepEqual(buildInput.publication.newsletter, newsletter);
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+const INVALID_NEWSLETTERS = [
+  [
+    'both modes (a url on a Galascribe newsletter)',
+    { ...GALASCRIBE_NEWSLETTER, url: LINK_NEWSLETTER.url },
+  ],
+  [
+    'neither mode (no url and no mode)',
+    { title: 'Subscribe', text: 'New posts.' },
+  ],
+  [
+    'an unknown emailContent',
+    { ...GALASCRIBE_NEWSLETTER, emailContent: 'summary' },
+  ],
+  [
+    'a missing replyToOwner',
+    { ...GALASCRIBE_NEWSLETTER, replyToOwner: undefined },
+  ],
+  [
+    'a replyToOwner that is not a boolean',
+    { ...GALASCRIBE_NEWSLETTER, replyToOwner: 'yes' },
+  ],
+  ['an unknown mode', { ...LINK_NEWSLETTER, mode: 'rss' }],
+  [
+    'a link without https',
+    { ...LINK_NEWSLETTER, url: 'http://news.example.invalid/' },
+  ],
+  ['an unknown member', { ...GALASCRIBE_NEWSLETTER, extra: true }],
+];
+
+for (const [rule, newsletter] of INVALID_NEWSLETTERS) {
+  test(`publication.newsletter with ${rule} is a schema refusal naming publication.json`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await assertPublicationRefused(dir, { newsletter });
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+const CONTACT_FORM = Object.freeze({
+  enabled: true,
+  fields: { website: true, phone: false },
+});
+
+const CONTACT_INTRO_TEXT = '# Contact\n\nWrite to **the author** any time.\n';
+
+test('publication.contactForm without contact.md reaches the build input without an intro', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const buildInput = await buildWithPublication(dir, {
+      contactForm: CONTACT_FORM,
+    });
+    assert.deepEqual(buildInput.publication.contactForm, CONTACT_FORM);
+    assert.equal('intro' in buildInput.publication.contactForm, false);
+    // The form is not a content record.
+    assert.deepEqual(
+      buildInput.content.map((/** @type {any} */ r) => r.sourcePath),
+      ['content/hello-world.md', 'gala/theme-pages/about.md'],
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a disabled contactForm keeps its fields and its intro', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addFile(dir, 'gala/theme-pages/contact.md', CONTACT_INTRO_TEXT);
+    const buildInput = await buildWithPublication(dir, {
+      contactForm: { enabled: false, fields: { website: false, phone: true } },
+    });
+    assert.equal(buildInput.publication.contactForm.enabled, false);
+    assert.deepEqual(buildInput.publication.contactForm.fields, {
+      website: false,
+      phone: true,
+    });
+    assert.equal(
+      buildInput.publication.contactForm.intro.sourcePath,
+      'gala/theme-pages/contact.md',
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('gala/theme-pages/contact.md is rendered into contactForm.intro and joins the source closure', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addFile(dir, 'gala/theme-pages/contact.md', CONTACT_INTRO_TEXT);
+    const buildInput = await buildWithPublication(dir, {
+      contactForm: CONTACT_FORM,
+    });
+    const intro = buildInput.publication.contactForm.intro;
+    assert.deepEqual(Object.keys(intro).sort(), [
+      'body',
+      'bodyDigest',
+      'bodyMediaType',
+      'renderPolicy',
+      'sourceDigest',
+      'sourcePath',
+    ]);
+    assert.equal(intro.sourcePath, 'gala/theme-pages/contact.md');
+    assert.equal(
+      intro.sourceDigest,
+      digestOf(Buffer.from(CONTACT_INTRO_TEXT, 'utf8')),
+    );
+    assert.equal(intro.bodyMediaType, 'text/html');
+    assert.ok(intro.body.includes('<strong>the author</strong>'), intro.body);
+    assert.match(intro.bodyDigest, /^sha256:[0-9a-f]{64}$/u);
+    assert.deepEqual(intro.renderPolicy, await currentRenderPolicyIdentity());
+    // Not a content record, and not a policy page.
+    assert.equal(
+      recordOf(buildInput, 'gala/theme-pages/contact.md'),
+      undefined,
+    );
+    assert.equal('policies' in buildInput, false);
+    // The builder ends by validating the whole input, whose semantic checks put
+    // the intro's file in the source closure; the file is also part of the
+    // repository root digest, so removing it changes that digest.
+    await rm(path.join(dir, 'gala/theme-pages/contact.md'));
+    const withoutFile = await buildWithPublication(dir, {
+      contactForm: CONTACT_FORM,
+    });
+    assert.notEqual(
+      buildInput.repository.rootDigest,
+      withoutFile.repository.rootDigest,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('contact.md with no contactForm in publication.json is left unread', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addFile(dir, 'gala/theme-pages/contact.md', CONTACT_INTRO_TEXT);
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    assert.equal('contactForm' in buildInput.publication, false);
+    // Even an unusable file is not read when there is no form to attach it to.
+    await addFile(dir, 'gala/theme-pages/contact.md', 'x'.repeat(131073));
+    const unread = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    assert.equal('contactForm' in unread.publication, false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('an empty or whitespace-only contact.md leaves the default intro', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    for (const text of ['', '\n', ' \t \r\n\n  ']) {
+      await addFile(dir, 'gala/theme-pages/contact.md', text);
+      const buildInput = await buildWithPublication(dir, {
+        contactForm: CONTACT_FORM,
+      });
+      assert.equal('intro' in buildInput.publication.contactForm, false);
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+test('contact.md over 131072 bytes is CONTACT_INTRO_TOO_LARGE; exactly 131072 bytes is accepted', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await setPublication(dir, { contactForm: CONTACT_FORM });
+    const over = 'x'.repeat(131073);
+    await addFile(dir, 'gala/theme-pages/contact.md', over);
+    const findings = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.code, 'CONTACT_INTRO_TOO_LARGE');
+    assert.equal(findings[0]?.severity, 'SOURCE_ERROR');
+    assert.equal(findings[0]?.location, 'gala/theme-pages/contact.md');
+    assert.deepEqual(findings[0]?.evidence, {
+      path: 'gala/theme-pages/contact.md',
+      bytes: 131073,
+      maxBytes: 131072,
+    });
+    const atLimit = `${'x'.repeat(131071)}\n`;
+    await addFile(dir, 'gala/theme-pages/contact.md', atLimit);
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    assert.equal(
+      buildInput.publication.contactForm.intro.sourceDigest,
+      digestOf(Buffer.from(atLimit, 'utf8')),
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('contact.md with an image is CONTACT_INTRO_IMAGE_UNSUPPORTED', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await setPublication(dir, { contactForm: CONTACT_FORM });
+    await addFile(
+      dir,
+      'gala/theme-pages/contact.md',
+      'Write to us.\n\n![Our logo](assets/logo.png)\n',
+    );
+    const findings = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.code, 'CONTACT_INTRO_IMAGE_UNSUPPORTED');
+    assert.equal(findings[0]?.location, 'gala/theme-pages/contact.md');
+    assert.deepEqual(findings[0]?.evidence, {
+      path: 'gala/theme-pages/contact.md',
+      images: 1,
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+test('contact.md that is a symbolic link, or one that dangles, is CONTACT_INTRO_MISSING', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await setPublication(dir, { contactForm: CONTACT_FORM });
+    await addFile(dir, 'gala/theme-pages/real-contact.md', CONTACT_INTRO_TEXT);
+    await symlink(
+      'real-contact.md',
+      path.join(dir, 'gala/theme-pages/contact.md'),
+    );
+    const linked = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.equal(linked.length, 1);
+    assert.equal(linked[0]?.code, 'CONTACT_INTRO_MISSING');
+    assert.match(linked[0]?.detail ?? '', /is not a regular file/u);
+    await rm(path.join(dir, 'gala/theme-pages/contact.md'));
+    await symlink('absent.md', path.join(dir, 'gala/theme-pages/contact.md'));
+    const dangling = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.equal(dangling[0]?.code, 'CONTACT_INTRO_MISSING');
+    assert.match(
+      dangling[0]?.detail ?? '',
+      /does not exist in the repository/u,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('contact.md that links outside the repository is CONTACT_INTRO_UNSUPPORTED_TYPE', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  const outside = await mkdtemp(path.join(tmpdir(), 'gala-contact-outside-'));
+  try {
+    await setPublication(dir, { contactForm: CONTACT_FORM });
+    await writeFile(path.join(outside, 'contact.md'), CONTACT_INTRO_TEXT);
+    await mkdir(path.join(dir, 'gala/theme-pages'), { recursive: true });
+    await symlink(
+      path.join(outside, 'contact.md'),
+      path.join(dir, 'gala/theme-pages/contact.md'),
+    );
+    const findings = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.code, 'CONTACT_INTRO_UNSUPPORTED_TYPE');
+    assert.match(findings[0]?.detail ?? '', /is outside the repository/u);
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+    await cleanup();
+  }
+});
+
+const INVALID_CONTACT_FORMS = [
+  ['a missing fields member', { enabled: true }],
+  ['a missing enabled member', { fields: { website: true, phone: true } }],
+  ['an enabled that is not a boolean', { ...CONTACT_FORM, enabled: 'yes' }],
+  ['a missing phone field', { enabled: true, fields: { website: true } }],
+  [
+    'a field that is not a boolean',
+    { enabled: true, fields: { website: 1, phone: false } },
+  ],
+  [
+    'an unknown field',
+    { enabled: true, fields: { website: true, phone: true, fax: true } },
+  ],
+  [
+    'an intro member (it lives in contact.md)',
+    { ...CONTACT_FORM, intro: 'Hello' },
+  ],
+  ['an unknown member', { ...CONTACT_FORM, recipient: 'a@example.invalid' }],
+];
+
+for (const [rule, contactForm] of INVALID_CONTACT_FORMS) {
+  test(`publication.contactForm with ${rule} is a schema refusal naming publication.json`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await addFile(dir, 'gala/theme-pages/contact.md', CONTACT_INTRO_TEXT);
+      await assertPublicationRefused(dir, { contactForm });
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+test('a publication.json member the toolchain does not know is refused, never copied', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await assertPublicationRefused(dir, { audience: { sharing: true } });
+  } finally {
+    await cleanup();
+  }
+});
+
+test('interactions-config follows reaches modules.interactions.config, enabled or disabled', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    for (const follows of [{ enabled: true }, { enabled: false }]) {
+      await writeInteractionsConfig(dir, {
+        ...VALID_INTERACTIONS_CONFIG,
+        follows,
+      });
+      const buildInput = /** @type {any} */ (
+        await buildBuildInputFromRepository({
+          repositoryDirectory: dir,
+          env: {},
+        })
+      );
+      assert.deepEqual(buildInput.modules.interactions.config.follows, follows);
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+test('an interactions.json without follows leaves the member absent', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await writeInteractionsConfig(dir, VALID_INTERACTIONS_CONFIG);
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    assert.equal('follows' in buildInput.modules.interactions.config, false);
+  } finally {
+    await cleanup();
+  }
+});
+
+const INVALID_FOLLOWS = [
+  ['an enabled that is not a boolean', { enabled: 'true' }],
+  ['a missing enabled member', {}],
+  ['an unknown member', { enabled: true, notify: true }],
+  ['a value that is not an object', true],
+];
+
+for (const [rule, follows] of INVALID_FOLLOWS) {
+  test(`interactions-config follows with ${rule} is a schema refusal naming interactions.json`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await writeInteractionsConfig(dir, {
+        ...VALID_INTERACTIONS_CONFIG,
+        follows,
+      });
+      await assert.rejects(
+        buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+        (/** @type {SchemaValidationError} */ error) => {
+          assert.ok(error instanceof SchemaValidationError, String(error));
+          assert.equal(error.location, 'gala/modules/interactions.json');
+          assert.equal(
+            error.schemaId,
+            'urn:gala:schema:interactions-config:2.0.0',
+          );
+          assert.ok(error.diagnostics.length > 0);
+          return true;
+        },
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+test('every audience member together builds a schema-valid input', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addFile(dir, 'gala/theme-pages/contact.md', CONTACT_INTRO_TEXT);
+    await writeInteractionsConfig(dir, {
+      ...VALID_INTERACTIONS_CONFIG,
+      follows: { enabled: true },
+    });
+    const buildInput = await buildWithPublication(dir, {
+      sharing: { targets: ['bluesky', 'copy-link'] },
+      newsletter: GALASCRIBE_NEWSLETTER,
+      contactForm: CONTACT_FORM,
+    });
+    assert.deepEqual(buildInput.publication.sharing.targets, [
+      'bluesky',
+      'copy-link',
+    ]);
+    assert.equal(buildInput.publication.newsletter.mode, 'galascribe');
+    assert.equal(buildInput.publication.contactForm.enabled, true);
+    assert.equal(buildInput.modules.interactions.config.follows.enabled, true);
+  } finally {
+    await cleanup();
+  }
+});

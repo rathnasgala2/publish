@@ -70,6 +70,7 @@ documents a _recommended_ (not required) tree for everything else, which
   gala.lock.json                   # lock:2.0.0 (the fixed lockfile path)
   content/*.md                       # bounded YAML frontmatter + Markdown
   gala/theme-pages/about.md          # the About page, a content document (mandatory)
+  gala/theme-pages/contact.md        # the contact form introduction, plain Markdown (optional)
 ```
 
 `repository.json`'s own `publication`/`navigation`/`appearance` fields still
@@ -268,6 +269,42 @@ requires `@rathnasgala2/schemas` 3.16.0 or later.
 
 Both pages are checked and every problem is reported together; each finding's
 `evidence` carries `policy` (`terms` or `privacy`) and `path`.
+
+## Audience settings
+
+Schemas 3.22.0 adds four optional repository members that intake carries into
+the build input for the template:
+
+- `publication.json` `sharing` (`{"targets": [...]}`, 0 to 11 unique targets in
+  display order). Absent means the Copy link button only; an empty list means no
+  share buttons. Copied to `build-input.publication.sharing`.
+- `publication.json` `newsletter`, either the link-out `{url, title, text}`
+  (with an optional `"mode": "link"`) or the Galascribe newsletter
+  `{"mode": "galascribe", title, text, "emailContent": "card" | "full", "replyToOwner": boolean}`.
+  Copied as authored to `build-input.publication.newsletter`.
+- `publication.json` `contactForm`
+  (`{"enabled": boolean, "fields": {"website": boolean, "phone": boolean}}`),
+  copied to `build-input.publication.contactForm`.
+- `gala/modules/interactions.json` `follows` (`{"enabled": boolean}`; absent
+  means off) travels inside the embedded interactions config at
+  `build-input.modules.interactions.config.follows`.
+
+Intake copies these members one by one, and the schemas refuse every other
+member of `publication.json` and `interactions.json` first, as a schema failure
+naming the file, so an unknown member never reaches the build.
+
+When `publication.json` has a `contactForm`, the optional
+`gala/theme-pages/contact.md` is read whole and set as
+`build-input.publication.contactForm.intro`, a `renderableBody` rendered exactly
+like a policy body (plain Markdown, no front matter, never in `content[]`; its
+`sourcePath` and `sourceDigest` put the file in the source closure). An absent
+or whitespace-only file leaves `intro` out and the template shows its default
+introduction; a `contact.md` with no `contactForm` is not read. An unusable file
+is refused: `CONTACT_INTRO_MISSING` (a dangling link or a non-regular entry),
+`CONTACT_INTRO_UNSUPPORTED_TYPE` (outside the repository),
+`CONTACT_INTRO_TOO_LARGE` (more than 131072 bytes, with `evidence.bytes` and
+`evidence.maxBytes`) and `CONTACT_INTRO_IMAGE_UNSUPPORTED` (an `<img>` in the
+rendered body). Intake requires `@rathnasgala2/schemas` 3.22.0 or later.
 
 ## Appearance attribution
 

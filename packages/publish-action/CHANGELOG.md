@@ -12,6 +12,15 @@ and this project adheres to
 
 - Audience features: the workspace serves template 4.6.1 and schemas 3.22.0
   (exact pin of this package; the adapters stay on 3.8.0).
+- Audience features: repository intake carries `publication.json`'s `sharing`,
+  `newsletter` (link and Galascribe modes) and `contactForm` into
+  `build-input.publication`, and `interactions.json`'s `follows` rides inside
+  the embedded interactions config. The optional `gala/theme-pages/contact.md`
+  becomes `contactForm.intro` (a rendered body in the source closure; absent or
+  whitespace-only leaves the template's default intro). Findings:
+  `CONTACT_INTRO_MISSING`, `CONTACT_INTRO_UNSUPPORTED_TYPE`,
+  `CONTACT_INTRO_TOO_LARGE`, `CONTACT_INTRO_IMAGE_UNSUPPORTED`. A link-mode
+  `newsletter` was never copied before and now reaches the template.
 - The workspace serves template 4.5.1 (language chip label and localized author
   name on translated pages).
 - Language variants: repository intake passes `translationOf` through to the

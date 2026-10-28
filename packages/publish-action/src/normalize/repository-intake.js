@@ -149,6 +149,25 @@
  * own `.md` check is defence in depth. Without `policies` there is no
  * `policies` member.
  *
+ * **Audience settings** (schemas 3.22.0): `publication.json`'s optional
+ * `sharing` (`{targets}`), `newsletter` (the link or Galascribe union) and
+ * `contactForm` (`{enabled, fields}`) are copied into `build-input.publication`
+ * as authored, member by member (the copy is an explicit allow-list, so a member
+ * the schema does not know is refused by the schema, never copied). The optional
+ * `interactions.json` `follows` member rides inside the embedded interactions
+ * config. When `publication.json` has a `contactForm`, the optional
+ * `gala/theme-pages/contact.md` is read whole (plain Markdown like a policy
+ * body: no front matter, never in `content[]`) and becomes
+ * `contactForm.intro`, a `renderableBody` normalized exactly like a policy body
+ * (so it joins the source closure through its `sourcePath` and `sourceDigest`).
+ * An absent or whitespace-only file leaves no `intro` and the template shows its
+ * default text; a file with no `contactForm` beside it is left unread. An
+ * unusable file is reported as `CONTACT_INTRO_UNSUPPORTED_TYPE` (not a regular
+ * `.md` file inside the repository), `CONTACT_INTRO_MISSING` (a dangling or
+ * non-regular entry), `CONTACT_INTRO_TOO_LARGE` (more than 131072 bytes) or
+ * `CONTACT_INTRO_IMAGE_UNSUPPORTED` (the rendered body contains an `<img>`
+ * element; the page body has no media inventory).
+ *
  * **Prism editions** (`content-editions.js`): a `kind: edition` document is
  * kept only when the article it is `of` is part of the build and its
  * `edition.sourceDigest` still equals the digest of that article's body;
@@ -226,6 +245,9 @@ export class RepositoryIntakeError extends Error {
 
 /** The mandatory About page: a content document in the theme-pages folder. */
 const THEME_PAGE_ABOUT_PATH = 'gala/theme-pages/about.md';
+
+/** The optional contact form intro: plain Markdown in the theme-pages folder. */
+const THEME_PAGE_CONTACT_PATH = 'gala/theme-pages/contact.md';
 
 /**
  * @param {string} code stable finding code
@@ -646,6 +668,88 @@ async function readPolicyPages({
 }
 
 /**
+ * Read the optional `gala/theme-pages/contact.md` into the rendered body that
+ * `build-input.publication.contactForm.intro` carries.
+ *
+ * @param {object} options the inputs
+ * @param {string} options.repositoryDirectory absolute repository root
+ * @param {(source: string) => {html: string, bodyDigest: string}} options.normalizeAuthoredMarkdown the template's Markdown normalizer
+ * @param {{name: string, version: string, digest: string}} options.renderPolicy the current render policy identity
+ * @returns {Promise<Record<string, unknown> | null>} the rendered intro, or
+ *   `null` when the file is absent or has only whitespace (the template then
+ *   shows its default intro)
+ */
+async function readContactIntro({
+  repositoryDirectory,
+  normalizeAuthoredMarkdown,
+  renderPolicy,
+}) {
+  try {
+    // `lstat`, so a dangling symbolic link still counts as present and is
+    // reported below instead of being mistaken for an absent file.
+    await lstat(
+      path.join(repositoryDirectory, ...THEME_PAGE_CONTACT_PATH.split('/')),
+    );
+  } catch (error) {
+    const code = /** @type {NodeJS.ErrnoException} */ (error).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') {
+      return null;
+    }
+    throw error;
+  }
+  const read = await readPolicyBodyFile(
+    repositoryDirectory,
+    await realpath(repositoryDirectory),
+    THEME_PAGE_CONTACT_PATH,
+  );
+  if ('reason' in read) {
+    if (read.reason === 'EMPTY') {
+      return null;
+    }
+    throw new RepositoryIntakeError(
+      `${THEME_PAGE_CONTACT_PATH} ${read.explanation}.`,
+      [
+        {
+          ...sourceFinding(
+            `CONTACT_INTRO_${read.reason}`,
+            `${THEME_PAGE_CONTACT_PATH} ${read.explanation}.`,
+            { path: THEME_PAGE_CONTACT_PATH, ...read.evidence },
+          ),
+          location: THEME_PAGE_CONTACT_PATH,
+          recovery: `Fix ${THEME_PAGE_CONTACT_PATH} (a Markdown file of at most ${MAX_POLICY_BODY_BYTES} bytes inside the repository), or delete it to use the template's default contact introduction.`,
+        },
+      ],
+    );
+  }
+  const normalized = normalizeAuthoredMarkdown(read.text);
+  const images = findImageSources(normalized.html);
+  if (images.length > 0) {
+    throw new RepositoryIntakeError(
+      `${THEME_PAGE_CONTACT_PATH} cannot contain images (found ${images.length})`,
+      [
+        {
+          ...sourceFinding(
+            'CONTACT_INTRO_IMAGE_UNSUPPORTED',
+            `${THEME_PAGE_CONTACT_PATH}: the contact introduction cannot contain images (found ${images.length}).`,
+            { path: THEME_PAGE_CONTACT_PATH, images: images.length },
+          ),
+          location: THEME_PAGE_CONTACT_PATH,
+          recovery: 'Remove the image from the contact introduction and retry.',
+        },
+      ],
+    );
+  }
+  return {
+    sourcePath: THEME_PAGE_CONTACT_PATH,
+    sourceDigest: read.digest,
+    bodyMediaType: 'text/html',
+    body: normalized.html,
+    bodyDigest: normalized.bodyDigest,
+    renderPolicy: { ...renderPolicy },
+  };
+}
+
+/**
  * The part of one document's front matter that becomes
  * `build-input.content[].frontmatter`.
  *
@@ -889,6 +993,14 @@ export async function buildBuildInputFromRepository({
     socialLinks: publicationDoc.document.socialLinks,
     ...(publicationDoc.document.crawlers
       ? { crawlers: { ...publicationDoc.document.crawlers } }
+      : {}),
+    // Audience settings (schemas 3.22.0), copied as authored. The schema
+    // already refused any other member, so nothing unknown can ride along.
+    ...(publicationDoc.document.sharing
+      ? { sharing: { targets: [...publicationDoc.document.sharing.targets] } }
+      : {}),
+    ...(publicationDoc.document.newsletter
+      ? { newsletter: { ...publicationDoc.document.newsletter } }
       : {}),
     sourcePath: 'publication.json',
     sourceDigest: publicationDoc.digest,
@@ -1192,6 +1304,18 @@ export async function buildBuildInputFromRepository({
     renderPolicy,
   });
 
+  // --- contact form (schemas 3.22.0) -------------------------------------------
+  // The intro belongs to the form, so the optional file is read only when the
+  // publication has a `contactForm`.
+  const contactFormDoc = publicationDoc.document.contactForm;
+  const contactIntro = contactFormDoc
+    ? await readContactIntro({
+        repositoryDirectory,
+        normalizeAuthoredMarkdown,
+        renderPolicy,
+      })
+    : null;
+
   // --- repository / rootDigest -----------------------------------------------
   const repositoryFiles = await listRepositoryFiles(repositoryDirectory);
   const rootEntries = [];
@@ -1222,6 +1346,18 @@ export async function buildBuildInputFromRepository({
     packages,
     publication: {
       ...publication,
+      ...(contactFormDoc
+        ? {
+            contactForm: {
+              enabled: contactFormDoc.enabled,
+              fields: {
+                website: contactFormDoc.fields.website,
+                phone: contactFormDoc.fields.phone,
+              },
+              ...(contactIntro ? { intro: contactIntro } : {}),
+            },
+          }
+        : {}),
       ...(publicationDoc.document.defaultImageRef
         ? {
             defaultImage: resolvedFileOf(

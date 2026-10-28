@@ -14,6 +14,10 @@ and this project adheres to
   (share buttons, the Galascribe newsletter, the contact page, author Follow).
   Template 4.6.1 is a renderer fix: Eleventy's input path is passed relative to
   the working directory.
+- Audience features, intake: `publication.json`'s `sharing`, `newsletter` and
+  `contactForm`, the `follows` member of `interactions.json` and the optional
+  `gala/theme-pages/contact.md` (as `contactForm.intro`) now reach the build
+  input; see `packages/publish-action/README.md`, "Audience settings".
 - Template 4.5.1: the language chip reads "English" and translated pages use the
   author's localized name.
 - Language variants: the toolchain serves template 4.5.0 and schemas 3.21.0 and
