@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Added
 
+- Intake carries `publication.json`'s `listing`, `aiRights` and `performance`
+  and a post's `deleteDate` into the build input, so template 4.7.0 sees them;
+  see `packages/publish-action/README.md`, "Listing, AI rights, performance and
+  removal date".
 - Page-loss guard: the authorization input and the `deployment-intent` receipt
   exchange now carry `pageCount` (the `.html` files in the frozen artifact;
   schemas 3.25.1). When the API refuses authorization with `PAGE_LOSS_GUARD`,

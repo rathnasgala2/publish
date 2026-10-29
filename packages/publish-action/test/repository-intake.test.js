@@ -604,6 +604,53 @@ test('a translationOf document reaches the build-input and the input stays schem
   }
 });
 
+test('publication listing, aiRights and performance reach the build input; absent stays absent; a deleteDate reaches the content record', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const plain = await buildWithPublication(dir, {});
+    for (const key of ['listing', 'aiRights', 'performance']) {
+      assert.equal(key in plain.publication, false, key);
+    }
+    const listing = { pageSize: 5 };
+    const aiRights = { search: 'allow', training: 'block' };
+    const performance = { budgets: { htmlBytes: 70000 } };
+    const built = await buildWithPublication(dir, {
+      listing,
+      aiRights,
+      performance,
+    });
+    assert.deepEqual(built.publication.listing, listing);
+    assert.deepEqual(built.publication.aiRights, aiRights);
+    assert.deepEqual(built.publication.performance, performance);
+
+    await addDocument(
+      dir,
+      'old.md',
+      {
+        id: '01912345-6789-7abc-89ab-0123456789b2',
+        title: 'Old',
+        slug: 'old',
+        deleteDate: '2026-12-31',
+      },
+      'Body\n',
+    );
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir })
+    );
+    assert.equal(
+      recordOf(buildInput, 'content/old.md').frontmatter.deleteDate,
+      '2026-12-31',
+    );
+    assert.equal(
+      'deleteDate' in
+        recordOf(buildInput, 'content/hello-world.md').frontmatter,
+      false,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
 test('a draft is omitted from build-input in publish mode', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {

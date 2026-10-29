@@ -98,8 +98,9 @@
  * fail with a code of their own: `PUBLICATION_DEFAULT_IMAGE_*`,
  * `APPEARANCE_BRAND_MARK_*`, `APPEARANCE_WORDMARK_*` or
  * `CONTENT_SOCIAL_IMAGE_*`, ending `_MISSING`, `_UNSUPPORTED_TYPE` or
- * `_UNRESOLVED`. `publication.crawlers` and content `seo` are copied through
- * (the build-input schema validates their members).
+ * `_UNRESOLVED`. `publication.crawlers`, `publication.listing`, `publication.aiRights`,
+ * `publication.performance`, content `seo` and content `deleteDate` are copied
+ * through (the build-input schema validates their members).
  *
  * **Appearance attribution**: `appearance.json`'s optional `attribution`
  * (`{showMadeWith}`) is copied into the build-input appearance; absent stays
@@ -782,6 +783,7 @@ function normalizeContentFrontmatter(frontmatter, mediaFiles) {
     ...(frontmatter.translationOf
       ? { translationOf: frontmatter.translationOf }
       : {}),
+    ...(frontmatter.deleteDate ? { deleteDate: frontmatter.deleteDate } : {}),
     ...(frontmatter.hero
       ? {
           hero: {
@@ -993,6 +995,17 @@ export async function buildBuildInputFromRepository({
     socialLinks: publicationDoc.document.socialLinks,
     ...(publicationDoc.document.crawlers
       ? { crawlers: { ...publicationDoc.document.crawlers } }
+      : {}),
+    // Listing, AI-rights and performance settings (schemas 3.25.x), copied as
+    // authored; the publication schema already validated their members.
+    ...(publicationDoc.document.listing
+      ? { listing: { ...publicationDoc.document.listing } }
+      : {}),
+    ...(publicationDoc.document.aiRights
+      ? { aiRights: { ...publicationDoc.document.aiRights } }
+      : {}),
+    ...(publicationDoc.document.performance
+      ? { performance: { ...publicationDoc.document.performance } }
       : {}),
     // Audience settings (schemas 3.22.0), copied as authored. The schema
     // already refused any other member, so nothing unknown can ride along.

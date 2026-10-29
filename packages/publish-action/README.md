@@ -270,6 +270,20 @@ requires `@rathnasgala2/schemas` 3.16.0 or later.
 Both pages are checked and every problem is reported together; each finding's
 `evidence` carries `policy` (`terms` or `privacy`) and `path`.
 
+## Listing, AI rights, performance and removal date
+
+Schemas 3.25.0 adds optional members that intake copies through unchanged (the
+schemas validate their members) so the template can use them:
+
+- `publication.json` `listing` (`{"pageSize": 1 to 50}`; absent means 10 posts
+  per listing page), `aiRights` (`{"search", "training", "licenseUrl"?}`; when
+  present it wins over `crawlers.ai`) and `performance` (size budgets).
+- Post front matter `deleteDate` (`YYYY-MM-DD`): once the build date reaches it,
+  the post leaves every listing, feed, sitemap and search index and its address
+  shows a removed-post notice. The build date is the commit time of the build.
+
+Absent members stay absent in the build input.
+
 ## Audience settings
 
 Schemas 3.22.0 adds four optional repository members that intake carries into

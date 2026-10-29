@@ -48,6 +48,11 @@ and this project adheres to
 
 ### Added
 
+- Repository intake carries `publication.json`'s `listing`, `aiRights` and
+  `performance` into `build-input.publication` and a post's front matter
+  `deleteDate` into its content record (schemas 3.25.x, template 4.7.0). A
+  fixture build proves a second listing page, `license.xml`, the `noai` robots
+  meta and the removed-post notice.
 - Repository intake reads `publication.json`'s optional `policies` (schemas
   3.16.0: `{terms, privacy}`, each `{title, body}` with `body` the repository
   path of a Markdown file; the schema requires `body` to end in `.md`). Each

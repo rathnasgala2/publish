@@ -556,3 +556,115 @@ async function copyFixtureWithDraftStatus(sourceDirectory, targetDirectory) {
       .replace(/\n *publishedAt: ['"][^'"]*['"]\n/u, '\n'),
   );
 }
+
+test('listing pageSize, aiRights and a past deleteDate authored in the repository reach the built site', async () => {
+  const { tmp, cleanup } = await freshTempDir();
+  try {
+    const repository = path.join(tmp, 'repo');
+    const { cp, writeFile: write } = await import('node:fs/promises');
+    await cp(FIXTURE_REPOSITORY, repository, { recursive: true });
+    const publicationPath = path.join(repository, 'gala/publication.json');
+    const publication = JSON.parse(await readFile(publicationPath, 'utf8'));
+    publication.listing = { pageSize: 2 };
+    publication.aiRights = { search: 'allow', training: 'block' };
+    await write(publicationPath, JSON.stringify(publication, null, 2));
+    const post = (
+      /** @type {string} */ idTail,
+      /** @type {string} */ slug,
+      /** @type {string} */ extra,
+    ) =>
+      [
+        '---',
+        'schemaId: urn:gala:schema:content-frontmatter:2.0.0',
+        "schemaVersion: '2.0.0'",
+        `id: 01912345-6789-7abc-89ab-0123456789${idTail}`,
+        'kind: article',
+        `title: Post ${slug}`,
+        'language: en-US',
+        'authors:',
+        '  - 01912345-6789-7abc-89ab-0123456789ac',
+        'tags:',
+        '  - fixture',
+        'status: published',
+        "createdAt: '2026-09-16T00:00:00.000Z'",
+        "publishedAt: '2026-09-16T00:00:00.000Z'",
+        `slug: ${slug}`,
+        'redirects: []',
+        extra,
+        'extensions: {}',
+        '---',
+        '',
+        `Body of ${slug}`,
+        '',
+      ].join('\n');
+    await write(
+      path.join(repository, 'content/post-two.md'),
+      post('b2', 'post-two', ''),
+    );
+    await write(
+      path.join(repository, 'content/post-three.md'),
+      post('b3', 'post-three', ''),
+    );
+    await write(
+      path.join(repository, 'content/gone-post.md'),
+      post('b4', 'gone-post', "deleteDate: '2026-09-20'"),
+    );
+    // buildEpoch is the HEAD commit time, so the removal day has come only
+    // once the repository is a real git tree committed after 2026-09-20.
+    const { execFileSync } = await import('node:child_process');
+    const git = (/** @type {string[]} */ ...args) =>
+      execFileSync('git', ['-C', repository, ...args], {
+        env: {
+          ...process.env,
+          GIT_AUTHOR_NAME: 'Test',
+          GIT_AUTHOR_EMAIL: 'test@example.invalid',
+          GIT_COMMITTER_NAME: 'Test',
+          GIT_COMMITTER_EMAIL: 'test@example.invalid',
+          GIT_AUTHOR_DATE: '2026-09-25T12:00:00Z',
+          GIT_COMMITTER_DATE: '2026-09-25T12:00:00Z',
+        },
+      });
+    git('init', '-q');
+    git('add', '.');
+    git('-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'fixture');
+    const outputDirectory = path.join(tmp, 'output');
+    const workDirectory = path.join(tmp, 'work');
+    const buildResult = await runBuild({
+      repositoryDirectory: repository,
+      outputDirectory,
+      workDirectory,
+    });
+    assert.equal(
+      buildResult.resultCode,
+      'SUCCESS',
+      JSON.stringify(buildResult.findings),
+    );
+    const buildInput = JSON.parse(
+      await readFile(path.join(workDirectory, 'build-input.json'), 'utf8'),
+    );
+    assert.deepEqual(buildInput.publication.listing, { pageSize: 2 });
+    assert.deepEqual(buildInput.publication.aiRights, {
+      search: 'allow',
+      training: 'block',
+    });
+    const gone = buildInput.content.find(
+      (/** @type {any} */ c) => c.frontmatter.slug === 'gone-post',
+    );
+    assert.equal(gone.frontmatter.deleteDate, '2026-09-20');
+
+    const read = (/** @type {string} */ name) =>
+      readFile(path.join(outputDirectory, name), 'utf8');
+    // pageSize 2 over three listed posts: a second archive page exists.
+    assert.match(await read('archive/2026/page/2/index.html'), /<html/u);
+    const license = await read('license.xml');
+    assert.match(license, /<license|rsl/iu);
+    const home = await read('index.html');
+    assert.match(home, /<meta[^>]*noai/iu);
+    const removed = await read('gone-post/index.html');
+    assert.match(removed, /removed/iu);
+    assert.doesNotMatch(removed, /Body of gone-post/u);
+    assert.doesNotMatch(home, /Post gone-post/u);
+  } finally {
+    await cleanup();
+  }
+});
