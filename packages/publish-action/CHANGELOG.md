@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Changed
 
+- Serve schemas 3.25.1 (exact pin of this package; adds the page-loss guard
+  `pageCount`, performance budgets and `deleteDate` contracts).
 - Serve schemas 3.23.0 (exact pin of this package; the audience HTTP contract,
   with no repository-side change from 3.22.0).
 - Audience features: the workspace serves template 4.6.1 and schemas 3.22.0

@@ -43,7 +43,7 @@ export class GalaApiError extends Error {
   /**
    * @param {string} code the stable workflow category
    * @param {string} detail the credential-free detail
-   * @param {{status?: number, problemCode?: string, retryable?: boolean, errors?: readonly {pointer: string, code: string}[]}} [context]
+   * @param {{status?: number, problemCode?: string, retryable?: boolean, errors?: readonly {pointer: string, code: string}[], pageLoss?: {previousPageCount: number, candidatePageCount: number, lostPageCount: number}}} [context]
    *   the classified response context
    */
   constructor(code, detail, context = {}) {
@@ -57,6 +57,13 @@ export class GalaApiError extends Error {
     this.problemCode = context.problemCode ?? null;
     /** @type {boolean} */
     this.retryable = context.retryable ?? false;
+    /**
+     * The page counts a `PAGE_LOSS_GUARD` refusal carries (schemas 3.25.0
+     * `PageLossGuardDetails`), or null for any other answer.
+     *
+     * @type {{previousPageCount: number, candidatePageCount: number, lostPageCount: number} | null}
+     */
+    this.pageLoss = context.pageLoss ?? null;
     /**
      * The problem's `errors[]` field errors (pointer and code only), so a
      * `422 VALIDATION_FAILED` on a derived member names which one the API
@@ -206,6 +213,36 @@ async function send(call) {
 }
 
 /**
+ * The page counts of a `PAGE_LOSS_GUARD` refusal (the problem's `details`,
+ * schemas 3.25.1), or null when the answer is not one or carries no counts.
+ *
+ * @param {Record<string, unknown> | null} body the problem document
+ * @param {string | null} problemCode the problem code
+ * @returns {{previousPageCount: number, candidatePageCount: number, lostPageCount: number} | null} the counts
+ */
+function pageLossDetails(body, problemCode) {
+  if (body === null || problemCode !== 'PAGE_LOSS_GUARD') {
+    return null;
+  }
+  const details = /** @type {Record<string, unknown> | undefined} */ (
+    body.details
+  );
+  if (details === undefined || details === null) {
+    return null;
+  }
+  const { previousPageCount, candidatePageCount, lostPageCount } = details;
+  return Number.isInteger(previousPageCount) &&
+    Number.isInteger(candidatePageCount) &&
+    Number.isInteger(lostPageCount)
+    ? {
+        previousPageCount: /** @type {number} */ (previousPageCount),
+        candidatePageCount: /** @type {number} */ (candidatePageCount),
+        lostPageCount: /** @type {number} */ (lostPageCount),
+      }
+    : null;
+}
+
+/**
  * Turn a non-success answer into a typed refusal carrying the API's own wire
  * code. The problem document's `detail` is deliberately not propagated: it
  * is server-authored text this job has no reason to re-emit.
@@ -219,6 +256,7 @@ function refuse(response, code) {
     response.body !== null && typeof response.body.code === 'string'
       ? response.body.code
       : null;
+  const pageLoss = pageLossDetails(response.body, problemCode);
   const retryable = response.body !== null && response.body.retryable === true;
   const errors =
     response.body !== null && Array.isArray(response.body.errors)
@@ -233,7 +271,13 @@ function refuse(response, code) {
     `the API answered HTTP ${response.status}${problemCode === null ? '' : ` ${problemCode}`}${errors.length === 0 ? '' : ` at ${errors.map((/** @type {any} */ entry) => entry.pointer).join(', ')}`}`,
     problemCode === null
       ? { status: response.status, retryable, errors }
-      : { status: response.status, problemCode, retryable, errors },
+      : {
+          status: response.status,
+          problemCode,
+          retryable,
+          errors,
+          ...(pageLoss === null ? {} : { pageLoss }),
+        },
   );
 }
 

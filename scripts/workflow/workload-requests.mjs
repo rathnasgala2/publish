@@ -11,6 +11,7 @@
  * @module
  */
 
+import { countHtmlPages } from './performance-budgets.mjs';
 import {
   MAXIMUM_KERNEL_JOURNAL_BYTES,
   MAXIMUM_REQUEST_BYTES,
@@ -57,6 +58,7 @@ function required(input, name) {
  *   manifestDigest: string,
  *   artifactByteCount: number,
  *   artifactFileCount: number,
+ *   pageCount?: number,
  *   verificationSubmission: Record<string, unknown>
  * }} the derived facts
  */
@@ -82,6 +84,7 @@ export function deriveArtifactFacts(files, manifest) {
       0,
     ),
     artifactFileCount: files.length,
+    pageCount: countHtmlPages(files),
     verificationSubmission: buildVerificationSubmission(
       files,
       MAXIMUM_VERIFICATION_ENTRIES,
@@ -111,6 +114,7 @@ export function deriveArtifactFacts(files, manifest) {
  *   manifestDigest?: string,
  *   artifactByteCount?: number,
  *   artifactFileCount?: number,
+ *   pageCount?: number,
  *   verificationSubmission?: Record<string, unknown>,
  *   artifactDigest: string,
  *   sourceCommit: string,
@@ -183,6 +187,10 @@ export function buildDeploymentIntentRequest(input) {
           manifestDigest: String(required(record, 'manifestDigest')),
           artifactByteCount: Number(required(record, 'artifactByteCount')),
           artifactFileCount: Number(required(record, 'artifactFileCount')),
+          pageCount:
+            record.pageCount === undefined
+              ? undefined
+              : Number(record.pageCount),
           verificationSubmission: /** @type {Record<string, unknown>} */ (
             required(record, 'verificationSubmission')
           ),
@@ -223,6 +231,9 @@ export function buildDeploymentIntentRequest(input) {
     frozenEnvelopeByteCount: input.frozenEnvelopeByteCount,
     artifactByteCount: artifact.artifactByteCount,
     artifactFileCount: artifact.artifactFileCount,
+    ...(artifact.pageCount === undefined
+      ? {}
+      : { pageCount: artifact.pageCount }),
     requestedArtifactRetentionDays: input.requestedArtifactRetentionDays,
     effectiveArtifactExpiresAt: input.effectiveArtifactExpiresAt,
     verificationSubmission: artifact.verificationSubmission,
@@ -314,8 +325,9 @@ export function buildReceiptExchangeRequest(input) {
  *   destinationGenerationId?: string,
  *   destinationReceiptDigest?: string,
  *   failure?: {failureCode: string, stage?: string, toHost?: string},
- *   verifiedAt?: {origin: string}
- * }} input the submission facts; `verifiedAt.origin` is the strict origin of
+ *   verifiedAt?: {origin: string},
+ *   performance?: Record<string, unknown>
+ * }} input the submission facts; `performance` is the kernel's size-budget summary (schemas 3.25.1); `verifiedAt.origin` is the strict origin of
  *   the base URL the deploy's public reads were made against (omitted when the
  *   journal does not say); `failure` is the deploy's classified failure,
  *   stated beside the journal as `deployFailure: {journal: 'present', ...}`
@@ -426,6 +438,9 @@ function submissionBase(input) {
   }
   if (input.verifiedAt !== undefined) {
     submission.verifiedAt = { origin: input.verifiedAt.origin };
+  }
+  if (input.performance !== undefined) {
+    submission.performance = input.performance;
   }
   return submission;
 }

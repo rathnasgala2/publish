@@ -32,10 +32,23 @@ npm ci
 npm run verify
 ```
 
-Schemas 3.23.0, template 4.6.1 and the six generation-4 themes (all at 4.2.0)
+Schemas 3.25.1, template 4.7.0 and the six generation-4 themes (all at 4.2.0)
 are installed from the public npm registry at exact versions; the lockfile
 carries their integrity. `THEME_CATALOG` records each theme tarball's registry
 SHA-256.
+
+### Page count, size check and the page-loss guard
+
+After the build is frozen, `scripts/workflow/freeze.mjs` measures every HTML
+page and the same-origin CSS and JavaScript each page links (each file once per
+page) against `publication.performance.budgets` from the build input, with the
+defaults 65536 (HTML), 36864 (CSS) and 94208 (JavaScript) bytes. The result is a
+job-summary table and the receipt's `performance` summary; the check never fails
+a publish. The authorization input and the `deployment-intent` exchange carry
+`pageCount` (the `.html` files in the artifact). If the API refuses
+authorization with `PAGE_LOSS_GUARD`, the authorize workflow logs "Publish
+stopped: it would remove N of M pages from the live site. Nothing was deployed."
+and ends cleanly; no deploy or report job runs.
 
 `npm run verify` runs formatting, lint, `tsc --checkJs --noEmit` per package,
 the dependency-cruiser architecture gate, `jscpd` duplication scan, the Node

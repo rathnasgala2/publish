@@ -77,6 +77,7 @@ import {
   canonicalJson,
   operationIdFromPublishRef,
 } from './workload-identity.mjs';
+import { performanceSummary } from './performance-budgets.mjs';
 import { deriveArtifactFacts } from './workload-requests.mjs';
 import {
   readLockDocument,
@@ -405,6 +406,13 @@ export function deriveAuthorizationInput(facts) {
     artifactDigest: facts.artifactDigest,
     manifestDigest: artifact.manifestDigest,
     artifactFileCount: artifact.artifactFileCount,
+    pageCount: artifact.pageCount,
+    // Not part of the exchange request: the report job quotes it into the
+    // receipt submission (schemas 3.25.1 `performance`).
+    performance: performanceSummary(
+      facts.envelope.files,
+      facts.build.buildInput,
+    ),
     artifactByteCount: artifact.artifactByteCount,
     verificationSubmission: artifact.verificationSubmission,
     // The two metadata digests are the envelope decoder's recomputation

@@ -34,7 +34,8 @@ on:
           The selected adapter identity, byte-equal to
           `deploymentIntent.adapter.adapterId` and exactly `do-spaces |
           github-pages`. Exposed only after the returned intent has been
-          validated.
+          validated. Empty when the page-loss guard refused authorization (the
+          run ends as "no effect" and no deploy job runs).
         value: ${{ jobs.exchange.outputs.adapter_id }}
       deployment_authorization_id:
         value: ${{ jobs.exchange.outputs.deployment_authorization_id }}
@@ -117,6 +118,7 @@ jobs:
             --out-dir "${RUNNER_TEMP}/carrier"
 
       - name: Upload the deployment-authorization carrier
+        if: steps.exchange.outputs.adapter_id != ''
         id: upload-authorization
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -128,6 +130,7 @@ jobs:
           retention-days: 1
 
       - name: Re-observe the deployment-authorization carrier by exact ID
+        if: steps.exchange.outputs.adapter_id != ''
         id: authorization
         shell: bash
         env:
@@ -143,6 +146,7 @@ jobs:
             --local "${RUNNER_TEMP}/carrier/gala-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-deployment-authorization-v2.jcs"
 
       - name: Upload the report-challenge carrier
+        if: steps.exchange.outputs.adapter_id != ''
         id: upload-challenge
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -154,6 +158,7 @@ jobs:
           retention-days: 1
 
       - name: Re-observe the report-challenge carrier by exact ID
+        if: steps.exchange.outputs.adapter_id != ''
         id: challenge
         shell: bash
         env:

@@ -146,6 +146,7 @@ export const INTENT_FIELDS = Object.freeze([
   'pagesBuildVersion',
   'spacesStagePrefix',
   'capabilityDecisionDigest',
+  'pageCount',
 ]);
 
 /**
@@ -153,14 +154,16 @@ export const INTENT_FIELDS = Object.freeze([
  * `pagesBuildVersion` and `spacesStagePrefix` are optional since 2.8.0
  * (LOCAL-57), and `capabilityDecisionDigest` since 2.9.0 (LOCAL-60): the
  * API derives each from what it owns and refuses a sent value that
- * disagrees with `422 VALIDATION_FAILED`.
+ * disagrees with `422 VALIDATION_FAILED`. `pageCount` is optional since
+ * 3.25.0: a build that omits it is exempt from the page-loss guard.
  */
 export const INTENT_REQUIRED = Object.freeze(
   INTENT_FIELDS.filter(
     (name) =>
       name !== 'pagesBuildVersion' &&
       name !== 'spacesStagePrefix' &&
-      name !== 'capabilityDecisionDigest',
+      name !== 'capabilityDecisionDigest' &&
+      name !== 'pageCount',
   ),
 );
 
@@ -296,13 +299,14 @@ export const SUBMISSION_FIELDS = Object.freeze([
  * Submission members the pinned contract declares beside the 21 above since
  * schemas 3.17.0, both optional: `deployFailure` (a failed deploy's classified
  * code; `kernelJournal` is required unless `deployFailure.journal` is `absent`,
- * and omitted then) and `verifiedAt` (the origin the deploy's public reads were
+ * and omitted then), `verifiedAt` and `performance` (schemas 3.25.1; the origin the deploy's public reads were
  * made against). The parity test holds `SUBMISSION_FIELDS` plus these to the
  * pinned schemas; the validators below check each one by shape.
  */
 export const SUBMISSION_EXTENSION_FIELDS = Object.freeze([
   'deployFailure',
   'verifiedAt',
+  'performance',
 ]);
 
 /** The 19 submission members that are never optional. */
@@ -905,6 +909,9 @@ function checkAuthorizeDeployment(body) {
   // 2.9.0: the capability decision is server-owned (DEC-097 section 7); a
   // workflow that knows the digest may send it, one that does not omits it.
   optionalMatch(body, 'capabilityDecisionDigest', DIGEST_PATTERN, '');
+  if (body.pageCount !== undefined) {
+    requireInteger(body, 'pageCount', 0, Number.MAX_SAFE_INTEGER, '');
+  }
   requireMatch(
     body,
     'frozenHandoffArtifactId',
@@ -1312,7 +1319,30 @@ export function checkHttpsOrigin(value, pointer) {
  * @returns {void}
  */
 export function validateSubmission(value) {
-  const { verifiedAt, ...rest } = requireObject(value, '');
+  const { verifiedAt, performance, ...rest } = requireObject(value, '');
+  if (performance !== undefined) {
+    const summary = requireObject(performance, '/performance');
+    requireNoUnknownFields(
+      summary,
+      ['budgets', 'overBudgetCount', 'overBudget'],
+      '/performance',
+    );
+    requirePresent(
+      summary,
+      ['budgets', 'overBudgetCount', 'overBudget'],
+      '/performance',
+    );
+    requireInteger(
+      summary,
+      'overBudgetCount',
+      0,
+      Number.MAX_SAFE_INTEGER,
+      '/performance',
+    );
+    if (!Array.isArray(summary.overBudget) || summary.overBudget.length > 20) {
+      invalid('/performance/overBudget');
+    }
+  }
   if (verifiedAt !== undefined) {
     const at = requireObject(verifiedAt, '/verifiedAt');
     requireNoUnknownFields(at, ['origin'], '/verifiedAt');

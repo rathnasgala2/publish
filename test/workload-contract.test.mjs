@@ -398,7 +398,7 @@ test('the request-side rebuildRecord (2.9.0) declares the retained record’s me
   }
 });
 
-test('the receipt submission declares 23 members, requires exactly 18 and requires kernelJournal unless deployFailure.journal is absent', () => {
+test('the receipt submission declares 24 members, requires exactly 18 and requires kernelJournal unless deployFailure.journal is absent', () => {
   assert.equal(submission.additionalProperties, false);
   assertSameMembers(Object.keys(submission.properties), [
     ...contract.SUBMISSION_FIELDS,
@@ -411,7 +411,7 @@ test('the receipt submission declares 23 members, requires exactly 18 and requir
   assert.equal(
     contract.SUBMISSION_FIELDS.length +
       contract.SUBMISSION_EXTENSION_FIELDS.length,
-    23,
+    24,
   );
   assert.equal(submission.required.length, 18);
   assert.equal(contract.SUBMISSION_REQUIRED.length, 19);

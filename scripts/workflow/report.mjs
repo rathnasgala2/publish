@@ -210,6 +210,9 @@ async function main() {
     runId: process.env.GITHUB_RUN_ID ?? '1',
     runAttempt: Number.parseInt(process.env.GITHUB_RUN_ATTEMPT ?? '1', 10),
     publisherVersion: requireOption(options, 'publisher-version'),
+    ...(challenge.performance === undefined
+      ? {}
+      : { performance: challenge.performance }),
     workflowCompletedAt: rfc3339Milliseconds(new Date()),
     // The base URL the deploy's public reads were made against, when the
     // journal says (a failure before the first read leaves it out).

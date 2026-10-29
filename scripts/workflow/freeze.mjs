@@ -50,6 +50,7 @@ import {
 import { buildSbom, validateSbomBytes } from './sbom.mjs';
 import { readLockDocument, readLockFacts } from './verified-source.mjs';
 import { jcsBytes } from './frozen-envelope.mjs';
+import { reportPerformance } from './performance-budgets.mjs';
 import { runIfMain } from '../run-if-main.mjs';
 import { validateGalaDocument } from './schema-runtime.mjs';
 
@@ -289,6 +290,16 @@ async function main() {
       '',
     ].join('\n'),
   );
+
+  // The page size check is informational: it never fails the freeze.
+  /** @type {Record<string, any> | null} */
+  let buildInput;
+  try {
+    buildInput = readBuildFacts(output.files, decoded.manifest).buildInput;
+  } catch {
+    buildInput = null;
+  }
+  await reportPerformance(decoded.files, buildInput);
 
   if (refKind !== 'publish') {
     process.stdout.write(

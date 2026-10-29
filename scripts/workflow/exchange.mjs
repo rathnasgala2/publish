@@ -60,6 +60,31 @@ const AUDIENCES = Object.freeze({
 });
 
 /**
+ * The author-facing sentence for a page-loss refusal.
+ *
+ * @param {{previousPageCount: number, candidatePageCount: number, lostPageCount: number} | null} counts the refusal's counts
+ * @returns {string} the sentence
+ */
+export function pageLossMessage(counts) {
+  return counts === null
+    ? 'Publish stopped: it would remove too many pages from the live site. Nothing was deployed.'
+    : `Publish stopped: it would remove ${counts.lostPageCount} of ${counts.previousPageCount} pages from the live site. Nothing was deployed.`;
+}
+
+/**
+ * Append Markdown to the job summary when one is available.
+ *
+ * @param {string} markdown the text
+ * @returns {Promise<void>} resolves once appended
+ */
+async function appendSummary(markdown) {
+  const file = process.env.GITHUB_STEP_SUMMARY;
+  if (file !== undefined && file !== '') {
+    await appendFile(file, `${markdown}\n`, 'utf8');
+  }
+}
+
+/**
  * Append one non-secret `name=value` line to the step's `$GITHUB_OUTPUT`.
  *
  * @param {string} name the output name
@@ -155,11 +180,32 @@ async function exchangeDeploymentIntent(job) {
   );
 
   const assertion = await requestOidcAssertion(AUDIENCES['deployment-intent']);
-  const answer = await postReceiptExchange({
-    origin: job.origin,
-    assertion,
-    request,
-  });
+  /** @type {Awaited<ReturnType<typeof postReceiptExchange>>} */
+  let answer;
+  try {
+    answer = await postReceiptExchange({
+      origin: job.origin,
+      assertion,
+      request,
+    });
+  } catch (error) {
+    if (
+      error instanceof GalaApiError &&
+      error.problemCode === 'PAGE_LOSS_GUARD'
+    ) {
+      // The page-loss guard refused authorization: nothing was claimed and
+      // nothing is deployed, so the run ends cleanly as "no effect". The
+      // empty `adapter_id` output skips every deploy and report job.
+      await writeOutput('adapter_id', '');
+      await writeOutput('refused', 'page-loss-guard');
+      process.stdout.write(`${pageLossMessage(error.pageLoss)}\n`);
+      await appendSummary(
+        `### Publish stopped\n\n${pageLossMessage(error.pageLoss)}\n`,
+      );
+      return;
+    }
+    throw error;
+  }
   if (answer.state !== 'deployment-authorization') {
     throw new GalaApiError(
       'WORKLOAD_EXCHANGE_RESPONSE_INVALID',
@@ -227,6 +273,9 @@ async function exchangeDeploymentIntent(job) {
         deploymentIntent: intent,
         reportChallengeId: answer.body.reportChallengeId,
         reportChallengeExpiresAt: answer.body.reportChallengeExpiresAt,
+        ...(input.performance === undefined
+          ? {}
+          : { performance: input.performance }),
       }),
       'utf8',
     ),

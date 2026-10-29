@@ -10,9 +10,27 @@ and this project adheres to
 
 ### Added
 
-- Schemas 3.23.0 (the audience HTTP contract; no repository-side change from
-  3.22.0): the workspace packages that consume schemas pin it exactly, the
-  adapters stay on 3.8.0.
+- Page-loss guard: the authorization input and the `deployment-intent` receipt
+  exchange now carry `pageCount` (the `.html` files in the frozen artifact;
+  schemas 3.25.1). When the API refuses authorization with `PAGE_LOSS_GUARD`,
+  the authorize workflow ends cleanly as "no effect" with the line "Publish
+  stopped: it would remove N of M pages from the live site. Nothing was
+  deployed." and no deploy or report job runs. The refusal is HTTP 409 with
+  problem `code: PAGE_LOSS_GUARD` and `details`.
+- Performance budgets: after the build is frozen, `freeze.mjs` measures every
+  HTML page and the same-origin CSS and JS each page links against
+  `publication.performance.budgets` (defaults 65536, 36864 and 94208 bytes) and
+  writes a job-summary table. It never fails a publish. The summary (`budgets`,
+  `overBudgetCount`, `overBudget`) also rides the receipt submission's
+  `performance` member (schemas 3.25.1) via the authorization input and the
+  report-challenge carrier.
+- Content types: the `do-spaces` adapter already serves `.json` and `.xml` as
+  `application/json` and `application/xml` (UTF-8 charset). It has no `.md`
+  entry, and the published adapter 0.1.1 is pinned by integrity in the artifact
+  catalog, so serving `.md` as `text/markdown; charset=utf-8` needs an adapter
+  release (the next owner-run adapter round). GitHub Pages sets its own types.
+- Schemas 3.25.1: the workspace packages that consume schemas pin it exactly,
+  the adapters stay on 3.8.0.
 - Audience features: the toolchain serves template 4.6.1 and schemas 3.22.0
   (share buttons, the Galascribe newsletter, the contact page, author Follow).
   Template 4.6.1 is a renderer fix: Eleventy's input path is passed relative to

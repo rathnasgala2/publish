@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@rathnasgala2/adapter-protocol": "^0.2.1",
-    "@rathnasgala2/schemas": "3.23.0"
+    "@rathnasgala2/schemas": "3.25.1"
   },
   "publishConfig": {
     "access": "public",
