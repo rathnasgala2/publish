@@ -11,7 +11,7 @@
   },
   "schemas": {
     "package": "@rathnasgala2/schemas",
-    "version": "3.25.1",
+    "version": "3.26.0",
     "integrity": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
     "registry": "https://local-development.invalid/rathnasgala2/",
     "contractVersion": "3.0.0",
@@ -19,7 +19,7 @@
   },
   "template": {
     "package": "@rathnasgala2/template",
-    "version": "4.7.0",
+    "version": "4.8.0",
     "integrity": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
     "registry": "https://local-development.invalid/rathnasgala2/",
     "contractVersion": "4.0.0",
@@ -70,5 +70,5 @@
   ],
   "dependencies": [],
   "dependencyDag": [],
-  "lockDigest": "sha256:e74c066ceeff2f11eaac99bed5e13f77a1134645c994cbee1ca2cc593798d0c6"
+  "lockDigest": "sha256:04d284a10a3bc4dc369af56d5969fdafd64ba843741c817873c61a3aa2dcda7f"
 }
