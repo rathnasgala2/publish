@@ -518,6 +518,17 @@ test('route projection is closed: an unknown extension is an inert asset', () =>
   });
 });
 
+test('Listen episodes project with the audio types GitHub Pages serves', () => {
+  assert.equal(
+    projectRoute('assets/listen/a.0123abcd.mp3').expectedContentType,
+    'audio/mpeg',
+  );
+  assert.equal(
+    projectRoute('assets/listen/a.0123abcd.m4a').expectedContentType,
+    'audio/mp4',
+  );
+});
+
 test('the template 3 root text files (robots.txt, llms.txt, llms-full.txt) project as plain-text assets', () => {
   for (const name of ['robots.txt', 'llms.txt', 'llms-full.txt']) {
     assert.deepEqual(projectRoute(name), {

@@ -159,6 +159,8 @@ const CONTENT_TYPES = Object.freeze({
   '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8',
   '.ico': 'image/vnd.microsoft.icon',
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
 });
 
 /**
