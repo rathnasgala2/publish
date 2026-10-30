@@ -10,8 +10,8 @@ and this project adheres to
 
 ### Changed
 
-- Serve schemas 3.26.0 and template 4.8.0 (exact pins; adds the Listen
-  setting, the per-article `listen` audio and the template that renders them).
+- Serve schemas 3.26.0 and template 4.8.0 (exact pins; adds the Listen setting,
+  the per-article `listen` audio and the template that renders them).
 - Serve schemas 3.25.1 (exact pin of this package; adds the page-loss guard
   `pageCount`, performance budgets and `deleteDate` contracts).
 - Serve schemas 3.23.0 (exact pin of this package; the audience HTTP contract,
