@@ -169,6 +169,19 @@
  * `CONTACT_INTRO_IMAGE_UNSUPPORTED` (the rendered body contains an `<img>`
  * element; the page body has no media inventory).
  *
+ * **Listen** (schemas 3.26.0): `publication.json`'s optional `listen`
+ * (`{enabled}`) becomes `build-input.publication.listen`, always present
+ * (`{enabled: false}` when the member is absent). An article's optional front
+ * matter `listen` (`{audio, durationSeconds, format}`) becomes
+ * `content[].frontmatter.listen`, with `audio` replaced by the checked file,
+ * `{sourcePath, mediaType, bytes, sha256}` (`content-media.js`,
+ * `resolveListenAudio`: under an `assetRoots` entry, a regular file, MP3 or M4A
+ * by its bytes, a name that agrees with them, at most 25 MiB a file and 512
+ * MiB a publication, counted apart from the images). A post without the member
+ * has no `listen`. A problem is reported with the image codes,
+ * `MEDIA_REFERENCE_UNRESOLVED` or `MEDIA_LIMIT_EXCEEDED`, and
+ * `evidence.pointer` `/listen/audio`, together with any image problem.
+ *
  * **Prism editions** (`content-editions.js`): a `kind: edition` document is
  * kept only when the article it is `of` is part of the build and its
  * `edition.sourceDigest` still equals the digest of that article's body;
@@ -196,7 +209,11 @@ import { resolveBuildEpoch, resolveSourceRevision } from './source-revision.js';
 import { parseConstrainedYamlFrontmatter } from './frontmatter.js';
 import { REPOSITORY_ROOT_DOMAIN } from '../constants.js';
 import { requireThemeArtifact, themePackageNameOf } from '../theme-catalog.js';
-import { findImageSources, resolveMediaReferences } from './content-media.js';
+import {
+  findImageSources,
+  resolveListenAudio,
+  resolveMediaReferences,
+} from './content-media.js';
 import { evaluateEditions } from './content-editions.js';
 
 const SCHEMA = Object.freeze({
@@ -757,9 +774,11 @@ async function readContactIntro({
  * @param {Record<string, any>} frontmatter the validated front matter
  * @param {ReadonlyMap<string, import('./content-media.js').MediaFile>} mediaFiles
  *   every checked image file, by repository-relative path
+ * @param {ReadonlyMap<string, import('./content-media.js').AudioFile>} audioFiles
+ *   every checked `listen.audio` file, by repository-relative path
  * @returns {Record<string, unknown>} the normalized front matter
  */
-function normalizeContentFrontmatter(frontmatter, mediaFiles) {
+function normalizeContentFrontmatter(frontmatter, mediaFiles, audioFiles) {
   return {
     id: frontmatter.id,
     kind: frontmatter.kind,
@@ -802,6 +821,17 @@ function normalizeContentFrontmatter(frontmatter, mediaFiles) {
       : {}),
     ...(frontmatter.edition ? { edition: frontmatter.edition } : {}),
     ...(frontmatter.seo ? { seo: { ...frontmatter.seo } } : {}),
+    // Listen (schemas 3.26.0): the audio path becomes the checked file's
+    // description; the length and format are the author's, copied as written.
+    ...(frontmatter.listen
+      ? {
+          listen: {
+            audio: { ...audioFiles.get(frontmatter.listen.audio) },
+            durationSeconds: frontmatter.listen.durationSeconds,
+            format: frontmatter.listen.format,
+          },
+        }
+      : {}),
   };
 }
 
@@ -976,6 +1006,10 @@ export async function buildBuildInputFromRepository({
   // `{path, sourceDigest}` is added to the publication and appearance then.
   /** @type {import('./content-media.js').MediaReference[]} */
   const mediaReferences = [];
+  // The audio files the articles' `listen.audio` members name, checked apart
+  // from the images (own limits, own formats) but in the same pass.
+  /** @type {import('./content-media.js').AudioReference[]} */
+  const audioReferences = [];
   if (publicationDoc.document.defaultImageRef) {
     mediaReferences.push({
       document: repository.document.publication,
@@ -1015,6 +1049,9 @@ export async function buildBuildInputFromRepository({
     ...(publicationDoc.document.newsletter
       ? { newsletter: { ...publicationDoc.document.newsletter } }
       : {}),
+    // Listen (schemas 3.26.0): always present in the build input. A
+    // publication.json without the member is the same as `enabled: false`.
+    listen: { enabled: publicationDoc.document.listen?.enabled === true },
     sourcePath: 'publication.json',
     sourceDigest: publicationDoc.digest,
   };
@@ -1256,21 +1293,39 @@ export async function buildBuildInputFromRepository({
         alt: '',
       });
     }
+    if (frontmatter.listen) {
+      audioReferences.push({
+        document: relativePath,
+        source: frontmatter.listen.audio,
+      });
+    }
     return normalized;
   });
 
   // Every referenced image is checked and digested; the bytes stay on disk
   // for the template's media pipeline. A body image becomes an entry of its
-  // document's `media[]`, a hero becomes `frontmatter.hero.file`.
+  // document's `media[]`, a hero becomes `frontmatter.hero.file`. The audio of
+  // `listen` is checked the same way and becomes `frontmatter.listen.audio`.
+  // Both are judged before either fails, so one run lists every problem.
   const media = await resolveMediaReferences({
     repositoryDirectory,
     assetRoots: repository.document.assetRoots,
     references: mediaReferences,
   });
-  if (media.findings.length > 0) {
+  const listenAudio = await resolveListenAudio({
+    repositoryDirectory,
+    assetRoots: repository.document.assetRoots,
+    references: audioReferences,
+  });
+  const mediaFailures = [
+    ...(media.findings.length > 0 ? ['images'] : []),
+    ...(listenAudio.findings.length > 0 ? ['audio'] : []),
+  ];
+  if (mediaFailures.length > 0) {
+    const findings = [...media.findings, ...listenAudio.findings];
     throw new RepositoryIntakeError(
-      `${media.findings.length} problem(s) with images referenced from content`,
-      media.findings,
+      `${findings.length} problem(s) with ${mediaFailures.join(' and ')} referenced from content`,
+      findings,
     );
   }
 
@@ -1284,6 +1339,7 @@ export async function buildBuildInputFromRepository({
       frontmatter: normalizeContentFrontmatter(
         document.frontmatter,
         media.files,
+        listenAudio.files,
       ),
       body: normalized.html,
       bodyMediaType: 'text/html',

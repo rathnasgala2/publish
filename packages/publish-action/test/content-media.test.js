@@ -24,13 +24,18 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 import {
+  LISTEN_AUDIO_LIMITS,
+  LISTEN_AUDIO_POINTER,
   MAX_MEDIA_FINDINGS,
   MEDIA_LIMITS,
+  audioPathProblem,
   findImageSources,
   heroPathProblem,
   normalizeAssetRoots,
   resolveImageSource,
+  resolveListenAudio,
   resolveMediaReferences,
+  sniffAudioMediaType,
   sniffImageMediaType,
 } from '../src/normalize/content-media.js';
 import {
@@ -38,6 +43,7 @@ import {
   importTemplatePublicEntry,
 } from '../src/template-bridge.js';
 import buildInputSchema from '@rathnasgala2/schemas/schemas/build-input.schema.json' with { type: 'json' };
+import { AUDIO_MEDIA_TYPE_OF, audioBytes } from './audio-bytes.js';
 import { MEDIA_TYPE_OF, imageBytes } from './image-bytes.js';
 
 /**
@@ -1011,5 +1017,556 @@ test('a long list of problems is capped and says how many were left out', async 
     assert.equal(last?.code, 'MEDIA_REFERENCE_UNRESOLVED');
     assert.deepEqual(last?.evidence, { omitted: 7 });
     assert.match(last?.detail ?? '', /7 more/u);
+  });
+});
+
+// --- Listen audio (schemas 3.26.0) -------------------------------------------
+
+/**
+ * @param {string} document the article whose front matter names the audio
+ * @param {string} source `listen.audio` as written
+ * @returns {import('../src/normalize/content-media.js').AudioReference} the reference
+ */
+function audioReference(document, source) {
+  return { document, source };
+}
+
+/**
+ * @param {string} file repository-relative path
+ * @param {Buffer} bytes the file content
+ * @param {string} mediaType the expected media type
+ * @returns {object} the `listen.audio` description intake should produce
+ */
+function audioEntry(file, bytes, mediaType) {
+  return {
+    sourcePath: file,
+    mediaType,
+    bytes: bytes.byteLength,
+    sha256: sha256(bytes),
+  };
+}
+
+/**
+ * An MP3 of exactly `size` bytes: an ID3 tag header, then zeros.
+ *
+ * @param {number} size the length in bytes (at least 10)
+ * @returns {Buffer} the file content
+ */
+function mp3OfSize(size) {
+  return Buffer.concat([
+    audioBytes('mp3-id3', ''),
+    Buffer.alloc(size - audioBytes('mp3-id3', '').byteLength),
+  ]);
+}
+
+test('sniffAudioMediaType recognizes MP3 by an ID3 tag or a frame sync, and M4A by an ftyp box', () => {
+  for (const format of /** @type {const} */ ([
+    'mp3-id3',
+    'mp3-sync',
+    'mp3-sync-mpeg2',
+    'mp3-sync-mpeg25',
+    'm4a',
+  ])) {
+    assert.equal(
+      sniffAudioMediaType(audioBytes(format)),
+      AUDIO_MEDIA_TYPE_OF[format],
+      format,
+    );
+  }
+  // The signature alone is enough.
+  assert.equal(sniffAudioMediaType(Buffer.from('ID3', 'latin1')), 'audio/mpeg');
+  assert.equal(sniffAudioMediaType(Buffer.from([0xff, 0xe0])), 'audio/mpeg');
+  assert.equal(sniffAudioMediaType(Buffer.from([0xff, 0xff])), 'audio/mpeg');
+  assert.equal(
+    sniffAudioMediaType(
+      Buffer.concat([Buffer.alloc(4), Buffer.from('ftyp', 'latin1')]),
+    ),
+    'audio/mp4',
+  );
+});
+
+test('sniffAudioMediaType refuses images, text, a near miss of the frame sync and misplaced signatures', () => {
+  for (const format of /** @type {const} */ (['png', 'jpeg', 'webp', 'gif'])) {
+    assert.equal(sniffAudioMediaType(imageBytes(format)), null, format);
+  }
+  /** @type {[string, Buffer][]} */
+  const refused = [
+    ['no bytes', Buffer.alloc(0)],
+    ['half a sync', Buffer.from([0xff])],
+    ['a sync with only two set bits', Buffer.from([0xff, 0xc0])],
+    ['a sync that starts with 0xFE', Buffer.from([0xfe, 0xfb])],
+    ['ID without the 3', Buffer.from('ID', 'latin1')],
+    ['ID3 one byte late', Buffer.from(' ID3', 'latin1')],
+    ['ftyp at offset 0', Buffer.from('ftypM4A ', 'latin1')],
+    ['ftyp cut short', Buffer.from([0, 0, 0, 0x18, 0x66, 0x74, 0x79])],
+    ['plain text', Buffer.from('this is not audio', 'utf8')],
+  ];
+  for (const [what, bytes] of refused) {
+    assert.equal(sniffAudioMediaType(bytes), null, what);
+  }
+});
+
+test('audioPathProblem names an audio file, uses the hero rules, and leaves the hero wording alone', () => {
+  assert.equal(audioPathProblem('assets/listen/episode.mp3'), null);
+  assert.equal(audioPathProblem('assets/with space.m4a'), null);
+  assert.deepEqual(audioPathProblem('https://example.com/a.mp3'), {
+    reason: 'EXTERNAL_ADDRESS',
+    explanation:
+      'is an external address; an audio file must be a file in this repository',
+  });
+  assert.deepEqual(audioPathProblem('/assets/a.mp3'), {
+    reason: 'NOT_A_REPOSITORY_PATH',
+    explanation:
+      'starts with "/"; write the path from the repository root, for example assets/listen/episode.mp3',
+  });
+  assert.match(
+    audioPathProblem('assets/a%20b.mp3')?.explanation ?? '',
+    /an audio path is used exactly as written/u,
+  );
+  for (const value of [
+    '../a.mp3',
+    'assets//a.mp3',
+    'assets/a.mp3?v=1',
+    'assets/a.mp3#t',
+    'assets\\a.mp3',
+    'assets/a\u0007.mp3',
+    'assets/café.mp3',
+    `assets/${'a'.repeat(510)}.mp3`,
+  ]) {
+    assert.equal(
+      audioPathProblem(value)?.reason,
+      'NOT_A_REPOSITORY_PATH',
+      JSON.stringify(value),
+    );
+  }
+  // The shared rules do not change what a hero path is told.
+  assert.deepEqual(heroPathProblem('https://example.com/hero.jpg'), {
+    reason: 'EXTERNAL_ADDRESS',
+    explanation:
+      'is an external address; an image must be a file in this repository',
+  });
+  assert.equal(
+    heroPathProblem('/assets/hero.jpg')?.explanation,
+    'starts with "/"; write the path from the repository root, for example assets/hero.jpg',
+  );
+  assert.match(
+    heroPathProblem('assets/hero%20x.jpg')?.explanation ?? '',
+    /a hero path is used exactly as written/u,
+  );
+});
+
+test('the audio limits are 25 MiB a file and 512 MiB a publication, apart from the image limits', () => {
+  assert.deepEqual(
+    { ...LISTEN_AUDIO_LIMITS },
+    { maxFileBytes: 25 * 1024 * 1024, maxTotalBytes: 512 * 1024 * 1024 },
+  );
+  assert.equal(Object.isFrozen(LISTEN_AUDIO_LIMITS), true);
+  assert.ok(LISTEN_AUDIO_LIMITS.maxFileBytes > MEDIA_LIMITS.maxSourceBytes);
+  assert.ok(LISTEN_AUDIO_LIMITS.maxTotalBytes > MEDIA_LIMITS.maxTotalBytes);
+  assert.equal(LISTEN_AUDIO_POINTER, '/listen/audio');
+});
+
+test('listen audio: an MP3 with an ID3 tag, an MP3 that opens with a frame sync and an M4A are described by their bytes', async () => {
+  await withRepository(async (directory) => {
+    await mkdir(path.join(directory, 'assets/listen'), { recursive: true });
+    /** @type {Record<string, [Buffer, string]>} */
+    const expected = {
+      'assets/listen/tagged.mp3': [
+        audioBytes('mp3-id3', 'tagged'),
+        'audio/mpeg',
+      ],
+      'assets/listen/untagged.mp3': [
+        audioBytes('mp3-sync', 'untagged'),
+        'audio/mpeg',
+      ],
+      'assets/listen/mpeg2.mp3': [
+        audioBytes('mp3-sync-mpeg2', 'mpeg2'),
+        'audio/mpeg',
+      ],
+      'assets/listen/mpeg25.mp3': [
+        audioBytes('mp3-sync-mpeg25', 'mpeg25'),
+        'audio/mpeg',
+      ],
+      'assets/listen/talk.m4a': [audioBytes('m4a', 'talk'), 'audio/mp4'],
+    };
+    for (const [file, [bytes]] of Object.entries(expected)) {
+      await writeFile(path.join(directory, file), bytes);
+    }
+    const result = await resolveListenAudio({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: Object.keys(expected).map((file, index) =>
+        audioReference(`content/post-${index}.md`, file),
+      ),
+    });
+    assert.deepEqual(result.findings, []);
+    // Ordered by the UTF-8 bytes of the path.
+    assert.deepEqual([...result.files.keys()], Object.keys(expected).sort());
+    for (const [file, [bytes, mediaType]] of Object.entries(expected)) {
+      assert.deepEqual(
+        result.files.get(file),
+        audioEntry(file, bytes, mediaType),
+        file,
+      );
+    }
+  });
+});
+
+test('listen audio: a file that two posts name is checked and digested once', async () => {
+  await withRepository(async (directory) => {
+    const bytes = audioBytes('mp3-id3', 'shared');
+    await writeFile(path.join(directory, 'assets/shared.mp3'), bytes);
+    const result = await resolveListenAudio({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [
+        audioReference('content/one.md', 'assets/shared.mp3'),
+        audioReference('content/two.md', 'assets/shared.mp3'),
+      ],
+    });
+    assert.deepEqual(result.findings, []);
+    assert.deepEqual(
+      [...result.files],
+      [
+        [
+          'assets/shared.mp3',
+          audioEntry('assets/shared.mp3', bytes, 'audio/mpeg'),
+        ],
+      ],
+    );
+  });
+});
+
+test('listen audio: with no references the inventory is empty', async () => {
+  await withRepository(async (directory) => {
+    const result = await resolveListenAudio({
+      repositoryDirectory: directory,
+      assetRoots: undefined,
+      references: [],
+    });
+    assert.equal(result.files.size, 0);
+    assert.deepEqual(result.findings, []);
+  });
+});
+
+test('listen audio: the file name has to agree with the bytes, in lower case like the schema', async () => {
+  await withRepository(async (directory) => {
+    const m4a = audioBytes('m4a', 'x');
+    const mp3 = audioBytes('mp3-id3', 'y');
+    await writeFile(path.join(directory, 'assets/m4a-named-mp3.mp3'), m4a);
+    await writeFile(path.join(directory, 'assets/mp3-named-m4a.m4a'), mp3);
+    await writeFile(path.join(directory, 'assets/loud.mp3'), mp3);
+    await writeFile(path.join(directory, 'assets/loud.m4a'), m4a);
+    await writeFile(path.join(directory, 'assets/LOUD.MP3'), mp3);
+    const base = {
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+    };
+
+    const accepted = await resolveListenAudio({
+      ...base,
+      references: [
+        audioReference('content/a.md', 'assets/loud.mp3'),
+        audioReference('content/a.md', 'assets/loud.m4a'),
+      ],
+    });
+    assert.deepEqual(accepted.findings, []);
+    assert.equal(
+      accepted.files.get('assets/loud.mp3')?.mediaType,
+      'audio/mpeg',
+    );
+    assert.equal(accepted.files.get('assets/loud.m4a')?.mediaType, 'audio/mp4');
+
+    const refused = await resolveListenAudio({
+      ...base,
+      references: [
+        audioReference('content/a.md', 'assets/m4a-named-mp3.mp3'),
+        audioReference('content/a.md', 'assets/mp3-named-m4a.m4a'),
+        // The schema writes the endings in lower case and refuses these before
+        // intake; intake does not accept them either.
+        audioReference('content/a.md', 'assets/LOUD.MP3'),
+      ],
+    });
+    assert.equal(refused.files.size, 0);
+    assert.deepEqual(reasons(refused), [
+      'EXTENSION_MISMATCH',
+      'EXTENSION_MISMATCH',
+      'UNSUPPORTED_FORMAT',
+    ]);
+    assert.equal(
+      refused.findings[0]?.detail,
+      'content/a.md: the listen audio "assets/m4a-named-mp3.mp3" ends in ".mp3" but holds M4A audio, which has to end in .m4a.',
+    );
+    assert.equal(
+      refused.findings[1]?.detail,
+      'content/a.md: the listen audio "assets/mp3-named-m4a.m4a" ends in ".m4a" but holds MP3 audio, which has to end in .mp3.',
+    );
+    assert.match(refused.findings[0]?.recovery ?? '', /^Rename the file/u);
+    assert.match(
+      refused.findings[2]?.detail ?? '',
+      /does not end in \.mp3 or \.m4a/u,
+    );
+  });
+});
+
+test('listen audio: every unusable reference is reported together, naming the post and the pointer', async () => {
+  await withRepository(async (directory) => {
+    await mkdir(path.join(directory, 'elsewhere'));
+    await mkdir(path.join(directory, 'assets/folder.mp3'));
+    await writeFile(
+      path.join(directory, 'elsewhere/out.mp3'),
+      audioBytes('mp3-id3'),
+    );
+    await writeFile(
+      path.join(directory, 'assets/real.mp3'),
+      audioBytes('mp3-id3'),
+    );
+    await writeFile(path.join(directory, 'assets/notes.mp3'), 'plain text');
+    await writeFile(path.join(directory, 'assets/empty.m4a'), '');
+    await writeFile(path.join(directory, 'assets/talk.wav'), 'RIFF....WAVE');
+    await symlink('real.mp3', path.join(directory, 'assets/link.mp3'));
+    const result = await resolveListenAudio({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [
+        audioReference('content/a.md', 'assets/missing.mp3'),
+        audioReference('content/a.md', 'elsewhere/out.mp3'),
+        audioReference('content/b.md', 'https://example.com/a.mp3'),
+        audioReference('content/b.md', '../out.mp3'),
+        audioReference('content/c.md', 'assets/folder.mp3'),
+        audioReference('content/c.md', 'assets/link.mp3'),
+        audioReference('content/c.md', 'assets/talk.wav'),
+        audioReference('content/c.md', 'assets/notes.mp3'),
+        audioReference('content/c.md', 'assets/empty.m4a'),
+        audioReference('content/c.md', 'assets/real.mp3'),
+      ],
+    });
+    assert.equal(result.files.size, 0);
+    // Reading order: the order the references were given in.
+    assert.deepEqual(reasons(result), [
+      'FILE_MISSING',
+      'OUTSIDE_ASSET_ROOTS',
+      'EXTERNAL_ADDRESS',
+      'NOT_A_REPOSITORY_PATH',
+      'NOT_A_REGULAR_FILE',
+      'NOT_A_REGULAR_FILE',
+      'UNSUPPORTED_FORMAT',
+      'UNSUPPORTED_FORMAT',
+      'UNSUPPORTED_FORMAT',
+    ]);
+    for (const finding of result.findings) {
+      assert.equal(finding.code, 'MEDIA_REFERENCE_UNRESOLVED');
+      assert.equal(finding.severity, 'SOURCE_ERROR');
+      assert.equal(finding.overridable, false);
+      const evidence = /** @type {Record<string, string>} */ (finding.evidence);
+      assert.equal(evidence.origin, 'listen');
+      assert.equal(evidence.pointer, '/listen/audio');
+      assert.equal(finding.location, evidence.document);
+      assert.ok(
+        finding.detail.startsWith(
+          `${evidence.document}: the listen audio "${evidence.path}" `,
+        ),
+        finding.detail,
+      );
+      assert.ok(finding.recovery && finding.recovery.length > 0);
+    }
+    const byPath = (/** @type {string} */ wanted) =>
+      result.findings.find(
+        (finding) => /** @type {any} */ (finding.evidence).path === wanted,
+      );
+    assert.match(
+      byPath('assets/missing.mp3')?.detail ?? '',
+      /does not exist in the repository\.$/u,
+    );
+    assert.match(
+      byPath('elsewhere/out.mp3')?.detail ?? '',
+      /not under an asset root/u,
+    );
+    assert.match(byPath('elsewhere/out.mp3')?.recovery ?? '', /"assets\/"/u);
+    assert.match(byPath('assets/link.mp3')?.detail ?? '', /symbolic link/u);
+    assert.match(
+      byPath('assets/talk.wav')?.detail ?? '',
+      /does not end in \.mp3 or \.m4a/u,
+    );
+    assert.match(
+      byPath('assets/talk.wav')?.recovery ?? '',
+      /an MP3 file \(\.mp3\) or an M4A file \(\.m4a\)/u,
+    );
+    assert.match(
+      byPath('assets/notes.mp3')?.detail ?? '',
+      /is not an MP3 or M4A audio file/u,
+    );
+    assert.match(byPath('assets/empty.m4a')?.detail ?? '', /is empty/u);
+    assert.match(
+      byPath('https://example.com/a.mp3')?.detail ?? '',
+      /an audio file must be a file in this repository/u,
+    );
+  });
+});
+
+test('listen audio: a file reached through a directory symbolic link that leaves its root is refused', async () => {
+  await withRepository(async (directory) => {
+    const outside = await mkdtemp(path.join(tmpdir(), 'gala-media-outside-'));
+    try {
+      await writeFile(path.join(outside, 'secret.mp3'), audioBytes('mp3-id3'));
+      await symlink(outside, path.join(directory, 'assets/escape'));
+      const result = await resolveListenAudio({
+        repositoryDirectory: directory,
+        assetRoots: [{ path: 'assets' }],
+        references: [
+          audioReference('content/a.md', 'assets/escape/secret.mp3'),
+        ],
+      });
+      assert.deepEqual(reasons(result), ['OUTSIDE_ASSET_ROOTS']);
+      assert.match(result.findings[0]?.detail ?? '', /symbolic link/u);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+});
+
+test('listen audio: a file over the per-file limit names its post, and a file exactly at the limit is accepted', async () => {
+  await withRepository(async (directory) => {
+    await writeFile(path.join(directory, 'assets/exact.mp3'), mp3OfSize(50));
+    await writeFile(path.join(directory, 'assets/over.mp3'), mp3OfSize(51));
+    const base = {
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      limits: { maxFileBytes: 50, maxTotalBytes: 1000 },
+    };
+
+    const atLimit = await resolveListenAudio({
+      ...base,
+      references: [audioReference('content/a.md', 'assets/exact.mp3')],
+    });
+    assert.deepEqual(atLimit.findings, []);
+    assert.equal(atLimit.files.get('assets/exact.mp3')?.bytes, 50);
+
+    const oversize = await resolveListenAudio({
+      ...base,
+      references: [
+        audioReference('content/a.md', 'assets/exact.mp3'),
+        audioReference('content/b.md', 'assets/over.mp3'),
+      ],
+    });
+    assert.equal(oversize.files.size, 0);
+    assert.deepEqual(reasons(oversize), ['AUDIO_BYTES']);
+    const [finding] = oversize.findings;
+    assert.equal(finding?.code, 'MEDIA_LIMIT_EXCEEDED');
+    assert.equal(finding?.severity, 'SOURCE_ERROR');
+    assert.equal(finding?.location, 'content/b.md');
+    assert.deepEqual(finding?.evidence, {
+      limit: 'AUDIO_BYTES',
+      document: 'content/b.md',
+      path: 'assets/over.mp3',
+      bytes: 51,
+      max: 50,
+      pointer: '/listen/audio',
+    });
+    assert.equal(
+      finding?.detail,
+      'content/b.md: the audio file "assets/over.mp3" is 51 bytes; an audio file may be at most 50 bytes.',
+    );
+
+    // Unusable references win over limits: the missing file is reported alone.
+    const unusable = await resolveListenAudio({
+      ...base,
+      references: [
+        audioReference('content/b.md', 'assets/over.mp3'),
+        audioReference('content/b.md', 'assets/gone.mp3'),
+      ],
+    });
+    assert.deepEqual(reasons(unusable), ['FILE_MISSING']);
+  });
+});
+
+test('listen audio: the total limit counts each distinct file once and is reported with the per-file limit', async () => {
+  await withRepository(async (directory) => {
+    for (const name of ['a', 'b', 'c']) {
+      await writeFile(
+        path.join(directory, `assets/${name}.mp3`),
+        mp3OfSize(40),
+      );
+    }
+    await writeFile(path.join(directory, 'assets/big.mp3'), mp3OfSize(51));
+    const base = {
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      limits: { maxFileBytes: 50, maxTotalBytes: 100 },
+    };
+
+    // Three references, two distinct files: 80 bytes.
+    const within = await resolveListenAudio({
+      ...base,
+      references: [
+        audioReference('content/one.md', 'assets/a.mp3'),
+        audioReference('content/two.md', 'assets/a.mp3'),
+        audioReference('content/three.md', 'assets/b.mp3'),
+      ],
+    });
+    assert.deepEqual(within.findings, []);
+    assert.equal(within.files.size, 2);
+
+    const over = await resolveListenAudio({
+      ...base,
+      references: ['a', 'b', 'c'].map((name) =>
+        audioReference(`content/${name}.md`, `assets/${name}.mp3`),
+      ),
+    });
+    assert.equal(over.files.size, 0);
+    assert.deepEqual(reasons(over), ['AUDIO_TOTAL_BYTES']);
+    const [total] = over.findings;
+    assert.equal(total?.code, 'MEDIA_LIMIT_EXCEEDED');
+    assert.equal(total?.location, undefined);
+    assert.deepEqual(total?.evidence, {
+      limit: 'AUDIO_TOTAL_BYTES',
+      bytes: 120,
+      max: 100,
+      pointer: '/listen/audio',
+    });
+    assert.equal(
+      total?.detail,
+      'The 3 audio files this publication refers to add up to 120 bytes; together they may be at most 100 bytes.',
+    );
+
+    const both = await resolveListenAudio({
+      ...base,
+      references: ['a', 'b', 'big'].map((name) =>
+        audioReference(`content/${name}.md`, `assets/${name}.mp3`),
+      ),
+    });
+    assert.deepEqual(reasons(both), ['AUDIO_BYTES', 'AUDIO_TOTAL_BYTES']);
+  });
+});
+
+test('listen audio: a limit that is a whole number of MiB is also stated in MiB, and the files are not read to judge it', async () => {
+  await withRepository(async (directory) => {
+    const mebibyte = 1024 * 1024;
+    // Sparse files: only the first bytes are real, the rest is never read.
+    for (const name of ['a', 'b']) {
+      const file = path.join(directory, `assets/${name}.mp3`);
+      await writeFile(file, audioBytes('mp3-id3', ''));
+      await truncate(file, mebibyte);
+    }
+    const over = path.join(directory, 'assets/over.m4a');
+    await writeFile(over, audioBytes('m4a', ''));
+    await truncate(over, mebibyte + 1);
+    const result = await resolveListenAudio({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      limits: { maxFileBytes: mebibyte, maxTotalBytes: mebibyte },
+      references: ['a.mp3', 'b.mp3', 'over.m4a'].map((name) =>
+        audioReference('content/a.md', `assets/${name}`),
+      ),
+    });
+    assert.deepEqual(reasons(result), ['AUDIO_BYTES', 'AUDIO_TOTAL_BYTES']);
+    assert.match(
+      result.findings[0]?.detail ?? '',
+      /is 1048577 bytes; an audio file may be at most 1048576 bytes \(1 MiB\)\.$/u,
+    );
+    assert.match(
+      result.findings[1]?.detail ?? '',
+      /add up to 3145729 bytes; together they may be at most 1048576 bytes \(1 MiB\)\.$/u,
+    );
   });
 });

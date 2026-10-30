@@ -45,6 +45,15 @@ export function resolveImageSource(source: string): {
  */
 export function heroPathProblem(value: string): Problem | null;
 /**
+ * Why a front matter `listen.audio` path cannot be used as written, or `null`
+ * when it can. The rules are the hero path's (`heroPathProblem`), worded for an
+ * audio file.
+ *
+ * @param {string} value the front matter `listen.audio`
+ * @returns {Problem | null} the problem, or `null` when it is well formed
+ */
+export function audioPathProblem(value: string): Problem | null;
+/**
  * Recognize an image format from a file's first bytes (the same signatures
  * as the renderer: never the file name).
  *
@@ -53,6 +62,19 @@ export function heroPathProblem(value: string): Problem | null;
  *   for markup that looks like SVG/XML, or `null` for anything else
  */
 export function sniffImageMediaType(head: Buffer): MediaFile["mediaType"] | "svg" | null;
+/**
+ * Recognize an MP3 or M4A file from its first bytes (never from the file
+ * name). MP3 is either an ID3v2 tag (`ID3` at offset 0) or, for a file with no
+ * tag, an MPEG audio frame sync in the first two bytes: `0xFF` and then three
+ * set bits (`0xFFE` is the sync word as the top eleven bits of the four-byte
+ * frame header, so MPEG-1, MPEG-2 and MPEG-2.5 frames all qualify). M4A is an
+ * ISO base media file, which opens with an `ftyp` box at offset 4.
+ *
+ * @param {Buffer} head the first bytes of the file
+ * @returns {AudioFile['mediaType'] | null} the media type, or `null` for
+ *   anything else
+ */
+export function sniffAudioMediaType(head: Buffer): AudioFile["mediaType"] | null;
 /**
  * Check every referenced image and digest it.
  *
@@ -88,6 +110,37 @@ export function resolveMediaReferences({ repositoryDirectory, assetRoots, refere
     findings: Finding[];
 }>;
 /**
+ * Check the audio file every article's `listen.audio` names and digest it.
+ *
+ * On success `files` has each distinct file once (a file that two posts name
+ * is inspected and digested once), ordered by the UTF-8 bytes of its path. On
+ * failure only `findings` is non-empty: every unusable reference is reported
+ * together, in the order the documents were read, and the limits are only
+ * judged when every reference is usable. The bytes stay on disk for the
+ * template; `bytes` and `sha256` describe the file as intake read it.
+ *
+ * @param {object} options the inputs
+ * @param {string} options.repositoryDirectory absolute repository root
+ * @param {readonly {path: string}[] | undefined} options.assetRoots the
+ *   `assetRoots` of `gala/repository.json`
+ * @param {readonly AudioReference[]} options.references every audio reference
+ *   from the documents that are part of the build
+ * @param {Readonly<AudioLimits>} [options.limits] the ceilings (injectable for tests)
+ * @returns {Promise<{files: Map<string, AudioFile>, findings: Finding[]}>} the
+ *   inventory, or the findings that make the build fail
+ */
+export function resolveListenAudio({ repositoryDirectory, assetRoots, references, limits, }: {
+    repositoryDirectory: string;
+    assetRoots: readonly {
+        path: string;
+    }[] | undefined;
+    references: readonly AudioReference[];
+    limits?: Readonly<AudioLimits> | undefined;
+}): Promise<{
+    files: Map<string, AudioFile>;
+    findings: Finding[];
+}>;
+/**
  * @typedef {object} MediaLimits
  * @property {number} maxSourceBytes largest admitted source image, in bytes
  * @property {number} maxDistinctImages most distinct image files one publication may reference
@@ -108,6 +161,21 @@ export function resolveMediaReferences({ repositoryDirectory, assetRoots, refere
  * @type {Readonly<MediaLimits>}
  */
 export const MEDIA_LIMITS: Readonly<MediaLimits>;
+/**
+ * @typedef {object} AudioLimits
+ * @property {number} maxFileBytes largest admitted audio file, in bytes
+ * @property {number} maxTotalBytes most bytes all the audio files one publication refers to may add up to
+ */
+/**
+ * Audio ceilings: one file at most 25 MiB and one publication at most 512 MiB
+ * of audio. They are counted apart from the images, so audio never uses up the
+ * image budget or the other way round.
+ *
+ * @type {Readonly<AudioLimits>}
+ */
+export const LISTEN_AUDIO_LIMITS: Readonly<AudioLimits>;
+/** The JSON pointer, into an article's front matter, of its audio reference. */
+export const LISTEN_AUDIO_POINTER: "/listen/audio";
 /** Most findings one intake failure reports; the rest are counted, not listed. */
 export const MAX_MEDIA_FINDINGS: 50;
 export type MediaOrigin = "body" | "hero" | "defaultImage" | "brandMark" | "wordmark" | "socialImage";
@@ -150,6 +218,40 @@ export type MediaFile = {
      */
     byteLength: number;
 };
+/**
+ * What an article's front matter `listen.audio` names.
+ */
+export type AudioReference = {
+    /**
+     * repository-relative path of the article whose front matter names the file
+     */
+    document: string;
+    /**
+     * `listen.audio` as written
+     */
+    source: string;
+};
+/**
+ * One audio file as the build input lists it (`listen.audio`).
+ */
+export type AudioFile = {
+    /**
+     * repository-relative path
+     */
+    sourcePath: string;
+    /**
+     * the format, from the file's bytes
+     */
+    mediaType: "audio/mpeg" | "audio/mp4";
+    /**
+     * the file's size in bytes
+     */
+    bytes: number;
+    /**
+     * `sha256:` plus 64 lowercase hexadecimal characters
+     */
+    sha256: string;
+};
 export type Finding = import("../types.js").PublishActionFinding;
 export type Problem = {
     reason: string;
@@ -184,4 +286,14 @@ export type MediaLimits = {
      * largest image a document's `media[]` may list, in bytes
      */
     maxBodyImageBytes: number;
+};
+export type AudioLimits = {
+    /**
+     * largest admitted audio file, in bytes
+     */
+    maxFileBytes: number;
+    /**
+     * most bytes all the audio files one publication refers to may add up to
+     */
+    maxTotalBytes: number;
 };

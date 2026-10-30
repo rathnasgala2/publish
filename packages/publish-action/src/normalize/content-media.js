@@ -52,6 +52,22 @@
  * ceilings (dimensions, pixels) when it reads the file. Tests keep these
  * numbers equal to the template's and to the installed schema's.
  *
+ * **Listen audio** (schemas 3.26.0). An article's front matter `listen.audio`
+ * names one MP3 or M4A file, and {@link resolveListenAudio} checks it the way
+ * an image is checked: a path from the repository root (used exactly as
+ * written), under an `assetRoots` entry, a regular file whose real location is
+ * still inside that root, never a symbolic link. The bytes decide the format:
+ * `ID3` at offset 0 or an MPEG audio frame sync (`0xFFE`, the eleven set bits
+ * that open every frame header) in the first two bytes is MP3
+ * (`audio/mpeg`), and an `ftyp` box at offset 4 is M4A (`audio/mp4`). The file
+ * name has to agree with the bytes (`.mp3` for MP3, `.m4a` for M4A). Audio has
+ * ceilings of its own, counted apart from the images: 25 MiB for one file and
+ * 512 MiB for the whole publication ({@link LISTEN_AUDIO_LIMITS}). A failure
+ * uses the image findings' codes, `MEDIA_REFERENCE_UNRESOLVED` and
+ * `MEDIA_LIMIT_EXCEEDED`, and names the front matter member in
+ * `evidence.pointer` (`/listen/audio`). A file that two posts name is
+ * inspected and digested once.
+ *
  * @module
  */
 
@@ -88,6 +104,37 @@ export const MEDIA_LIMITS = Object.freeze({
   maxBodyImageBytes: 5_242_880,
 });
 
+/**
+ * @typedef {object} AudioLimits
+ * @property {number} maxFileBytes largest admitted audio file, in bytes
+ * @property {number} maxTotalBytes most bytes all the audio files one publication refers to may add up to
+ */
+
+/**
+ * Audio ceilings: one file at most 25 MiB and one publication at most 512 MiB
+ * of audio. They are counted apart from the images, so audio never uses up the
+ * image budget or the other way round.
+ *
+ * @type {Readonly<AudioLimits>}
+ */
+export const LISTEN_AUDIO_LIMITS = Object.freeze({
+  maxFileBytes: 26_214_400,
+  maxTotalBytes: 536_870_912,
+});
+
+/** The JSON pointer, into an article's front matter, of its audio reference. */
+export const LISTEN_AUDIO_POINTER = '/listen/audio';
+
+/**
+ * The audio file name endings, each with the media type its bytes must show.
+ *
+ * @type {readonly (readonly [string, AudioFile['mediaType']])[]}
+ */
+const AUDIO_ENDINGS = Object.freeze([
+  ['.mp3', 'audio/mpeg'],
+  ['.m4a', 'audio/mp4'],
+]);
+
 /** Most findings one intake failure reports; the rest are counted, not listed. */
 export const MAX_MEDIA_FINDINGS = 50;
 
@@ -121,6 +168,24 @@ const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/u;
  * @property {string} sourceDigest `sha256:` plus 64 lowercase hexadecimal characters
  * @property {'image/png' | 'image/jpeg' | 'image/webp' | 'image/avif' | 'image/gif'} mediaType the format, from the file's bytes
  * @property {number} byteLength the file's size in bytes
+ */
+
+/**
+ * What an article's front matter `listen.audio` names.
+ *
+ * @typedef {object} AudioReference
+ * @property {string} document repository-relative path of the article whose front matter names the file
+ * @property {string} source `listen.audio` as written
+ */
+
+/**
+ * One audio file as the build input lists it (`listen.audio`).
+ *
+ * @typedef {object} AudioFile
+ * @property {string} sourcePath repository-relative path
+ * @property {'audio/mpeg' | 'audio/mp4'} mediaType the format, from the file's bytes
+ * @property {number} bytes the file's size in bytes
+ * @property {string} sha256 `sha256:` plus 64 lowercase hexadecimal characters
  */
 
 /**
@@ -253,33 +318,33 @@ export function resolveImageSource(source) {
 }
 
 /**
- * Why a hero path cannot be used as written, or `null` when it can. The
- * schema's `repoRelativePath` (NFC, at most 512 UTF-8 bytes, no leading
- * slash, no backslash, no NUL, no dot segment) plus what makes the string
- * safe to hand on verbatim: no scheme, no query or fragment, no `%` escape, no
- * control character, no empty segment.
+ * Why a path that is used exactly as written cannot be used, or `null` when
+ * it can. The schema's `repoRelativePath` (NFC, at most 512 UTF-8 bytes, no
+ * leading slash, no backslash, no NUL, no dot segment) plus what makes the
+ * string safe to hand on verbatim: no scheme, no query or fragment, no `%`
+ * escape, no control character, no empty segment.
  *
- * @param {string} value the front matter `hero.path`
+ * @param {string} value the path as written in the front matter
+ * @param {{subject: string, label: string, example: string}} wording what the
+ *   path has to name ("an image"), what to call it ("a hero path") and a
+ *   well-formed example path, for the messages
  * @returns {Problem | null} the problem, or `null` when it is well formed
  */
-export function heroPathProblem(value) {
+function repositoryPathProblem(value, wording) {
   if (SCHEME_PREFIX.test(value) || value.startsWith('//')) {
     return {
       reason: 'EXTERNAL_ADDRESS',
-      explanation:
-        'is an external address; an image must be a file in this repository',
+      explanation: `is an external address; ${wording.subject} must be a file in this repository`,
     };
   }
   /** @type {string | null} */
   let explanation = null;
   if (value.startsWith('/')) {
-    explanation =
-      'starts with "/"; write the path from the repository root, for example assets/hero.jpg';
+    explanation = `starts with "/"; write the path from the repository root, for example ${wording.example}`;
   } else if (/[?#]/u.test(value)) {
     explanation = 'contains a query or fragment ("?" or "#")';
   } else if (value.includes('%')) {
-    explanation =
-      'contains "%"; a hero path is used exactly as written, so rename the file to a name without it';
+    explanation = `contains "%"; ${wording.label} is used exactly as written, so rename the file to a name without it`;
   } else if (value.includes('\\') || CONTROL_CHARACTER.test(value)) {
     explanation = 'contains a backslash or a control character';
   } else if (
@@ -297,6 +362,40 @@ export function heroPathProblem(value) {
   return explanation === null
     ? null
     : { reason: 'NOT_A_REPOSITORY_PATH', explanation };
+}
+
+/**
+ * Why a hero path cannot be used as written, or `null` when it can. The
+ * schema's `repoRelativePath` (NFC, at most 512 UTF-8 bytes, no leading
+ * slash, no backslash, no NUL, no dot segment) plus what makes the string
+ * safe to hand on verbatim: no scheme, no query or fragment, no `%` escape, no
+ * control character, no empty segment.
+ *
+ * @param {string} value the front matter `hero.path`
+ * @returns {Problem | null} the problem, or `null` when it is well formed
+ */
+export function heroPathProblem(value) {
+  return repositoryPathProblem(value, {
+    subject: 'an image',
+    label: 'a hero path',
+    example: 'assets/hero.jpg',
+  });
+}
+
+/**
+ * Why a front matter `listen.audio` path cannot be used as written, or `null`
+ * when it can. The rules are the hero path's (`heroPathProblem`), worded for an
+ * audio file.
+ *
+ * @param {string} value the front matter `listen.audio`
+ * @returns {Problem | null} the problem, or `null` when it is well formed
+ */
+export function audioPathProblem(value) {
+  return repositoryPathProblem(value, {
+    subject: 'an audio file',
+    label: 'an audio path',
+    example: 'assets/listen/episode.mp3',
+  });
 }
 
 /**
@@ -351,6 +450,46 @@ export function sniffImageMediaType(head) {
     return 'image/gif';
   }
   return null;
+}
+
+/**
+ * Recognize an MP3 or M4A file from its first bytes (never from the file
+ * name). MP3 is either an ID3v2 tag (`ID3` at offset 0) or, for a file with no
+ * tag, an MPEG audio frame sync in the first two bytes: `0xFF` and then three
+ * set bits (`0xFFE` is the sync word as the top eleven bits of the four-byte
+ * frame header, so MPEG-1, MPEG-2 and MPEG-2.5 frames all qualify). M4A is an
+ * ISO base media file, which opens with an `ftyp` box at offset 4.
+ *
+ * @param {Buffer} head the first bytes of the file
+ * @returns {AudioFile['mediaType'] | null} the media type, or `null` for
+ *   anything else
+ */
+export function sniffAudioMediaType(head) {
+  if (head.length >= 3 && head.subarray(0, 3).toString('latin1') === 'ID3') {
+    return 'audio/mpeg';
+  }
+  // The second byte is absent from a one-byte head, and then it is no sync.
+  if (head[0] === 0xff && ((head[1] ?? 0) & 0xe0) === 0xe0) {
+    return 'audio/mpeg';
+  }
+  if (head.length >= 8 && head.subarray(4, 8).toString('latin1') === 'ftyp') {
+    return 'audio/mp4';
+  }
+  return null;
+}
+
+/**
+ * The audio format a file name promises: `.mp3` is MP3 and `.m4a` is M4A, in
+ * lower case exactly as the schemas' `listen.audio` pattern writes them.
+ *
+ * @param {string} relativePath a repository-relative path
+ * @returns {AudioFile['mediaType'] | null} the media type, or `null` when the
+ *   name ends in neither
+ */
+function audioMediaTypeOfName(relativePath) {
+  return (
+    AUDIO_ENDINGS.find(([ending]) => relativePath.endsWith(ending))?.[1] ?? null
+  );
 }
 
 /**
@@ -485,7 +624,10 @@ function unresolvedFinding(reference, resolved, problem, roots) {
 }
 
 /**
- * Check one distinct path against the file system.
+ * Check one distinct path against the file system, up to the file's first
+ * bytes: it has to exist, be a regular file (a symbolic link is never
+ * followed) and, by its real location, sit inside an asset root that is itself
+ * inside the repository.
  *
  * @param {string} repositoryDirectory absolute repository root
  * @param {string} relativePath a well-formed repository-relative path under at
@@ -493,10 +635,10 @@ function unresolvedFinding(reference, resolved, problem, roots) {
  * @param {readonly string[]} roots normalized asset roots
  * @param {{real: Map<string, string | null>, repository: string}} realPaths
  *   memo of real root paths, and the real repository path
- * @returns {Promise<{size: number, mediaType: MediaFile['mediaType']} | Problem>}
- *   the file's size and format, or why it cannot be used
+ * @returns {Promise<{size: number, head: Buffer} | Problem>} the file's size
+ *   and first bytes, or why it cannot be used
  */
-async function inspectAsset(
+async function readAssetHead(
   repositoryDirectory,
   relativePath,
   roots,
@@ -573,7 +715,37 @@ async function inspectAsset(
   } finally {
     await handle.close();
   }
-  const mediaType = sniffImageMediaType(head);
+  return { size: stats.size, head };
+}
+
+/**
+ * Check one distinct image path against the file system.
+ *
+ * @param {string} repositoryDirectory absolute repository root
+ * @param {string} relativePath a well-formed repository-relative path under at
+ *   least one asset root
+ * @param {readonly string[]} roots normalized asset roots
+ * @param {{real: Map<string, string | null>, repository: string}} realPaths
+ *   memo of real root paths, and the real repository path
+ * @returns {Promise<{size: number, mediaType: MediaFile['mediaType']} | Problem>}
+ *   the file's size and format, or why it cannot be used
+ */
+async function inspectAsset(
+  repositoryDirectory,
+  relativePath,
+  roots,
+  realPaths,
+) {
+  const read = await readAssetHead(
+    repositoryDirectory,
+    relativePath,
+    roots,
+    realPaths,
+  );
+  if ('reason' in read) {
+    return read;
+  }
+  const mediaType = sniffImageMediaType(read.head);
   if (mediaType === 'svg') {
     return {
       reason: 'UNSUPPORTED_FORMAT',
@@ -584,12 +756,57 @@ async function inspectAsset(
     return {
       reason: 'UNSUPPORTED_FORMAT',
       explanation:
-        stats.size === 0
+        read.size === 0
           ? 'is empty'
           : 'is not a PNG, JPEG, WebP, AVIF or GIF image',
     };
   }
-  return { size: stats.size, mediaType };
+  return { size: read.size, mediaType };
+}
+
+/**
+ * Check one distinct audio path against the file system: the checks of an
+ * image, then the bytes have to be MP3 or M4A and the file name has to say so.
+ *
+ * @param {string} repositoryDirectory absolute repository root
+ * @param {string} relativePath a well-formed repository-relative path under at
+ *   least one asset root and ending in `.mp3` or `.m4a`
+ * @param {readonly string[]} roots normalized asset roots
+ * @param {{real: Map<string, string | null>, repository: string}} realPaths
+ *   memo of real root paths, and the real repository path
+ * @returns {Promise<{size: number, mediaType: AudioFile['mediaType']} | Problem>}
+ *   the file's size and format, or why it cannot be used
+ */
+async function inspectAudioAsset(
+  repositoryDirectory,
+  relativePath,
+  roots,
+  realPaths,
+) {
+  const read = await readAssetHead(
+    repositoryDirectory,
+    relativePath,
+    roots,
+    realPaths,
+  );
+  if ('reason' in read) {
+    return read;
+  }
+  const mediaType = sniffAudioMediaType(read.head);
+  if (mediaType === null) {
+    return {
+      reason: 'UNSUPPORTED_FORMAT',
+      explanation:
+        read.size === 0 ? 'is empty' : 'is not an MP3 or M4A audio file',
+    };
+  }
+  if (audioMediaTypeOfName(relativePath) !== mediaType) {
+    return {
+      reason: 'EXTENSION_MISMATCH',
+      explanation: `ends in "${relativePath.slice(-4)}" but holds ${mediaType === 'audio/mpeg' ? 'MP3 audio, which has to end in .mp3' : 'M4A audio, which has to end in .m4a'}`,
+    };
+  }
+  return { size: read.size, mediaType };
 }
 
 /**
@@ -979,4 +1196,228 @@ export async function resolveMediaReferences({
     entries.sort((left, right) => compareUtf8(left.path, right.path));
   }
   return { files, documents, findings: [] };
+}
+
+/**
+ * Where an audio reference points, judged without touching the file system.
+ * The path is used exactly as written.
+ *
+ * @param {AudioReference} reference the reference
+ * @param {readonly string[]} roots normalized asset roots
+ * @returns {{path: string} | {problem: Problem}} the repository path it names,
+ *   or the problem
+ */
+function locateAudio(reference, roots) {
+  const { source } = reference;
+  const malformed = audioPathProblem(source);
+  if (malformed !== null) {
+    return { problem: malformed };
+  }
+  const located = underAssetRoot(source, roots);
+  if ('problem' in located) {
+    return { problem: located.problem };
+  }
+  if (audioMediaTypeOfName(source) === null) {
+    return {
+      problem: {
+        reason: 'UNSUPPORTED_FORMAT',
+        explanation: 'does not end in .mp3 or .m4a',
+      },
+    };
+  }
+  return { path: source };
+}
+
+/**
+ * The finding for an audio reference that cannot be used.
+ *
+ * @param {AudioReference} reference the reference
+ * @param {Problem} problem what is wrong
+ * @param {readonly string[]} roots normalized asset roots
+ * @returns {Finding} the finding
+ */
+function audioUnresolvedFinding(reference, problem, roots) {
+  const recovery =
+    problem.reason === 'OUTSIDE_ASSET_ROOTS'
+      ? `Move the file under a declared asset root (${describeRoots(roots)}), or add its folder to "assetRoots" in gala/repository.json.`
+      : problem.reason === 'UNSUPPORTED_FORMAT'
+        ? 'Use an MP3 file (.mp3) or an M4A file (.m4a).'
+        : problem.reason === 'EXTENSION_MISMATCH'
+          ? "Rename the file, and the post's listen.audio, to the ending that matches its contents (.mp3 for MP3, .m4a for M4A), or export the audio again in the format its name claims."
+          : 'Add the audio as a file under an asset root declared in gala/repository.json (for example "assets/listen/"), refer to it by its path from the repository root in listen.audio, or remove the listen member from the post.';
+  return mediaFinding(
+    'MEDIA_REFERENCE_UNRESOLVED',
+    `${reference.document}: the listen audio "${reference.source}" ${problem.explanation}.`,
+    reference.document,
+    {
+      document: reference.document,
+      path: reference.source,
+      origin: 'listen',
+      pointer: LISTEN_AUDIO_POINTER,
+      reason: problem.reason,
+    },
+    recovery,
+  );
+}
+
+/**
+ * @param {number} bytes a limit in bytes
+ * @returns {string} the limit for a message: the bytes, and the MiB when whole
+ */
+function describeBytes(bytes) {
+  return bytes % 1_048_576 === 0
+    ? `${bytes} bytes (${bytes / 1_048_576} MiB)`
+    : `${bytes} bytes`;
+}
+
+/**
+ * The limits that need only audio file sizes.
+ *
+ * @param {ReadonlyMap<string, {size: number}>} inspected the size of each distinct file, by path
+ * @param {ReadonlyMap<string, {order: number, reference: AudioReference}[]>} byPath who refers to each file
+ * @param {Readonly<AudioLimits>} limits the ceilings
+ * @returns {Finding[]} the findings, empty when every limit holds
+ */
+function audioLimitFindings(inspected, byPath, limits) {
+  /** @type {Finding[]} */
+  const exceeded = [];
+  let total = 0;
+  for (const [relativePath, { size }] of inspected) {
+    total += size;
+    if (size > limits.maxFileBytes) {
+      const document = /** @type {string} */ (
+        byPath.get(relativePath)?.[0]?.reference.document
+      );
+      exceeded.push(
+        mediaFinding(
+          'MEDIA_LIMIT_EXCEEDED',
+          `${document}: the audio file "${relativePath}" is ${size} bytes; an audio file may be at most ${describeBytes(limits.maxFileBytes)}.`,
+          document,
+          {
+            limit: 'AUDIO_BYTES',
+            document,
+            path: relativePath,
+            bytes: size,
+            max: limits.maxFileBytes,
+            pointer: LISTEN_AUDIO_POINTER,
+          },
+          'Encode the audio at a lower bitrate or trim it, or replace it with a smaller file.',
+        ),
+      );
+    }
+  }
+  if (total > limits.maxTotalBytes) {
+    exceeded.push(
+      mediaFinding(
+        'MEDIA_LIMIT_EXCEEDED',
+        `The ${inspected.size} audio files this publication refers to add up to ${total} bytes; together they may be at most ${describeBytes(limits.maxTotalBytes)}.`,
+        undefined,
+        {
+          limit: 'AUDIO_TOTAL_BYTES',
+          bytes: total,
+          max: limits.maxTotalBytes,
+          pointer: LISTEN_AUDIO_POINTER,
+        },
+        'Encode the episodes at a lower bitrate, or remove the listen member from posts whose audio you no longer need.',
+      ),
+    );
+  }
+  return exceeded;
+}
+
+/**
+ * Check the audio file every article's `listen.audio` names and digest it.
+ *
+ * On success `files` has each distinct file once (a file that two posts name
+ * is inspected and digested once), ordered by the UTF-8 bytes of its path. On
+ * failure only `findings` is non-empty: every unusable reference is reported
+ * together, in the order the documents were read, and the limits are only
+ * judged when every reference is usable. The bytes stay on disk for the
+ * template; `bytes` and `sha256` describe the file as intake read it.
+ *
+ * @param {object} options the inputs
+ * @param {string} options.repositoryDirectory absolute repository root
+ * @param {readonly {path: string}[] | undefined} options.assetRoots the
+ *   `assetRoots` of `gala/repository.json`
+ * @param {readonly AudioReference[]} options.references every audio reference
+ *   from the documents that are part of the build
+ * @param {Readonly<AudioLimits>} [options.limits] the ceilings (injectable for tests)
+ * @returns {Promise<{files: Map<string, AudioFile>, findings: Finding[]}>} the
+ *   inventory, or the findings that make the build fail
+ */
+export async function resolveListenAudio({
+  repositoryDirectory,
+  assetRoots,
+  references,
+  limits = LISTEN_AUDIO_LIMITS,
+}) {
+  const roots = normalizeAssetRoots(assetRoots);
+  /** @type {OrderedFinding[]} */
+  const problems = [];
+  /** @type {Map<string, {order: number, reference: AudioReference}[]>} */
+  const byPath = new Map();
+  references.forEach((reference, order) => {
+    const located = locateAudio(reference, roots);
+    if ('problem' in located) {
+      problems.push({
+        order,
+        finding: audioUnresolvedFinding(reference, located.problem, roots),
+      });
+      return;
+    }
+    const known = byPath.get(located.path);
+    if (known === undefined) {
+      byPath.set(located.path, [{ order, reference }]);
+    } else {
+      known.push({ order, reference });
+    }
+  });
+  /** @type {Map<string, AudioFile>} */
+  const files = new Map();
+
+  const realPaths = {
+    real: /** @type {Map<string, string | null>} */ (new Map()),
+    repository: await realpath(repositoryDirectory),
+  };
+  /** @type {Map<string, {size: number, mediaType: AudioFile['mediaType']}>} */
+  const inspected = new Map();
+  for (const relativePath of [...byPath.keys()].sort(compareUtf8)) {
+    const result = await inspectAudioAsset(
+      repositoryDirectory,
+      relativePath,
+      roots,
+      realPaths,
+    );
+    if ('size' in result) {
+      inspected.set(relativePath, result);
+      continue;
+    }
+    for (const { order, reference } of byPath.get(relativePath) ?? []) {
+      problems.push({
+        order,
+        finding: audioUnresolvedFinding(reference, result, roots),
+      });
+    }
+  }
+  if (problems.length > 0) {
+    return { files, findings: inReadingOrder(problems) };
+  }
+
+  const exceeded = audioLimitFindings(inspected, byPath, limits);
+  if (exceeded.length > 0) {
+    return { files, findings: capFindings(exceeded) };
+  }
+
+  for (const [relativePath, { mediaType }] of inspected) {
+    const bytes = await readFile(
+      path.join(repositoryDirectory, ...relativePath.split('/')),
+    );
+    files.set(relativePath, {
+      sourcePath: relativePath,
+      mediaType,
+      bytes: bytes.byteLength,
+      sha256: `sha256:${createHash('sha256').update(bytes).digest('hex')}`,
+    });
+  }
+  return { files, findings: [] };
 }

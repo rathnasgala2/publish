@@ -320,6 +320,54 @@ is refused: `CONTACT_INTRO_MISSING` (a dangling link or a non-regular entry),
 `evidence.maxBytes`) and `CONTACT_INTRO_IMAGE_UNSUPPORTED` (an `<img>` in the
 rendered body). Intake requires `@rathnasgala2/schemas` 3.22.0 or later.
 
+## Listen audio
+
+Schemas 3.26.0 adds the "Listen" feature (an audio version of a post). Intake
+carries two members into the build input:
+
+- `publication.json` `listen` (`{"enabled": boolean}`; absent means off) becomes
+  `build-input.publication.listen`, **always present**: `{"enabled": false}`
+  when the member is absent.
+- An article's front matter `listen` (`{audio, durationSeconds, format}`, all
+  three required) becomes `content[].frontmatter.listen`. `audio` is a
+  repository path ending in `.mp3` or `.m4a`; `durationSeconds` (1 to 10800) and
+  `format` (`conversation`, `narration`, `debate` or `skit`) are copied as
+  written. In the build input `audio` is the checked file,
+  `{sourcePath, mediaType, bytes, sha256}`: `mediaType` is `audio/mpeg` or
+  `audio/mp4`, `bytes` the size and `sha256` the digest (`sha256:` and 64 hex
+  digits) of the file. A post without the member has no `listen`.
+
+The audio file is checked like an image (see "Content images"): a path from the
+repository root used exactly as written, under an `assetRoots` entry, a regular
+file whose real location is still inside that root, never a symbolic link. The
+bytes decide the format, never the name: `ID3` at offset 0, or an MPEG audio
+frame sync (`0xFFE`: `0xFF` and then three set bits) in the first two bytes, is
+MP3 (`audio/mpeg`); an `ftyp` box at offset 4 is M4A (`audio/mp4`). The name
+must agree (`.mp3` for MP3, `.m4a` for M4A, in lower case as the schema writes
+them). The bytes stay on disk for the template; `bytes` and `sha256` describe
+the file as intake read it. A file that two posts name is checked and digested
+once. Only documents that are part of the build are looked at.
+
+Audio has limits of its own, counted apart from the images: 25 MiB for one file
+and 512 MiB of audio for the whole publication (each distinct file counted
+once). A problem is a finding with the image codes and `evidence.origin`
+`listen` and `evidence.pointer` `/listen/audio`, reported together with any
+image problem:
+
+- `MEDIA_REFERENCE_UNRESOLVED`, with `evidence.reason` one of
+  `NOT_A_REPOSITORY_PATH`, `EXTERNAL_ADDRESS`, `OUTSIDE_ASSET_ROOTS`,
+  `FILE_MISSING`, `NOT_A_REGULAR_FILE`, `UNSUPPORTED_FORMAT` (an empty file,
+  bytes that are neither MP3 nor M4A, or a name that ends in neither `.mp3` nor
+  `.m4a`) or `EXTENSION_MISMATCH` (an `.mp3` that holds M4A, or the other way
+  round).
+- `MEDIA_LIMIT_EXCEEDED`, with `evidence.limit` `AUDIO_BYTES` (one file over 25
+  MiB) or `AUDIO_TOTAL_BYTES` (more than 512 MiB together). Judged only when
+  every reference is usable.
+
+Intake requires `@rathnasgala2/schemas` 3.26.0 or later; the Listen markup and
+script come from template 4.8.0. `packages/adapter-do-spaces` serves `.mp3` and
+`.m4a` objects as `audio/mpeg` and `audio/mp4` from its next release.
+
 ## Appearance attribution
 
 `gala/appearance.json`'s optional `attribution` (`{"showMadeWith": boolean}`; an

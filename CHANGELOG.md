@@ -10,6 +10,18 @@ and this project adheres to
 
 ### Added
 
+- Listen, intake: `publication.json`'s `listen` (`{enabled}`) reaches the build
+  input as `publication.listen`, always present (`{enabled: false}` when the
+  member is absent), and an article's front matter `listen`
+  (`{audio, durationSeconds, format}`) reaches its content record as
+  `frontmatter.listen`, with `audio` replaced by the checked file
+  `{sourcePath, mediaType, bytes, sha256}`. The file is an `.mp3` or `.m4a`
+  under an `assetRoots` entry, recognized by its bytes (MP3: `ID3` or an MPEG
+  frame sync; M4A: an `ftyp` box), at most 25 MiB a file and 512 MiB a
+  publication, counted apart from the images; a problem reuses
+  `MEDIA_REFERENCE_UNRESOLVED` or `MEDIA_LIMIT_EXCEEDED` with `evidence.pointer`
+  `/listen/audio`. Needs schemas 3.26.0; see
+  `packages/publish-action/README.md`, "Listen audio".
 - Intake carries `publication.json`'s `listing`, `aiRights` and `performance`
   and a post's `deleteDate` into the build input, so template 4.7.0 sees them;
   see `packages/publish-action/README.md`, "Listing, AI rights, performance and

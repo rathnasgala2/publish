@@ -47,6 +47,7 @@ import {
 } from '../src/normalize/source-revision.js';
 import { SchemaValidationError } from '../src/schema.js';
 import { currentRenderPolicyIdentity } from '../src/template-bridge.js';
+import { audioBytes } from './audio-bytes.js';
 import { imageBytes } from './image-bytes.js';
 
 const FIXTURE_REPOSITORY = path.resolve(
@@ -3423,6 +3424,485 @@ test('every audience member together builds a schema-valid input', async () => {
     assert.equal(buildInput.publication.newsletter.mode, 'galascribe');
     assert.equal(buildInput.publication.contactForm.enabled, true);
     assert.equal(buildInput.modules.interactions.config.follows.enabled, true);
+  } finally {
+    await cleanup();
+  }
+});
+
+// --- Listen (schemas 3.26.0) -------------------------------------------------
+
+let listenPostCount = 0;
+
+/**
+ * Add an article whose front matter offers audio.
+ *
+ * @param {string} dir the mutable repository copy
+ * @param {string} slug the post's slug and file name
+ * @param {unknown} listen the front matter `listen` member
+ * @param {Record<string, unknown>} [fields] more front matter overrides
+ * @returns {Promise<void>} resolves once written
+ */
+async function addListenPost(dir, slug, listen, fields = {}) {
+  listenPostCount += 1;
+  await addDocument(
+    dir,
+    `${slug}.md`,
+    {
+      id: `01912345-6789-7abc-89ab-01234567${listenPostCount.toString(16).padStart(4, '0')}`,
+      title: `Post ${slug}`,
+      slug,
+      listen,
+      ...fields,
+    },
+    'Body\n',
+  );
+}
+
+const VALID_LISTEN = Object.freeze({
+  audio: 'assets/listen/episode.mp3',
+  durationSeconds: 424,
+  format: 'conversation',
+});
+
+test('a repository without a listen setting builds publication.listen as disabled, and no post has listen', async () => {
+  const buildInput = /** @type {any} */ (
+    await buildBuildInputFromRepository({
+      repositoryDirectory: FIXTURE_REPOSITORY,
+      env: {},
+    })
+  );
+  assert.deepEqual(buildInput.publication.listen, { enabled: false });
+  assert.equal(buildInput.content.length, 2);
+  for (const record of buildInput.content) {
+    assert.equal('listen' in record.frontmatter, false, record.sourcePath);
+  }
+});
+
+test('publication.listen reaches the build input as {enabled}, and a disabled one stays present', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const on = await buildWithPublication(dir, { listen: { enabled: true } });
+    assert.deepEqual(on.publication.listen, { enabled: true });
+    const off = await buildWithPublication(dir, { listen: { enabled: false } });
+    assert.deepEqual(off.publication.listen, { enabled: false });
+    // The setting is the publication's alone: it adds nothing to a post.
+    for (const record of on.content) {
+      assert.equal('listen' in record.frontmatter, false, record.sourcePath);
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+test("an article's listen reaches its front matter in the build input, with the audio file described by its bytes", async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    /** @type {[string, string, Buffer, string, number, string][]} */
+    const episodes = [
+      [
+        'tagged',
+        'assets/listen/tagged.mp3',
+        audioBytes('mp3-id3', 'tagged'),
+        'audio/mpeg',
+        424,
+        'conversation',
+      ],
+      [
+        'untagged',
+        'assets/listen/untagged.mp3',
+        audioBytes('mp3-sync', 'untagged'),
+        'audio/mpeg',
+        1,
+        'narration',
+      ],
+      [
+        'talk',
+        'assets/listen/talk.m4a',
+        audioBytes('m4a', 'talk'),
+        'audio/mp4',
+        10800,
+        'debate',
+      ],
+      [
+        'sketch',
+        'assets/listen/sketch.m4a',
+        audioBytes('m4a', 'sketch'),
+        'audio/mp4',
+        95,
+        'skit',
+      ],
+    ];
+    for (const [slug, audio, bytes, , durationSeconds, format] of episodes) {
+      await addFile(dir, audio, bytes);
+      await addListenPost(dir, slug, { audio, durationSeconds, format });
+    }
+    const { buildInput } = await buildWithWarnings(dir);
+    for (const [
+      slug,
+      audio,
+      bytes,
+      mediaType,
+      durationSeconds,
+      format,
+    ] of episodes) {
+      const record = recordOf(buildInput, `content/${slug}.md`);
+      assert.deepEqual(
+        record.frontmatter.listen,
+        {
+          audio: {
+            sourcePath: audio,
+            mediaType,
+            bytes: bytes.byteLength,
+            sha256: digestOf(bytes),
+          },
+          durationSeconds,
+          format,
+        },
+        slug,
+      );
+      // The audio is not a body image: the document has no media[].
+      assert.equal('media' in record, false, slug);
+    }
+    assert.equal(
+      'listen' in recordOf(buildInput, 'content/hello-world.md').frontmatter,
+      false,
+    );
+    assert.equal(
+      'listen' in recordOf(buildInput, 'gala/theme-pages/about.md').frontmatter,
+      false,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('two posts that name the same audio file both carry it, described once', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    const bytes = audioBytes('mp3-id3', 'shared');
+    await addFile(dir, VALID_LISTEN.audio, bytes);
+    await addListenPost(dir, 'first', VALID_LISTEN);
+    await addListenPost(dir, 'second', { ...VALID_LISTEN, format: 'skit' });
+    const { buildInput } = await buildWithWarnings(dir);
+    const first = recordOf(buildInput, 'content/first.md').frontmatter.listen;
+    const second = recordOf(buildInput, 'content/second.md').frontmatter.listen;
+    assert.deepEqual(first.audio, {
+      sourcePath: VALID_LISTEN.audio,
+      mediaType: 'audio/mpeg',
+      bytes: bytes.byteLength,
+      sha256: digestOf(bytes),
+    });
+    assert.deepEqual(second.audio, first.audio);
+    assert.equal(second.format, 'skit');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('an audio file that cannot be used fails the build with MEDIA_REFERENCE_UNRESOLVED, the post and /listen/audio', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    const m4a = audioBytes('m4a', 'x');
+    const mp3 = audioBytes('mp3-id3', 'y');
+    await addFile(dir, 'assets/listen/m4a-named-mp3.mp3', m4a);
+    await addFile(dir, 'assets/listen/mp3-named-m4a.m4a', mp3);
+    await addFile(dir, 'assets/listen/notes.mp3', 'not audio');
+    await addFile(dir, 'stray/outside.mp3', mp3);
+    /** @type {[string, string, RegExp][]} */
+    const cases = [
+      [
+        'assets/listen/m4a-named-mp3.mp3',
+        'EXTENSION_MISMATCH',
+        /ends in "\.mp3" but holds M4A audio/u,
+      ],
+      [
+        'assets/listen/mp3-named-m4a.m4a',
+        'EXTENSION_MISMATCH',
+        /ends in "\.m4a" but holds MP3 audio/u,
+      ],
+      [
+        'stray/outside.mp3',
+        'OUTSIDE_ASSET_ROOTS',
+        /is not under an asset root declared in gala\/repository\.json \("assets\/"\)/u,
+      ],
+      [
+        'assets/listen/missing.mp3',
+        'FILE_MISSING',
+        /does not exist in the repository/u,
+      ],
+      [
+        'assets/listen/notes.mp3',
+        'UNSUPPORTED_FORMAT',
+        /is not an MP3 or M4A audio file/u,
+      ],
+    ];
+    for (const [audio, reason, detail] of cases) {
+      await addListenPost(dir, 'broken', { ...VALID_LISTEN, audio });
+      const findings = await intakeFindings(
+        buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      );
+      assert.equal(findings.length, 1, audio);
+      const [finding] = findings;
+      assert.equal(finding?.code, 'MEDIA_REFERENCE_UNRESOLVED', audio);
+      assert.equal(finding?.severity, 'SOURCE_ERROR');
+      assert.equal(finding?.location, 'content/broken.md');
+      assert.deepEqual(finding?.evidence, {
+        document: 'content/broken.md',
+        path: audio,
+        origin: 'listen',
+        pointer: '/listen/audio',
+        reason,
+      });
+      assert.match(
+        finding?.detail ?? '',
+        new RegExp(
+          `^content/broken\\.md: the listen audio "${audio.replace(/[.]/gu, '\\.')}" `,
+          'u',
+        ),
+      );
+      assert.match(finding?.detail ?? '', detail);
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+test('with no declared asset root the audio is refused, saying so', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addFile(dir, VALID_LISTEN.audio, audioBytes('mp3-id3'));
+    await addListenPost(dir, 'episode', VALID_LISTEN);
+    const [finding] = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+    );
+    assert.equal(finding?.code, 'MEDIA_REFERENCE_UNRESOLVED');
+    assert.equal(
+      /** @type {Record<string, unknown>} */ (finding?.evidence ?? {}).reason,
+      'OUTSIDE_ASSET_ROOTS',
+    );
+    assert.match(finding?.detail ?? '', /none are declared/u);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('an audio file over 25 MiB fails the build with MEDIA_LIMIT_EXCEEDED naming the post, the path and /listen/audio', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    // A sparse file: only the first bytes are real, and a file over the limit
+    // is never read.
+    await addFile(dir, 'assets/listen/huge.mp3', audioBytes('mp3-id3', ''));
+    await truncate(
+      path.join(dir, 'assets/listen/huge.mp3'),
+      25 * 1024 * 1024 + 1,
+    );
+    await addListenPost(dir, 'huge', {
+      ...VALID_LISTEN,
+      audio: 'assets/listen/huge.mp3',
+    });
+    const [finding] = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+    );
+    assert.equal(finding?.code, 'MEDIA_LIMIT_EXCEEDED');
+    assert.deepEqual(finding?.evidence, {
+      limit: 'AUDIO_BYTES',
+      document: 'content/huge.md',
+      path: 'assets/listen/huge.mp3',
+      bytes: 25 * 1024 * 1024 + 1,
+      max: 25 * 1024 * 1024,
+      pointer: '/listen/audio',
+    });
+    assert.equal(finding?.location, 'content/huge.md');
+    assert.match(finding?.detail ?? '', /at most 26214400 bytes \(25 MiB\)/u);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('image problems and audio problems are reported together in one failure', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await addDocument(
+      dir,
+      'both.md',
+      {
+        slug: 'both',
+        id: '01912345-6789-7abc-89ab-0123456789b1',
+        listen: { ...VALID_LISTEN, audio: 'assets/listen/gone.mp3' },
+      },
+      '![gone](assets/gone.png)\n',
+    );
+    await assert.rejects(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      (/** @type {RepositoryIntakeError} */ error) => {
+        assert.ok(error instanceof RepositoryIntakeError, String(error));
+        assert.match(
+          error.message,
+          /^2 problem\(s\) with images and audio referenced from content$/u,
+        );
+        assert.deepEqual(
+          error.findings.map(
+            (finding) =>
+              /** @type {Record<string, unknown>} */ (finding.evidence).origin,
+          ),
+          ['body', 'listen'],
+        );
+        return true;
+      },
+    );
+    // Audio alone is named alone.
+    await addDocument(
+      dir,
+      'both.md',
+      {
+        slug: 'both',
+        id: '01912345-6789-7abc-89ab-0123456789b1',
+        listen: { ...VALID_LISTEN, audio: 'assets/listen/gone.mp3' },
+      },
+      'Body\n',
+    );
+    await assert.rejects(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      /^RepositoryIntakeError: 1 problem\(s\) with audio referenced from content$/u,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test("a draft's audio is only looked at when drafts are part of the build", async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await addListenPost(
+      dir,
+      'later',
+      { ...VALID_LISTEN, audio: 'assets/listen/later.mp3' },
+      { status: 'draft', publishedAt: undefined },
+    );
+    // Publish mode leaves the draft out, so its missing audio is no problem.
+    const published = await buildWithWarnings(dir);
+    assert.equal(recordOf(published.buildInput, 'content/later.md'), undefined);
+    // A candidate render includes it as unlisted, and checks the audio.
+    await rejectsWithFindingCode(
+      buildBuildInputFromRepository({
+        repositoryDirectory: dir,
+        includeDraftsAsUnlisted: true,
+      }),
+      'MEDIA_REFERENCE_UNRESOLVED',
+    );
+    const bytes = audioBytes('mp3-sync', 'later');
+    await addFile(dir, 'assets/listen/later.mp3', bytes);
+    const candidate = await buildWithWarnings(dir, true);
+    const record = recordOf(candidate.buildInput, 'content/later.md');
+    assert.equal(record.frontmatter.status, 'unlisted');
+    assert.equal(record.frontmatter.listen.audio.sha256, digestOf(bytes));
+  } finally {
+    await cleanup();
+  }
+});
+
+const INVALID_PUBLICATION_LISTEN = [
+  ['an enabled that is not a boolean', { enabled: 'true' }],
+  ['a missing enabled member', {}],
+  ['an unknown member', { enabled: true, voices: 2 }],
+  ['a value that is not an object', true],
+];
+
+for (const [rule, listen] of INVALID_PUBLICATION_LISTEN) {
+  test(`publication.listen with ${rule} is a schema refusal naming publication.json`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await assertPublicationRefused(dir, { listen });
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+/**
+ * @param {string} omitted the member to leave out
+ * @returns {Record<string, unknown>} a valid `listen` without it
+ */
+function listenWithout(omitted) {
+  return Object.fromEntries(
+    Object.entries(VALID_LISTEN).filter(([member]) => member !== omitted),
+  );
+}
+
+/** @type {[string, unknown, Record<string, unknown>][]} */
+const INVALID_FRONTMATTER_LISTEN = [
+  ['a missing audio', listenWithout('audio'), {}],
+  ['a missing durationSeconds', listenWithout('durationSeconds'), {}],
+  ['a missing format', listenWithout('format'), {}],
+  ['a duration of 0', { ...VALID_LISTEN, durationSeconds: 0 }, {}],
+  [
+    'a duration over three hours',
+    { ...VALID_LISTEN, durationSeconds: 10801 },
+    {},
+  ],
+  ['a fractional duration', { ...VALID_LISTEN, durationSeconds: 1.5 }, {}],
+  ['a format that is not offered', { ...VALID_LISTEN, format: 'podcast' }, {}],
+  [
+    'audio that is not an .mp3 or .m4a path',
+    { ...VALID_LISTEN, audio: 'assets/listen/episode.wav' },
+    {},
+  ],
+  ['an unknown member', { ...VALID_LISTEN, voices: 2 }, {}],
+  ['a value that is not an object', VALID_LISTEN.audio, {}],
+  ['a post that is not an article', VALID_LISTEN, { kind: 'page' }],
+];
+
+for (const [rule, listen, fields] of INVALID_FRONTMATTER_LISTEN) {
+  test(`front matter listen with ${rule} is a schema refusal naming the post`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await declareAssetRoots(dir, ['assets']);
+      await addFile(dir, VALID_LISTEN.audio, audioBytes('mp3-id3'));
+      await addListenPost(dir, 'broken', listen, fields);
+      await assert.rejects(
+        buildBuildInputFromRepository({ repositoryDirectory: dir }),
+        (/** @type {SchemaValidationError} */ error) => {
+          assert.ok(error instanceof SchemaValidationError, String(error));
+          assert.equal(error.location, 'content/broken.md');
+          assert.equal(
+            error.schemaId,
+            'urn:gala:schema:content-frontmatter:2.0.0',
+          );
+          assert.ok(error.diagnostics.length > 0);
+          return true;
+        },
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+test('the listen setting and a post with audio together build a schema-valid input', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    const bytes = audioBytes('m4a', 'whole');
+    await addFile(dir, 'assets/listen/whole.m4a', bytes);
+    await addListenPost(dir, 'whole', {
+      ...VALID_LISTEN,
+      audio: 'assets/listen/whole.m4a',
+    });
+    const buildInput = await buildWithPublication(dir, {
+      listen: { enabled: true },
+    });
+    assert.deepEqual(buildInput.publication.listen, { enabled: true });
+    assert.equal(
+      recordOf(buildInput, 'content/whole.md').frontmatter.listen.audio
+        .mediaType,
+      'audio/mp4',
+    );
   } finally {
     await cleanup();
   }

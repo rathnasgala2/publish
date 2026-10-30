@@ -48,6 +48,24 @@ and this project adheres to
 
 ### Added
 
+- Repository intake carries Listen (schemas 3.26.0). `publication.json`'s
+  optional `listen` (`{enabled}`) becomes `build-input.publication.listen`,
+  always present (`{enabled: false}` when absent). An article's front matter
+  `listen` (`{audio, durationSeconds, format}`) becomes
+  `content[].frontmatter.listen`, with `audio` replaced by the checked file
+  `{sourcePath, mediaType, bytes, sha256}`; a post without it has no `listen`.
+  `resolveListenAudio` (in `content-media.js`) checks the file like an image (a
+  path from the repository root, under an `assetRoots` entry, a regular file,
+  never a symbolic link), sniffs MP3 (`ID3`, or an MPEG audio frame sync in the
+  first two bytes: `audio/mpeg`) or M4A (an `ftyp` box at offset 4:
+  `audio/mp4`), requires the name to agree (`.mp3` or `.m4a`), and holds the
+  audio to 25 MiB a file and 512 MiB a publication, counted apart from the
+  images. A file that two posts name is digested once. Problems reuse
+  `MEDIA_REFERENCE_UNRESOLVED` (reasons `FILE_MISSING`, `OUTSIDE_ASSET_ROOTS`,
+  `NOT_A_REGULAR_FILE`, `NOT_A_REPOSITORY_PATH`, `EXTERNAL_ADDRESS`,
+  `UNSUPPORTED_FORMAT`, `EXTENSION_MISMATCH`) and `MEDIA_LIMIT_EXCEEDED` (limits
+  `AUDIO_BYTES`, `AUDIO_TOTAL_BYTES`), each with `evidence.origin` `listen` and
+  `evidence.pointer` `/listen/audio`, reported together with any image problem.
 - Repository intake carries `publication.json`'s `listing`, `aiRights` and
   `performance` into `build-input.publication` and a post's front matter
   `deleteDate` into its content record (schemas 3.25.x, template 4.7.0). A
