@@ -48,18 +48,18 @@ export const THEME_CATALOG = Object.freeze([
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-amaze',
-    version: '4.2.0',
+    version: '4.2.1',
     integrity:
-      'sha256:bc6fe22c621645b4b5c750bc810f837e1a12af0a0f17344cdce00a79bf1a6dc5',
+      'sha256:cad8096c6b1fd0716185bea9179be03c2d7443de1612c63256e531f4632a4e24',
     registry: THEME_REGISTRY,
     contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-editorial',
-    version: '4.2.0',
+    version: '4.2.1',
     integrity:
-      'sha256:7120107def2c7d08bd32f9206cc17ca4734f85223c148dc75dd3ef5b03409419',
+      'sha256:6bf3b9c2f525268901ebf8b0432e1310c12bd1539d8d40fbacf6cddb5e1b3a4b',
     registry: THEME_REGISTRY,
     contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',

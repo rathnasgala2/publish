@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Changed
 
+- Serve template 4.9.0 with `theme-amaze` and `theme-editorial` 4.2.1 (exact
+  pins; the patched themes' `THEME_CATALOG` rows carry the 4.2.1 tarball SHA-256
+  values at contract 4.1.0). Schemas stay at 3.26.0.
 - Serve schemas 3.26.0 and template 4.8.0 (exact pins; adds the Listen setting,
   the per-article `listen` audio and the template that renders them).
 - Serve schemas 3.25.1 (exact pin of this package; adds the page-loss guard

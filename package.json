@@ -63,10 +63,10 @@
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "6.0.1",
     "@eslint/js": "10.0.1",
-    "@rathnasgala2/template": "4.8.0",
-    "@rathnasgala2/theme-amaze": "4.2.0",
+    "@rathnasgala2/template": "4.9.0",
+    "@rathnasgala2/theme-amaze": "4.2.1",
     "@rathnasgala2/theme-default": "4.2.0",
-    "@rathnasgala2/theme-editorial": "4.2.0",
+    "@rathnasgala2/theme-editorial": "4.2.1",
     "@rathnasgala2/theme-flashy": "4.2.0",
     "@rathnasgala2/theme-minimal": "4.2.0",
     "@rathnasgala2/theme-zebra": "4.2.0",
