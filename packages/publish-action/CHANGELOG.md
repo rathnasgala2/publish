@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Changed
 
+- Serve template 4.10.0 (render policy: markdown-it 14.3.3 and sanitize-html
+  2.18.1; the styling contract stays at 4.1.0 and no theme moves). Schemas stay
+  at 3.26.0.
 - Serve template 4.9.0 with `theme-amaze` and `theme-editorial` 4.2.1 (exact
   pins; the patched themes' `THEME_CATALOG` rows carry the 4.2.1 tarball SHA-256
   values at contract 4.1.0). Schemas stay at 3.26.0.
