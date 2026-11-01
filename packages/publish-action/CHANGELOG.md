@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Changed
 
+- Serve template 4.11.0 (a browser `./preview` entry point; code inside markdown
+  and markup fences highlights deterministically; published site bytes are
+  identical to 4.10.0 apart from the version string, the render-policy identity
+  is unchanged and no theme moves). Schemas stay at 3.26.0.
 - Serve template 4.10.0 (render policy: markdown-it 14.3.3 and sanitize-html
   2.18.1; the styling contract stays at 4.1.0 and no theme moves). Schemas stay
   at 3.26.0.
