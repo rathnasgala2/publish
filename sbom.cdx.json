@@ -368,8 +368,8 @@
       "type": "library",
       "name": "template",
       "group": "@rathnasgala2",
-      "version": "4.10.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.10.0",
+      "version": "4.11.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.11.0",
       "licenses": [
         {
           "license": {
@@ -378,15 +378,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/%40rathnasgala2/template@4.10.0",
+      "purl": "pkg:npm/%40rathnasgala2/template@4.11.0",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/@rathnasgala2/template/-/template-4.10.0.tgz",
+          "url": "https://registry.npmjs.org/@rathnasgala2/template/-/template-4.11.0.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "ce93ee9cd286bc2853b350a7cee4df7f81b7418a39130adfa4232381b97af347f12f3a49b0d2c6216c9c005bb77f652dfdc6f3c70bef6f8eead1864e19b4ffd1"
+              "content": "7d16151746e6c771e4826a5d7805d6d57ffebc14ea65a5428c23b3cbb5857fb111704b103eaa33aa5b409fadda610d012ab4b9c3abf944b5cb20406da18d10a8"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -2067,6 +2067,44 @@
               "value": "node_modules/markdown-it/node_modules/entities"
             }
           ]
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "prismjs",
+      "version": "1.30.0",
+      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|prismjs@1.30.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/prismjs@1.30.0",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/prismjs/-/prismjs-1.30.0.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "0c4bd5d99176af6ffadd5fad2bc850beb4766469f5d2cac76d7be24e572fecaa73c3c8d688d4ea6d58233b7218f11c6bace505f153cc410172b18618bf4619c7"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:development",
+          "value": "true"
+        },
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/prismjs"
         }
       ]
     },
@@ -5782,44 +5820,6 @@
         {
           "name": "cdx:npm:package:path",
           "value": "node_modules/js-yaml"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "name": "prismjs",
-      "version": "1.30.0",
-      "bom-ref": "@rathnasgala2/publish-workspace@0.0.0|prismjs@1.30.0",
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT",
-            "acknowledgement": "declared"
-          }
-        }
-      ],
-      "purl": "pkg:npm/prismjs@1.30.0",
-      "externalReferences": [
-        {
-          "url": "https://registry.npmjs.org/prismjs/-/prismjs-1.30.0.tgz",
-          "type": "distribution",
-          "hashes": [
-            {
-              "alg": "SHA-512",
-              "content": "0c4bd5d99176af6ffadd5fad2bc850beb4766469f5d2cac76d7be24e572fecaa73c3c8d688d4ea6d58233b7218f11c6bace505f153cc410172b18618bf4619c7"
-            }
-          ],
-          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
-        }
-      ],
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        },
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/prismjs"
         }
       ]
     },
@@ -18194,7 +18194,7 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-action@0.1.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.10.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.11.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-amaze@4.2.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-default@4.2.0",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/theme-editorial@4.2.1",
@@ -18279,7 +18279,7 @@
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/adapter-protocol@0.2.2",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/publish-kernel@0.1.1",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.26.0",
-        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.10.0",
+        "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.11.0",
         "@rathnasgala2/publish-workspace@0.0.0|yaml@2.9.0"
       ]
     },
@@ -18291,13 +18291,14 @@
       ]
     },
     {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.10.0",
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/template@4.11.0",
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|@11ty/eleventy-plugin-syntaxhighlight@5.0.2",
         "@rathnasgala2/publish-workspace@0.0.0|@11ty/eleventy@3.1.6",
         "@rathnasgala2/publish-workspace@0.0.0|@rathnasgala2/schemas@3.26.0",
         "@rathnasgala2/publish-workspace@0.0.0|jpeg-js@0.4.4",
         "@rathnasgala2/publish-workspace@0.0.0|markdown-it@14.3.3",
+        "@rathnasgala2/publish-workspace@0.0.0|prismjs@1.30.0",
         "@rathnasgala2/publish-workspace@0.0.0|sanitize-html@2.18.1"
       ]
     },
@@ -18645,6 +18646,9 @@
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|markdown-it@14.3.3|entities@4.5.0"
+    },
+    {
+      "ref": "@rathnasgala2/publish-workspace@0.0.0|prismjs@1.30.0"
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|sanitize-html@2.18.1",
@@ -19185,9 +19189,6 @@
       "dependsOn": [
         "@rathnasgala2/publish-workspace@0.0.0|argparse@2.0.1"
       ]
-    },
-    {
-      "ref": "@rathnasgala2/publish-workspace@0.0.0|prismjs@1.30.0"
     },
     {
       "ref": "@rathnasgala2/publish-workspace@0.0.0|@11ty/dependency-tree-esm@2.0.4",
