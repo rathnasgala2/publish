@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Changed
 
+- Serve template 4.13.0 (the browser `./preview` entry point adds interactive
+  preview renderers and an interactive preview mode; published site bytes are
+  identical to 4.12.0 apart from the version string, the render-policy identity
+  is unchanged and no theme moves). Schemas stay at 3.26.0.
 - Serve template 4.12.0 (the browser `./preview` entry point adds
   `renderHomePreview`; published site bytes are identical to 4.11.0 apart from
   the version string, the render-policy identity is unchanged and no theme
