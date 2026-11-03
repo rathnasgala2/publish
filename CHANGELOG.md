@@ -10,6 +10,16 @@ and this project adheres to
 
 ### Added
 
+- Parity members, intake: `publication.json`'s `recommendations` reaches the
+  build input as `publication.recommendations`, and the PDF of every document
+  `file` block is inventoried as a `content[].media[]` entry of `mediaType`
+  `application/pdf` (an `.pdf` under an `assetRoots` entry that opens with
+  `%PDF-`, at most 10 MiB a file; `MEDIA_REFERENCE_UNRESOLVED` or
+  `MEDIA_LIMIT_EXCEEDED` with `evidence.origin` `file` otherwise). A Galascribe
+  newsletter's `welcome` and `afterSignupUrl` and the interactions config's
+  `comments.likes` are carried with the objects intake copies whole. Needs
+  schemas 3.32.0 and template 4.14.0; see `packages/publish-action/README.md`,
+  "Recommendations, file blocks and comment likes".
 - Listen, intake: `publication.json`'s `listen` (`{enabled}`) reaches the build
   input as `publication.listen`, always present (`{enabled: false}` when the
   member is absent), and an article's front matter `listen`

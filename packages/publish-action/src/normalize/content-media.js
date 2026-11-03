@@ -68,6 +68,21 @@
  * `evidence.pointer` (`/listen/audio`). A file that two posts name is
  * inspected and digested once.
  *
+ * **File blocks** (schemas 3.32.0, template 4.14.0). A `file` block of a
+ * document body (a fenced block whose info string is `file`, key `path`) is
+ * found in the sanitized HTML like a body image ({@link findFileBlockSources})
+ * and its path follows the body-image rule. {@link resolveContentFiles} checks
+ * the PDF the way an image is checked (under an `assetRoots` entry, a regular
+ * file, never a symbolic link), requires the name to end in `.pdf` and the
+ * bytes to open with `%PDF-`, and lists it in the document's `media[]` as
+ * `{path, sourceDigest, mediaType: 'application/pdf', byteLength}`, which is
+ * the inventory the template's `media/content-files.js` resolves the block
+ * against. A PDF may be at most 10 MiB ({@link CONTENT_FILE_LIMITS}, the
+ * template's `MAX_CONTENT_FILE_BYTES` and the schema's bound), and a
+ * document's `media[]` at most 200 entries counting images and PDFs together.
+ * A failure uses `MEDIA_REFERENCE_UNRESOLVED` and `MEDIA_LIMIT_EXCEEDED` with
+ * `evidence.origin` `file`.
+ *
  * @module
  */
 
@@ -1420,4 +1435,368 @@ export async function resolveListenAudio({
     });
   }
   return { files, findings: [] };
+}
+
+/**
+ * @typedef {object} FileLimits
+ * @property {number} maxFileBytes largest admitted PDF, in bytes
+ * @property {number} maxEntriesPerDocument most entries one document's `media[]` may hold, images and PDFs together
+ */
+
+/**
+ * PDF ceilings, equal to the template's (`media/files.js`,
+ * `MAX_CONTENT_FILE_BYTES`: 10 MiB a file) and to the installed schema's
+ * `contentBuildMediaFile` bounds (`byteLength` at most 10 MiB for
+ * `application/pdf`, and at most 200 entries in one document's `media[]`,
+ * counted over images and PDFs together). `test/content-media.test.js` keeps
+ * them equal to the schema.
+ *
+ * @type {Readonly<FileLimits>}
+ */
+export const CONTENT_FILE_LIMITS = Object.freeze({
+  maxFileBytes: 10_485_760,
+  maxEntriesPerDocument: 200,
+});
+
+/** The `media[]` media type a `file` block resolves to. */
+export const CONTENT_FILE_MEDIA_TYPE = 'application/pdf';
+
+/** The signature every PDF opens with. */
+const PDF_SIGNATURE = '%PDF-';
+
+/**
+ * Every `file` block's link in a policy-conformant body: the card the
+ * template's render policy writes (`template/src/core/internal/media/
+ * content-files.js` reads the same shape).
+ */
+const FILE_BLOCK_LINK =
+  /<figure class="g-file" data-gala-block="file"><a href="([^"]*)">/gu;
+
+/**
+ * What a `file` block of a document body names.
+ *
+ * @typedef {object} FileReference
+ * @property {string} document repository-relative path of the document whose body holds the block
+ * @property {string} source the block's link as written (entities decoded)
+ */
+
+/**
+ * One PDF as the build input lists it (a `content[].media[]` entry).
+ *
+ * @typedef {object} PdfFile
+ * @property {string} path repository-relative path
+ * @property {string} sourceDigest `sha256:` plus 64 lowercase hexadecimal characters
+ * @property {'application/pdf'} mediaType always `application/pdf`
+ * @property {number} byteLength the file's size in bytes
+ */
+
+/**
+ * List the `file` blocks of a sanitized HTML body in document order.
+ *
+ * The input must be `normalizeAuthoredMarkdown` output. A `file` block that is
+ * malformed is an ordinary code block there, and code is escaped text, so only
+ * a real card matches.
+ *
+ * @param {string} html the sanitized HTML body
+ * @returns {string[]} the link of each block, entities decoded; the
+ *   percent-escapes are still in place (they are decoded by the path rule)
+ */
+export function findFileBlockSources(html) {
+  return [...html.matchAll(FILE_BLOCK_LINK)].map(([, href]) =>
+    decodeAttribute(/** @type {string} */ (href)),
+  );
+}
+
+/**
+ * Merge a document's image entries and PDF entries into one `media[]` list,
+ * ordered by the UTF-8 bytes of their path.
+ *
+ * @param {readonly MediaFile[]} images the document's image entries
+ * @param {readonly PdfFile[]} files the document's PDF entries
+ * @returns {(MediaFile | PdfFile)[]} the merged list
+ */
+export function mergeMediaEntries(images, files) {
+  return [...images, ...files].sort((left, right) =>
+    compareUtf8(left.path, right.path),
+  );
+}
+
+/**
+ * Where a `file` block points, judged without touching the file system. The
+ * path rule is the one a body image uses (the renderer's own), and the name
+ * must end in `.pdf` like the block grammar says.
+ *
+ * @param {FileReference} reference the reference
+ * @param {readonly string[]} roots normalized asset roots
+ * @returns {{path: string} | {problem: Problem}} the repository path it names,
+ *   or the problem
+ */
+function locateFile(reference, roots) {
+  const resolved = resolveImageSource(reference.source);
+  if (!('path' in resolved)) {
+    return { problem: resolved };
+  }
+  if (!/\.pdf$/iu.test(resolved.path)) {
+    return {
+      problem: {
+        reason: 'UNSUPPORTED_FORMAT',
+        explanation: 'does not end in .pdf; a file block links a PDF',
+      },
+    };
+  }
+  const located = underAssetRoot(resolved.path, roots);
+  return 'problem' in located ? { problem: located.problem } : located;
+}
+
+/**
+ * The finding for a `file` block that cannot be used.
+ *
+ * @param {FileReference} reference the reference
+ * @param {Problem} problem what is wrong
+ * @param {readonly string[]} roots normalized asset roots
+ * @returns {Finding} the finding
+ */
+function fileUnresolvedFinding(reference, problem, roots) {
+  const recovery =
+    problem.reason === 'OUTSIDE_ASSET_ROOTS'
+      ? `Move the file under a declared asset root (${describeRoots(roots)}), or add its folder to "assetRoots" in gala/repository.json.`
+      : problem.reason === 'UNSUPPORTED_FORMAT'
+        ? 'Link a PDF file (.pdf whose contents start with %PDF-), or remove the file block.'
+        : 'Add the PDF as a file under an asset root declared in gala/repository.json (for example "assets/files/"), write its path from the repository root in the file block, or remove the block.';
+  return mediaFinding(
+    'MEDIA_REFERENCE_UNRESOLVED',
+    `${reference.document}: the file "${reference.source}" ${problem.explanation}.`,
+    reference.document,
+    {
+      document: reference.document,
+      path: reference.source,
+      origin: 'file',
+      reason: problem.reason,
+    },
+    recovery,
+  );
+}
+
+/**
+ * Check one distinct PDF path against the file system: the checks of an
+ * image, then the bytes have to open with `%PDF-` (never the file name).
+ *
+ * @param {string} repositoryDirectory absolute repository root
+ * @param {string} relativePath a well-formed repository-relative path under at
+ *   least one asset root and ending in `.pdf`
+ * @param {readonly string[]} roots normalized asset roots
+ * @param {{real: Map<string, string | null>, repository: string}} realPaths
+ *   memo of real root paths, and the real repository path
+ * @returns {Promise<{size: number} | Problem>} the file's size, or why it
+ *   cannot be used
+ */
+async function inspectPdfAsset(
+  repositoryDirectory,
+  relativePath,
+  roots,
+  realPaths,
+) {
+  const read = await readAssetHead(
+    repositoryDirectory,
+    relativePath,
+    roots,
+    realPaths,
+  );
+  if ('reason' in read) {
+    return read;
+  }
+  if (read.head.subarray(0, 5).toString('latin1') !== PDF_SIGNATURE) {
+    return {
+      reason: 'UNSUPPORTED_FORMAT',
+      explanation:
+        read.size === 0
+          ? 'is empty'
+          : 'is not a PDF (it does not start with %PDF-)',
+    };
+  }
+  return { size: read.size };
+}
+
+/**
+ * The limits that need only PDF file sizes and the count of a document's
+ * `media[]` entries.
+ *
+ * @param {ReadonlyMap<string, {size: number}>} inspected the size of each distinct file, by path
+ * @param {ReadonlyMap<string, {order: number, reference: FileReference}[]>} byPath who refers to each file
+ * @param {ReadonlyMap<string, number>} imageCounts the image entries of each document's `media[]`
+ * @param {Readonly<FileLimits>} limits the ceilings
+ * @returns {Finding[]} the findings, empty when every limit holds
+ */
+function fileLimitFindings(inspected, byPath, imageCounts, limits) {
+  /** @type {Finding[]} */
+  const exceeded = [];
+  /** @type {Map<string, Set<string>>} */
+  const pathsByDocument = new Map();
+  for (const [relativePath, { size }] of inspected) {
+    const references = byPath.get(relativePath) ?? [];
+    for (const { reference } of references) {
+      const paths = pathsByDocument.get(reference.document) ?? new Set();
+      paths.add(relativePath);
+      pathsByDocument.set(reference.document, paths);
+    }
+    if (size > limits.maxFileBytes) {
+      const document = /** @type {string} */ (
+        references[0]?.reference.document
+      );
+      exceeded.push(
+        mediaFinding(
+          'MEDIA_LIMIT_EXCEEDED',
+          `${document}: the file "${relativePath}" is ${size} bytes; a PDF may be at most ${describeBytes(limits.maxFileBytes)}.`,
+          document,
+          {
+            limit: 'FILE_BYTES',
+            document,
+            path: relativePath,
+            bytes: size,
+            max: limits.maxFileBytes,
+          },
+          'Compress the PDF or split it, or replace it with a smaller file.',
+        ),
+      );
+    }
+  }
+  for (const [document, paths] of pathsByDocument) {
+    const count = paths.size + (imageCounts.get(document) ?? 0);
+    if (count > limits.maxEntriesPerDocument) {
+      exceeded.push(
+        mediaFinding(
+          'MEDIA_LIMIT_EXCEEDED',
+          `${document}: the document lists ${count} images and files together; one document may list at most ${limits.maxEntriesPerDocument}.`,
+          document,
+          {
+            limit: 'DOCUMENT_IMAGES',
+            document,
+            count,
+            max: limits.maxEntriesPerDocument,
+          },
+          'Split the document, or remove images and files it does not need.',
+        ),
+      );
+    }
+  }
+  return exceeded;
+}
+
+/**
+ * Check the PDF every `file` block of a document body names and digest it.
+ *
+ * On success `files` has each distinct PDF once (a file that two documents
+ * name is inspected and digested once) and `documents` has, for each document
+ * with `file` blocks, its PDF entries ordered by the UTF-8 bytes of their path;
+ * the caller merges them into that document's `media[]` with
+ * {@link mergeMediaEntries}, which is the inventory the template resolves the
+ * block's link against (`media/content-files.js`). On failure only `findings`
+ * is non-empty: every unusable reference is reported together, in the order the
+ * documents were read, and the limits are only judged when every reference is
+ * usable. The bytes stay on disk for the template, which checks them against
+ * the digest and length stated here.
+ *
+ * @param {object} options the inputs
+ * @param {string} options.repositoryDirectory absolute repository root
+ * @param {readonly {path: string}[] | undefined} options.assetRoots the
+ *   `assetRoots` of `gala/repository.json`
+ * @param {readonly FileReference[]} options.references every `file` block from
+ *   the documents that are part of the build
+ * @param {ReadonlyMap<string, number>} [options.imageCounts] how many image
+ *   entries each document's `media[]` already holds (the 200-entry bound
+ *   counts images and PDFs together)
+ * @param {Readonly<FileLimits>} [options.limits] the ceilings (injectable for tests)
+ * @returns {Promise<{files: Map<string, PdfFile>, documents: Map<string, PdfFile[]>, findings: Finding[]}>}
+ *   the inventory, or the findings that make the build fail
+ */
+export async function resolveContentFiles({
+  repositoryDirectory,
+  assetRoots,
+  references,
+  imageCounts = new Map(),
+  limits = CONTENT_FILE_LIMITS,
+}) {
+  const roots = normalizeAssetRoots(assetRoots);
+  /** @type {OrderedFinding[]} */
+  const problems = [];
+  /** @type {Map<string, {order: number, reference: FileReference}[]>} */
+  const byPath = new Map();
+  references.forEach((reference, order) => {
+    const located = locateFile(reference, roots);
+    if ('problem' in located) {
+      problems.push({
+        order,
+        finding: fileUnresolvedFinding(reference, located.problem, roots),
+      });
+      return;
+    }
+    const known = byPath.get(located.path);
+    if (known === undefined) {
+      byPath.set(located.path, [{ order, reference }]);
+    } else {
+      known.push({ order, reference });
+    }
+  });
+  /** @type {Map<string, PdfFile>} */
+  const files = new Map();
+  /** @type {Map<string, PdfFile[]>} */
+  const documents = new Map();
+
+  const realPaths = {
+    real: /** @type {Map<string, string | null>} */ (new Map()),
+    repository: await realpath(repositoryDirectory),
+  };
+  /** @type {Map<string, {size: number}>} */
+  const inspected = new Map();
+  for (const relativePath of [...byPath.keys()].sort(compareUtf8)) {
+    const result = await inspectPdfAsset(
+      repositoryDirectory,
+      relativePath,
+      roots,
+      realPaths,
+    );
+    if ('size' in result) {
+      inspected.set(relativePath, result);
+      continue;
+    }
+    for (const { order, reference } of byPath.get(relativePath) ?? []) {
+      problems.push({
+        order,
+        finding: fileUnresolvedFinding(reference, result, roots),
+      });
+    }
+  }
+  if (problems.length > 0) {
+    return { files, documents, findings: inReadingOrder(problems) };
+  }
+
+  const exceeded = fileLimitFindings(inspected, byPath, imageCounts, limits);
+  if (exceeded.length > 0) {
+    return { files, documents, findings: capFindings(exceeded) };
+  }
+
+  for (const relativePath of inspected.keys()) {
+    const bytes = await readFile(
+      path.join(repositoryDirectory, ...relativePath.split('/')),
+    );
+    files.set(relativePath, {
+      path: relativePath,
+      sourceDigest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`,
+      mediaType: CONTENT_FILE_MEDIA_TYPE,
+      byteLength: bytes.byteLength,
+    });
+  }
+  for (const [relativePath, references_] of byPath) {
+    for (const { reference } of references_) {
+      const entries = documents.get(reference.document) ?? [];
+      if (!entries.some((entry) => entry.path === relativePath)) {
+        entries.push(/** @type {PdfFile} */ (files.get(relativePath)));
+      }
+      documents.set(reference.document, entries);
+    }
+  }
+  for (const entries of documents.values()) {
+    entries.sort((left, right) => compareUtf8(left.path, right.path));
+  }
+  return { files, documents, findings: [] };
 }

@@ -368,6 +368,50 @@ Intake requires `@rathnasgala2/schemas` 3.26.0 or later; the Listen markup and
 script come from template 4.8.0. `packages/adapter-do-spaces` serves `.mp3` and
 `.m4a` objects as `audio/mpeg` and `audio/mp4` from its next release.
 
+## Recommendations, file blocks and comment likes
+
+Schemas 3.32.0 and template 4.14.0 add three things intake has to carry:
+
+- `publication.json` `recommendations` (at most 24 of
+  `{url, title, description?, addedOn?}`; absent means none) is copied member by
+  member into `build-input.publication.recommendations`. Absent stays absent.
+  The template renders them on the About page and publishes
+  `/.well-known/recommendations.json`.
+- A Galascribe-mode `newsletter` is copied whole, so its optional `welcome`
+  (`{subject, body}`) and `afterSignupUrl` ride with it, and the embedded
+  `interactions.json` config is copied whole, so `comments.likes` rides with it.
+  The schemas refuse any member they do not know before anything is copied.
+- A `file` block in a document body (a fenced block whose info string is `file`
+  and whose body has `path` and `title`) names a PDF. Intake finds the blocks in
+  the sanitized HTML (`<figure class="g-file" data-gala-block="file"><a href>`,
+  which only a well-formed block produces), reads the path by the body-image
+  rule and checks the file like an image (see "Content images"): under an
+  `assetRoots` entry, a regular file, never a symbolic link. The name must end
+  in `.pdf` and the bytes must open with `%PDF-`; the name is never trusted for
+  the format. Each distinct file becomes an entry of its document's `media[]`,
+  `{path, sourceDigest, mediaType: "application/pdf", byteLength}`, merged with
+  the document's image entries and ordered by the UTF-8 bytes of the path, which
+  is the inventory the template resolves the block's link against. A malformed
+  block is an ordinary code block and names no file.
+
+A PDF may be at most 10 MiB (the template's `MAX_CONTENT_FILE_BYTES` and the
+schema's bound), and a document's `media[]` at most 200 entries, counting images
+and PDFs together. A problem is a finding with the image codes and
+`evidence.origin` `file`, reported together with any image or audio problem:
+
+- `MEDIA_REFERENCE_UNRESOLVED`, with `evidence.reason` one of
+  `NOT_A_REPOSITORY_PATH`, `EXTERNAL_ADDRESS`, `OUTSIDE_ASSET_ROOTS`,
+  `FILE_MISSING`, `NOT_A_REGULAR_FILE` or `UNSUPPORTED_FORMAT` (an empty file,
+  bytes that are not a PDF, or a name that does not end in `.pdf`).
+- `MEDIA_LIMIT_EXCEEDED`, with `evidence.limit` `FILE_BYTES` (one file over 10
+  MiB) or `DOCUMENT_IMAGES` (more than 200 images and files in one document).
+  Judged only when every reference is usable.
+
+A `file` block in a page body that has no `media[]` (the profile, the footer
+card and the policy pages) is not inventoried here; the template fails that
+build with `MEDIA_REFERENCE_UNRESOLVED`. Intake requires `@rathnasgala2/schemas`
+3.32.0 or later.
+
 ## Appearance attribution
 
 `gala/appearance.json`'s optional `attribution` (`{"showMadeWith": boolean}`; an

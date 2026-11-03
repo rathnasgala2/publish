@@ -141,6 +141,83 @@ export function resolveListenAudio({ repositoryDirectory, assetRoots, references
     findings: Finding[];
 }>;
 /**
+ * What a `file` block of a document body names.
+ *
+ * @typedef {object} FileReference
+ * @property {string} document repository-relative path of the document whose body holds the block
+ * @property {string} source the block's link as written (entities decoded)
+ */
+/**
+ * One PDF as the build input lists it (a `content[].media[]` entry).
+ *
+ * @typedef {object} PdfFile
+ * @property {string} path repository-relative path
+ * @property {string} sourceDigest `sha256:` plus 64 lowercase hexadecimal characters
+ * @property {'application/pdf'} mediaType always `application/pdf`
+ * @property {number} byteLength the file's size in bytes
+ */
+/**
+ * List the `file` blocks of a sanitized HTML body in document order.
+ *
+ * The input must be `normalizeAuthoredMarkdown` output. A `file` block that is
+ * malformed is an ordinary code block there, and code is escaped text, so only
+ * a real card matches.
+ *
+ * @param {string} html the sanitized HTML body
+ * @returns {string[]} the link of each block, entities decoded; the
+ *   percent-escapes are still in place (they are decoded by the path rule)
+ */
+export function findFileBlockSources(html: string): string[];
+/**
+ * Merge a document's image entries and PDF entries into one `media[]` list,
+ * ordered by the UTF-8 bytes of their path.
+ *
+ * @param {readonly MediaFile[]} images the document's image entries
+ * @param {readonly PdfFile[]} files the document's PDF entries
+ * @returns {(MediaFile | PdfFile)[]} the merged list
+ */
+export function mergeMediaEntries(images: readonly MediaFile[], files: readonly PdfFile[]): (MediaFile | PdfFile)[];
+/**
+ * Check the PDF every `file` block of a document body names and digest it.
+ *
+ * On success `files` has each distinct PDF once (a file that two documents
+ * name is inspected and digested once) and `documents` has, for each document
+ * with `file` blocks, its PDF entries ordered by the UTF-8 bytes of their path;
+ * the caller merges them into that document's `media[]` with
+ * {@link mergeMediaEntries}, which is the inventory the template resolves the
+ * block's link against (`media/content-files.js`). On failure only `findings`
+ * is non-empty: every unusable reference is reported together, in the order the
+ * documents were read, and the limits are only judged when every reference is
+ * usable. The bytes stay on disk for the template, which checks them against
+ * the digest and length stated here.
+ *
+ * @param {object} options the inputs
+ * @param {string} options.repositoryDirectory absolute repository root
+ * @param {readonly {path: string}[] | undefined} options.assetRoots the
+ *   `assetRoots` of `gala/repository.json`
+ * @param {readonly FileReference[]} options.references every `file` block from
+ *   the documents that are part of the build
+ * @param {ReadonlyMap<string, number>} [options.imageCounts] how many image
+ *   entries each document's `media[]` already holds (the 200-entry bound
+ *   counts images and PDFs together)
+ * @param {Readonly<FileLimits>} [options.limits] the ceilings (injectable for tests)
+ * @returns {Promise<{files: Map<string, PdfFile>, documents: Map<string, PdfFile[]>, findings: Finding[]}>}
+ *   the inventory, or the findings that make the build fail
+ */
+export function resolveContentFiles({ repositoryDirectory, assetRoots, references, imageCounts, limits, }: {
+    repositoryDirectory: string;
+    assetRoots: readonly {
+        path: string;
+    }[] | undefined;
+    references: readonly FileReference[];
+    imageCounts?: ReadonlyMap<string, number> | undefined;
+    limits?: Readonly<FileLimits> | undefined;
+}): Promise<{
+    files: Map<string, PdfFile>;
+    documents: Map<string, PdfFile[]>;
+    findings: Finding[];
+}>;
+/**
  * @typedef {object} MediaLimits
  * @property {number} maxSourceBytes largest admitted source image, in bytes
  * @property {number} maxDistinctImages most distinct image files one publication may reference
@@ -178,6 +255,24 @@ export const LISTEN_AUDIO_LIMITS: Readonly<AudioLimits>;
 export const LISTEN_AUDIO_POINTER: "/listen/audio";
 /** Most findings one intake failure reports; the rest are counted, not listed. */
 export const MAX_MEDIA_FINDINGS: 50;
+/**
+ * @typedef {object} FileLimits
+ * @property {number} maxFileBytes largest admitted PDF, in bytes
+ * @property {number} maxEntriesPerDocument most entries one document's `media[]` may hold, images and PDFs together
+ */
+/**
+ * PDF ceilings, equal to the template's (`media/files.js`,
+ * `MAX_CONTENT_FILE_BYTES`: 10 MiB a file) and to the installed schema's
+ * `contentBuildMediaFile` bounds (`byteLength` at most 10 MiB for
+ * `application/pdf`, and at most 200 entries in one document's `media[]`,
+ * counted over images and PDFs together). `test/content-media.test.js` keeps
+ * them equal to the schema.
+ *
+ * @type {Readonly<FileLimits>}
+ */
+export const CONTENT_FILE_LIMITS: Readonly<FileLimits>;
+/** The `media[]` media type a `file` block resolves to. */
+export const CONTENT_FILE_MEDIA_TYPE: "application/pdf";
 export type MediaOrigin = "body" | "hero" | "defaultImage" | "brandMark" | "wordmark" | "socialImage";
 export type MediaReference = {
     /**
@@ -265,6 +360,40 @@ export type OrderedFinding = {
     order: number;
     finding: Finding;
 };
+/**
+ * What a `file` block of a document body names.
+ */
+export type FileReference = {
+    /**
+     * repository-relative path of the document whose body holds the block
+     */
+    document: string;
+    /**
+     * the block's link as written (entities decoded)
+     */
+    source: string;
+};
+/**
+ * One PDF as the build input lists it (a `content[].media[]` entry).
+ */
+export type PdfFile = {
+    /**
+     * repository-relative path
+     */
+    path: string;
+    /**
+     * `sha256:` plus 64 lowercase hexadecimal characters
+     */
+    sourceDigest: string;
+    /**
+     * always `application/pdf`
+     */
+    mediaType: "application/pdf";
+    /**
+     * the file's size in bytes
+     */
+    byteLength: number;
+};
 export type MediaLimits = {
     /**
      * largest admitted source image, in bytes
@@ -296,4 +425,14 @@ export type AudioLimits = {
      * most bytes all the audio files one publication refers to may add up to
      */
     maxTotalBytes: number;
+};
+export type FileLimits = {
+    /**
+     * largest admitted PDF, in bytes
+     */
+    maxFileBytes: number;
+    /**
+     * most entries one document's `media[]` may hold, images and PDFs together
+     */
+    maxEntriesPerDocument: number;
 };

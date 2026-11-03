@@ -24,14 +24,18 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 import {
+  CONTENT_FILE_LIMITS,
   LISTEN_AUDIO_LIMITS,
   LISTEN_AUDIO_POINTER,
   MAX_MEDIA_FINDINGS,
   MEDIA_LIMITS,
   audioPathProblem,
+  findFileBlockSources,
   findImageSources,
   heroPathProblem,
+  mergeMediaEntries,
   normalizeAssetRoots,
+  resolveContentFiles,
   resolveImageSource,
   resolveListenAudio,
   resolveMediaReferences,
@@ -45,6 +49,7 @@ import {
 import buildInputSchema from '@rathnasgala2/schemas/schemas/build-input.schema.json' with { type: 'json' };
 import { AUDIO_MEDIA_TYPE_OF, audioBytes } from './audio-bytes.js';
 import { MEDIA_TYPE_OF, imageBytes } from './image-bytes.js';
+import { pdfBytes } from './pdf-bytes.js';
 
 /**
  * @param {Buffer | string} bytes file content
@@ -1568,5 +1573,369 @@ test('listen audio: a limit that is a whole number of MiB is also stated in MiB,
       result.findings[1]?.detail ?? '',
       /add up to 3145729 bytes; together they may be at most 1048576 bytes \(1 MiB\)\.$/u,
     );
+  });
+});
+
+/**
+ * @param {string} document the referring document
+ * @param {string} source the `file` block's link as written
+ * @returns {import('../src/normalize/content-media.js').FileReference} the reference
+ */
+function fileReference(document, source) {
+  return { document, source };
+}
+
+test('the PDF limits equal the template file pipeline limit and the installed schema', async () => {
+  const files = /** @type {Record<string, number>} */ (
+    await import(
+      pathToFileURL(
+        path.join(TEMPLATE_ROOT, 'src/core/internal/media/files.js'),
+      ).href
+    )
+  );
+  assert.deepEqual(
+    { ...CONTENT_FILE_LIMITS },
+    { maxFileBytes: 10 * 1024 * 1024, maxEntriesPerDocument: 200 },
+  );
+  assert.equal(Object.isFrozen(CONTENT_FILE_LIMITS), true);
+  assert.equal(CONTENT_FILE_LIMITS.maxFileBytes, files.MAX_CONTENT_FILE_BYTES);
+  const definitions = /** @type {any} */ (buildInputSchema).$defs;
+  const pdfRule = definitions.contentBuildMediaFile.allOf.find(
+    (/** @type {any} */ rule) =>
+      rule.if.properties.mediaType.enum.includes('application/pdf'),
+  );
+  assert.equal(
+    CONTENT_FILE_LIMITS.maxFileBytes,
+    pdfRule.then.properties.byteLength.maximum,
+  );
+  assert.equal(
+    CONTENT_FILE_LIMITS.maxEntriesPerDocument,
+    definitions.contentBuildRecord.properties.media.maxItems,
+  );
+});
+
+test('findFileBlockSources lists the file blocks of a body, agreeing with the template normalizer', async () => {
+  const template = /** @type {any} */ (await importTemplatePublicEntry());
+  const markdown = [
+    'Intro',
+    '',
+    '```file',
+    'path: assets/files/annual report.pdf',
+    'title: Annual report',
+    '```',
+    '',
+    '```file',
+    'path: ./docs/a&b.pdf',
+    'title: Second',
+    '```',
+    '',
+    '```file',
+    'path: broken.pdf',
+    '```',
+    '',
+    '````markdown',
+    '```file',
+    'path: in-code.pdf',
+    'title: Not a block',
+    '```',
+    '````',
+    '',
+  ].join('\n');
+  const { html } = template.normalizeAuthoredMarkdown(markdown);
+  const sources = findFileBlockSources(html);
+  assert.deepEqual(
+    sources.map((source) => resolveImageSource(source)),
+    [{ path: 'assets/files/annual report.pdf' }, { path: 'docs/a&b.pdf' }],
+  );
+  assert.deepEqual(findFileBlockSources('<p>no block</p>'), []);
+});
+
+test('file blocks: a PDF is described by its bytes, listed once for two documents, and merged with images by path', async () => {
+  await withRepository(async (directory) => {
+    await mkdir(path.join(directory, 'assets/files'), { recursive: true });
+    const report = pdfBytes('report');
+    const shared = pdfBytes('shared');
+    await writeFile(path.join(directory, 'assets/files/report.pdf'), report);
+    await writeFile(path.join(directory, 'assets/files/shared.PDF'), shared);
+    const result = await resolveContentFiles({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [
+        fileReference('content/a.md', 'assets/files/shared.PDF'),
+        fileReference('content/a.md', 'assets/files/report.pdf'),
+        fileReference('content/b.md', 'assets/files/shared.PDF'),
+        fileReference('content/a.md', './assets/files/report.pdf'),
+      ],
+    });
+    assert.deepEqual(result.findings, []);
+    assert.deepEqual(
+      [...result.files.keys()],
+      ['assets/files/report.pdf', 'assets/files/shared.PDF'],
+    );
+    assert.deepEqual(
+      result.files.get('assets/files/report.pdf'),
+      entry('assets/files/report.pdf', report, 'application/pdf'),
+    );
+    assert.deepEqual(
+      result.documents.get('content/a.md')?.map((file) => file.path),
+      ['assets/files/report.pdf', 'assets/files/shared.PDF'],
+    );
+    assert.deepEqual(
+      result.documents.get('content/b.md')?.map((file) => file.path),
+      ['assets/files/shared.PDF'],
+    );
+
+    const image = entry('assets/a.png', imageBytes('png'), 'image/png');
+    assert.deepEqual(
+      mergeMediaEntries(
+        [/** @type {any} */ (image)],
+        result.documents.get('content/a.md') ?? [],
+      ).map((file) => file.path),
+      ['assets/a.png', 'assets/files/report.pdf', 'assets/files/shared.PDF'],
+    );
+  });
+});
+
+test('file blocks: with no references the inventory is empty', async () => {
+  await withRepository(async (directory) => {
+    const result = await resolveContentFiles({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [],
+    });
+    assert.equal(result.files.size, 0);
+    assert.equal(result.documents.size, 0);
+    assert.deepEqual(result.findings, []);
+  });
+});
+
+test('file blocks: every unusable reference is reported together, with the document and origin file', async () => {
+  await withRepository(async (directory) => {
+    await mkdir(path.join(directory, 'other'), { recursive: true });
+    await writeFile(path.join(directory, 'assets/fake.pdf'), 'plain text');
+    await writeFile(path.join(directory, 'assets/empty.pdf'), '');
+    await writeFile(
+      path.join(directory, 'assets/image.pdf'),
+      imageBytes('png'),
+    );
+    await writeFile(path.join(directory, 'assets/notes.txt'), pdfBytes('x'));
+    await writeFile(path.join(directory, 'other/ok.pdf'), pdfBytes('ok'));
+    const result = await resolveContentFiles({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [
+        fileReference('content/a.md', 'assets/gone.pdf'),
+        fileReference('content/a.md', 'assets/fake.pdf'),
+        fileReference('content/b.md', 'assets/empty.pdf'),
+        fileReference('content/b.md', 'assets/image.pdf'),
+        fileReference('content/c.md', 'assets/notes.txt'),
+        fileReference('content/c.md', 'other/ok.pdf'),
+        fileReference('content/c.md', 'https://example.com/x.pdf'),
+        fileReference('content/c.md', 'assets/../secret.pdf'),
+      ],
+    });
+    assert.equal(result.files.size, 0);
+    assert.equal(result.documents.size, 0);
+    assert.deepEqual(reasons(result), [
+      'FILE_MISSING',
+      'UNSUPPORTED_FORMAT',
+      'UNSUPPORTED_FORMAT',
+      'UNSUPPORTED_FORMAT',
+      'UNSUPPORTED_FORMAT',
+      'OUTSIDE_ASSET_ROOTS',
+      'EXTERNAL_ADDRESS',
+      'NOT_A_REPOSITORY_PATH',
+    ]);
+    for (const finding of result.findings) {
+      assert.equal(finding.code, 'MEDIA_REFERENCE_UNRESOLVED');
+      assert.equal(finding.severity, 'SOURCE_ERROR');
+      assert.equal(
+        /** @type {Record<string, unknown>} */ (finding.evidence).origin,
+        'file',
+      );
+    }
+    const [missing, fake, empty] = result.findings;
+    assert.equal(missing?.location, 'content/a.md');
+    assert.equal(
+      missing?.detail,
+      'content/a.md: the file "assets/gone.pdf" does not exist in the repository.',
+    );
+    assert.match(
+      fake?.detail ?? '',
+      /is not a PDF \(it does not start with %PDF-\)/u,
+    );
+    assert.match(empty?.detail ?? '', /is empty/u);
+  });
+});
+
+test('file blocks: a missing file is a source error even when the others are fine', async () => {
+  await withRepository(async (directory) => {
+    await writeFile(path.join(directory, 'assets/ok.pdf'), pdfBytes('ok'));
+    const result = await resolveContentFiles({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [
+        fileReference('content/a.md', 'assets/ok.pdf'),
+        fileReference('content/a.md', 'assets/missing.pdf'),
+      ],
+    });
+    assert.equal(result.files.size, 0);
+    assert.deepEqual(reasons(result), ['FILE_MISSING']);
+  });
+});
+
+test('file blocks: a PDF reached through a directory symbolic link that leaves its root is refused', async () => {
+  await withRepository(async (directory) => {
+    await mkdir(path.join(directory, 'outside'), { recursive: true });
+    await writeFile(path.join(directory, 'outside/x.pdf'), pdfBytes('x'));
+    await symlink(
+      path.join(directory, 'outside'),
+      path.join(directory, 'assets/link'),
+    );
+    await symlink(
+      path.join(directory, 'outside/x.pdf'),
+      path.join(directory, 'assets/direct.pdf'),
+    );
+    const result = await resolveContentFiles({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [
+        fileReference('content/a.md', 'assets/link/x.pdf'),
+        fileReference('content/a.md', 'assets/direct.pdf'),
+      ],
+    });
+    assert.deepEqual(reasons(result), [
+      'OUTSIDE_ASSET_ROOTS',
+      'NOT_A_REGULAR_FILE',
+    ]);
+  });
+});
+
+test('file blocks: a PDF over the per-file limit names its document, and a file exactly at the limit is accepted', async () => {
+  await withRepository(async (directory) => {
+    const exact = Buffer.concat([pdfBytes('x'), Buffer.alloc(40)]).subarray(
+      0,
+      50,
+    );
+    await writeFile(path.join(directory, 'assets/exact.pdf'), exact);
+    await writeFile(
+      path.join(directory, 'assets/over.pdf'),
+      Buffer.concat([exact, Buffer.from('y')]),
+    );
+    const base = {
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      limits: { maxFileBytes: 50, maxEntriesPerDocument: 200 },
+    };
+    const atLimit = await resolveContentFiles({
+      ...base,
+      references: [fileReference('content/a.md', 'assets/exact.pdf')],
+    });
+    assert.deepEqual(atLimit.findings, []);
+    assert.equal(atLimit.files.get('assets/exact.pdf')?.byteLength, 50);
+
+    const oversize = await resolveContentFiles({
+      ...base,
+      references: [
+        fileReference('content/a.md', 'assets/exact.pdf'),
+        fileReference('content/b.md', 'assets/over.pdf'),
+      ],
+    });
+    assert.equal(oversize.files.size, 0);
+    const [finding] = oversize.findings;
+    assert.equal(oversize.findings.length, 1);
+    assert.equal(finding?.code, 'MEDIA_LIMIT_EXCEEDED');
+    assert.equal(finding?.location, 'content/b.md');
+    assert.deepEqual(finding?.evidence, {
+      limit: 'FILE_BYTES',
+      document: 'content/b.md',
+      path: 'assets/over.pdf',
+      bytes: 51,
+      max: 50,
+    });
+    assert.equal(
+      finding?.detail,
+      'content/b.md: the file "assets/over.pdf" is 51 bytes; a PDF may be at most 50 bytes.',
+    );
+  });
+});
+
+test('file blocks: a sparse file one byte over 10 MiB is over the default limit and is not read', async () => {
+  await withRepository(async (directory) => {
+    const file = path.join(directory, 'assets/huge.pdf');
+    await writeFile(file, pdfBytes('huge'));
+    await truncate(file, 10 * 1024 * 1024 + 1);
+    const result = await resolveContentFiles({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [fileReference('content/a.md', 'assets/huge.pdf')],
+    });
+    assert.deepEqual(reasons(result), ['FILE_BYTES']);
+    assert.equal(result.findings[0]?.code, 'MEDIA_LIMIT_EXCEEDED');
+    assert.match(
+      result.findings[0]?.detail ?? '',
+      /at most 10485760 bytes \(10 MiB\)/u,
+    );
+
+    await truncate(file, 10 * 1024 * 1024);
+    const exact = await resolveContentFiles({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [fileReference('content/a.md', 'assets/huge.pdf')],
+    });
+    assert.deepEqual(exact.findings, []);
+    assert.equal(
+      exact.files.get('assets/huge.pdf')?.byteLength,
+      10 * 1024 * 1024,
+    );
+  });
+});
+
+test('file blocks: a document may list at most 200 images and files together', async () => {
+  await withRepository(async (directory) => {
+    await writeFile(path.join(directory, 'assets/a.pdf'), pdfBytes('a'));
+    await writeFile(path.join(directory, 'assets/b.pdf'), pdfBytes('b'));
+    const references = [
+      fileReference('content/a.md', 'assets/a.pdf'),
+      fileReference('content/a.md', 'assets/b.pdf'),
+    ];
+    const base = {
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references,
+      limits: { maxFileBytes: 1000, maxEntriesPerDocument: 5 },
+    };
+    const within = await resolveContentFiles({
+      ...base,
+      imageCounts: new Map([['content/a.md', 3]]),
+    });
+    assert.deepEqual(within.findings, []);
+    const over = await resolveContentFiles({
+      ...base,
+      imageCounts: new Map([['content/a.md', 4]]),
+    });
+    assert.deepEqual(reasons(over), ['DOCUMENT_IMAGES']);
+    assert.deepEqual(over.findings[0]?.evidence, {
+      limit: 'DOCUMENT_IMAGES',
+      document: 'content/a.md',
+      count: 6,
+      max: 5,
+    });
+  });
+});
+
+test('file blocks: unusable references win over limits', async () => {
+  await withRepository(async (directory) => {
+    await writeFile(path.join(directory, 'assets/big.pdf'), pdfBytes('big'));
+    const result = await resolveContentFiles({
+      repositoryDirectory: directory,
+      assetRoots: [{ path: 'assets' }],
+      references: [
+        fileReference('content/a.md', 'assets/big.pdf'),
+        fileReference('content/a.md', 'assets/gone.pdf'),
+      ],
+      limits: { maxFileBytes: 3, maxEntriesPerDocument: 200 },
+    });
+    assert.deepEqual(reasons(result), ['FILE_MISSING']);
   });
 });

@@ -182,6 +182,23 @@
  * `MEDIA_REFERENCE_UNRESOLVED` or `MEDIA_LIMIT_EXCEEDED`, and
  * `evidence.pointer` `/listen/audio`, together with any image problem.
  *
+ * **Parity members** (schemas 3.32.0, template 4.14.0): `publication.json`'s
+ * optional `recommendations` (at most 24 of `{url, title, description?,
+ * addedOn?}`) is copied member by member into `build-input.publication`. The
+ * `newsletter` object is copied whole, so its Galascribe-mode `welcome`
+ * (`{subject, body}`) and `afterSignupUrl` ride with it, and the
+ * `interactions.json` config is embedded whole, so its `comments.likes` does
+ * too; the schemas refuse any member they do not know before anything is
+ * copied. A `file` block in a document body (a fenced block with info string
+ * `file`, key `path`) names a PDF that is checked like an image
+ * (`content-media.js`, `resolveContentFiles`: under an `assetRoots` entry, a
+ * regular file, `.pdf` by name and `%PDF-` by its bytes, at most 10 MiB) and
+ * becomes an entry of that document's `media[]` with `mediaType`
+ * `application/pdf`, which the template's `media/content-files.js` resolves
+ * the block against. A problem is reported with the image codes,
+ * `MEDIA_REFERENCE_UNRESOLVED` or `MEDIA_LIMIT_EXCEEDED`, and
+ * `evidence.origin` `file`, together with any image or audio problem.
+ *
  * **Prism editions** (`content-editions.js`): a `kind: edition` document is
  * kept only when the article it is `of` is part of the build and its
  * `edition.sourceDigest` still equals the digest of that article's body;
@@ -210,7 +227,10 @@ import { parseConstrainedYamlFrontmatter } from './frontmatter.js';
 import { REPOSITORY_ROOT_DOMAIN } from '../constants.js';
 import { requireThemeArtifact, themePackageNameOf } from '../theme-catalog.js';
 import {
+  findFileBlockSources,
   findImageSources,
+  mergeMediaEntries,
+  resolveContentFiles,
   resolveListenAudio,
   resolveMediaReferences,
 } from './content-media.js';
@@ -1010,6 +1030,10 @@ export async function buildBuildInputFromRepository({
   // from the images (own limits, own formats) but in the same pass.
   /** @type {import('./content-media.js').AudioReference[]} */
   const audioReferences = [];
+  // The PDFs the `file` blocks of the bodies name (schemas 3.32.0), checked
+  // apart from the images (own format, own limits) but in the same pass.
+  /** @type {import('./content-media.js').FileReference[]} */
+  const fileReferences = [];
   if (publicationDoc.document.defaultImageRef) {
     mediaReferences.push({
       document: repository.document.publication,
@@ -1040,6 +1064,17 @@ export async function buildBuildInputFromRepository({
       : {}),
     ...(publicationDoc.document.performance
       ? { performance: { ...publicationDoc.document.performance } }
+      : {}),
+    // Recommendations (schemas 3.32.0), copied as authored: the schema bounds
+    // the list at 24 and the template renders and publishes it.
+    ...(publicationDoc.document.recommendations
+      ? {
+          recommendations: publicationDoc.document.recommendations.map(
+            (/** @type {Record<string, unknown>} */ recommendation) => ({
+              ...recommendation,
+            }),
+          ),
+        }
       : {}),
     // Audience settings (schemas 3.22.0), copied as authored. The schema
     // already refused any other member, so nothing unknown can ride along.
@@ -1277,6 +1312,9 @@ export async function buildBuildInputFromRepository({
         alt: image.alt,
       });
     }
+    for (const source of findFileBlockSources(normalized.html)) {
+      fileReferences.push({ document: relativePath, source });
+    }
     if (frontmatter.hero) {
       mediaReferences.push({
         document: relativePath,
@@ -1317,12 +1355,28 @@ export async function buildBuildInputFromRepository({
     assetRoots: repository.document.assetRoots,
     references: audioReferences,
   });
+  const contentFiles = await resolveContentFiles({
+    repositoryDirectory,
+    assetRoots: repository.document.assetRoots,
+    references: fileReferences,
+    imageCounts: new Map(
+      [...media.documents].map(([document, entries]) => [
+        document,
+        entries.length,
+      ]),
+    ),
+  });
   const mediaFailures = [
     ...(media.findings.length > 0 ? ['images'] : []),
     ...(listenAudio.findings.length > 0 ? ['audio'] : []),
+    ...(contentFiles.findings.length > 0 ? ['files'] : []),
   ];
   if (mediaFailures.length > 0) {
-    const findings = [...media.findings, ...listenAudio.findings];
+    const findings = [
+      ...media.findings,
+      ...listenAudio.findings,
+      ...contentFiles.findings,
+    ];
     throw new RepositoryIntakeError(
       `${findings.length} problem(s) with ${mediaFailures.join(' and ')} referenced from content`,
       findings,
@@ -1334,7 +1388,12 @@ export async function buildBuildInputFromRepository({
     const normalized = /** @type {{html: string, bodyDigest: string}} */ (
       prepared[index]
     );
-    const mediaEntries = media.documents.get(document.relativePath);
+    // The document's `media[]`: its body images and the PDFs of its `file`
+    // blocks, ordered by path.
+    const mediaEntries = mergeMediaEntries(
+      media.documents.get(document.relativePath) ?? [],
+      contentFiles.documents.get(document.relativePath) ?? [],
+    );
     return {
       frontmatter: normalizeContentFrontmatter(
         document.frontmatter,
@@ -1349,7 +1408,7 @@ export async function buildBuildInputFromRepository({
       sourceRevision,
       sourceDigest: document.sourceDigest,
       resolvedAuthorIds: document.frontmatter.authors,
-      ...(mediaEntries === undefined ? {} : { media: mediaEntries }),
+      ...(mediaEntries.length === 0 ? {} : { media: mediaEntries }),
     };
   });
 

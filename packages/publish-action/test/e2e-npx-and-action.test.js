@@ -668,3 +668,94 @@ test('listing pageSize, aiRights and a past deleteDate authored in the repositor
     await cleanup();
   }
 });
+
+test('recommendations, a file block and its PDF authored in the repository reach the built site', async () => {
+  const { tmp, cleanup } = await freshTempDir();
+  try {
+    const repository = path.join(tmp, 'repo');
+    const { cp, writeFile: write } = await import('node:fs/promises');
+    await cp(FIXTURE_REPOSITORY, repository, { recursive: true });
+    const publicationPath = path.join(repository, 'gala/publication.json');
+    const publication = JSON.parse(await readFile(publicationPath, 'utf8'));
+    publication.recommendations = [
+      {
+        url: 'https://friend.example.invalid/',
+        title: 'A friend',
+        description: 'Writes about gardens.',
+        addedOn: '2026-10-01',
+      },
+    ];
+    await write(publicationPath, JSON.stringify(publication, null, 2));
+    const repositoryPath = path.join(repository, 'gala/repository.json');
+    const repositoryDocument = JSON.parse(
+      await readFile(repositoryPath, 'utf8'),
+    );
+    repositoryDocument.assetRoots = [{ path: 'assets' }];
+    await write(repositoryPath, JSON.stringify(repositoryDocument, null, 2));
+    const pdf = Buffer.from('%PDF-1.7\nannual report\n%%EOF\n', 'utf8');
+    await mkdir(path.join(repository, 'assets/files'), { recursive: true });
+    await write(path.join(repository, 'assets/files/annual-report.pdf'), pdf);
+    await write(
+      path.join(repository, 'content/with-file.md'),
+      [
+        '---',
+        'schemaId: urn:gala:schema:content-frontmatter:2.0.0',
+        "schemaVersion: '2.0.0'",
+        'id: 01912345-6789-7abc-89ab-0123456789e1',
+        'kind: article',
+        'title: With a file',
+        'language: en-US',
+        'authors:',
+        '  - 01912345-6789-7abc-89ab-0123456789ac',
+        'tags: []',
+        'status: published',
+        "createdAt: '2026-09-16T00:00:00.000Z'",
+        "publishedAt: '2026-09-16T00:00:00.000Z'",
+        'slug: with-file',
+        'redirects: []',
+        'extensions: {}',
+        '---',
+        '',
+        'Read the report.',
+        '',
+        '```file',
+        'path: assets/files/annual-report.pdf',
+        'title: Annual report 2026',
+        '```',
+        '',
+      ].join('\n'),
+    );
+    const outputDirectory = path.join(tmp, 'output');
+    const workDirectory = path.join(tmp, 'work');
+    const buildResult = await runBuild({
+      repositoryDirectory: repository,
+      outputDirectory,
+      workDirectory,
+    });
+    assert.equal(
+      buildResult.resultCode,
+      'SUCCESS',
+      JSON.stringify(buildResult.findings),
+    );
+    const read = (/** @type {string} */ name) =>
+      readFile(path.join(outputDirectory, name), 'utf8');
+    const page = await read('with-file/index.html');
+    const emitted =
+      /href="[^"]*(assets\/files\/annual-report\.[0-9a-f]{8}\.pdf)"/u.exec(
+        page,
+      );
+    assert.ok(emitted, 'the page links the emitted PDF');
+    assert.match(page, /Annual report 2026/u);
+    assert.deepEqual(
+      await readFile(path.join(outputDirectory, emitted[1] ?? '')),
+      pdf,
+    );
+    const recommendations = JSON.parse(
+      await read('.well-known/recommendations.json'),
+    );
+    assert.equal(recommendations.length, 1);
+    assert.equal(recommendations[0].url, 'https://friend.example.invalid/');
+  } finally {
+    await cleanup();
+  }
+});

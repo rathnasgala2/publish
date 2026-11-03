@@ -49,6 +49,7 @@ import { SchemaValidationError } from '../src/schema.js';
 import { currentRenderPolicyIdentity } from '../src/template-bridge.js';
 import { audioBytes } from './audio-bytes.js';
 import { imageBytes } from './image-bytes.js';
+import { pdfBytes } from './pdf-bytes.js';
 
 const FIXTURE_REPOSITORY = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -3902,6 +3903,401 @@ test('the listen setting and a post with audio together build a schema-valid inp
       recordOf(buildInput, 'content/whole.md').frontmatter.listen.audio
         .mediaType,
       'audio/mp4',
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+const RECOMMENDATIONS = Object.freeze([
+  Object.freeze({
+    url: 'https://friend.example.invalid/',
+    title: 'A friend',
+    description: 'Writes about gardens.',
+    addedOn: '2026-10-01',
+  }),
+  Object.freeze({ url: 'https://other.example.invalid/', title: 'Another' }),
+]);
+
+test('a repository without recommendations builds a publication without the member', async () => {
+  const buildInput = /** @type {any} */ (
+    await buildBuildInputFromRepository({
+      repositoryDirectory: FIXTURE_REPOSITORY,
+      env: {},
+    })
+  );
+  assert.equal('recommendations' in buildInput.publication, false);
+});
+
+test('publication.recommendations reaches the build input as authored, member by member', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const buildInput = await buildWithPublication(dir, {
+      recommendations: RECOMMENDATIONS,
+    });
+    assert.deepEqual(buildInput.publication.recommendations, RECOMMENDATIONS);
+    // A copy, not the parsed document's own array.
+    assert.notEqual(buildInput.publication.recommendations, RECOMMENDATIONS);
+
+    const empty = await buildWithPublication(dir, { recommendations: [] });
+    assert.deepEqual(empty.publication.recommendations, []);
+  } finally {
+    await cleanup();
+  }
+});
+
+const INVALID_RECOMMENDATIONS = [
+  [
+    'more than 24 items',
+    Array.from({ length: 25 }, (_, index) => ({
+      url: `https://site-${index}.example.invalid/`,
+      title: `Site ${index}`,
+    })),
+  ],
+  ['an http address', [{ url: 'http://friend.example.invalid/', title: 'A' }]],
+  ['no title', [{ url: 'https://friend.example.invalid/' }]],
+  [
+    'an unknown member',
+    [{ url: 'https://friend.example.invalid/', title: 'A', extra: true }],
+  ],
+  [
+    'a malformed addedOn',
+    [{ url: 'https://friend.example.invalid/', title: 'A', addedOn: 'May' }],
+  ],
+];
+
+for (const [rule, recommendations] of INVALID_RECOMMENDATIONS) {
+  test(`publication.recommendations with ${rule} is a schema refusal naming publication.json`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await assertPublicationRefused(dir, { recommendations });
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+test('a Galascribe newsletter carries its welcome email and afterSignupUrl into the build input', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const newsletter = {
+      ...GALASCRIBE_NEWSLETTER,
+      welcome: {
+        subject: 'Welcome aboard',
+        body: 'Thanks for subscribing.\nNew posts arrive by email.',
+      },
+      afterSignupUrl: 'https://thanks.example.invalid/subscribed',
+    };
+    const buildInput = await buildWithPublication(dir, { newsletter });
+    assert.deepEqual(buildInput.publication.newsletter, newsletter);
+
+    const welcomeOnly = {
+      ...GALASCRIBE_NEWSLETTER,
+      welcome: { subject: 'Hello', body: 'Hi.' },
+    };
+    const only = await buildWithPublication(dir, { newsletter: welcomeOnly });
+    assert.deepEqual(only.publication.newsletter, welcomeOnly);
+    assert.equal('afterSignupUrl' in only.publication.newsletter, false);
+  } finally {
+    await cleanup();
+  }
+});
+
+for (const [rule, newsletter] of [
+  [
+    'a multi-line welcome subject',
+    {
+      ...GALASCRIBE_NEWSLETTER,
+      welcome: { subject: 'Line one\nLine two', body: 'Hi.' },
+    },
+  ],
+  [
+    'a welcome without a body',
+    { ...GALASCRIBE_NEWSLETTER, welcome: { subject: 'Hello' } },
+  ],
+  [
+    'an http afterSignupUrl',
+    {
+      ...GALASCRIBE_NEWSLETTER,
+      afterSignupUrl: 'http://thanks.example.invalid/',
+    },
+  ],
+  [
+    'a welcome on a link-mode newsletter',
+    { ...LINK_NEWSLETTER, welcome: { subject: 'Hello', body: 'Hi.' } },
+  ],
+]) {
+  test(`publication.newsletter with ${rule} is a schema refusal naming publication.json`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      await assertPublicationRefused(dir, { newsletter });
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+test('interactions comments.likes reaches the build input inside the embedded config', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    for (const likes of [true, false]) {
+      const config = {
+        ...VALID_INTERACTIONS_CONFIG,
+        comments: { ...VALID_INTERACTIONS_CONFIG.comments, likes },
+      };
+      await writeInteractionsConfig(dir, config);
+      const buildInput = /** @type {any} */ (
+        await buildBuildInputFromRepository({
+          repositoryDirectory: dir,
+          env: {},
+        })
+      );
+      assert.deepEqual(buildInput.modules.interactions.config, config);
+      assert.equal(
+        buildInput.modules.interactions.config.comments.likes,
+        likes,
+      );
+    }
+    // A configuration without the member still validates and stays without it.
+    await writeInteractionsConfig(dir, VALID_INTERACTIONS_CONFIG);
+    const plain = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    assert.equal('likes' in plain.modules.interactions.config.comments, false);
+
+    await writeInteractionsConfig(dir, {
+      ...VALID_INTERACTIONS_CONFIG,
+      comments: { ...VALID_INTERACTIONS_CONFIG.comments, likes: 'yes' },
+    });
+    await assert.rejects(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+      (/** @type {SchemaValidationError} */ error) => {
+        assert.ok(error instanceof SchemaValidationError, String(error));
+        return true;
+      },
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+/**
+ * The Markdown of a `file` block.
+ *
+ * @param {string} filePath the block's `path`
+ * @param {string} [title] the block's `title`
+ * @returns {string} the fenced block
+ */
+function fileBlock(filePath, title = 'A download') {
+  return `\`\`\`file\npath: ${filePath}\ntitle: ${title}\n\`\`\`\n`;
+}
+
+test('a file block becomes a PDF entry of the document media[], beside body images, ordered by path', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    const report = pdfBytes('report');
+    const guide = pdfBytes('guide');
+    const photo = imageBytes('png', 'photo');
+    await addFile(dir, 'assets/files/report.pdf', report);
+    await addFile(dir, 'assets/files/guide.pdf', guide);
+    await addFile(dir, 'assets/photo.png', photo);
+    await addDocument(
+      dir,
+      'downloads.md',
+      { slug: 'downloads', id: '01912345-6789-7abc-89ab-0123456789d1' },
+      `![photo](assets/photo.png)\n\n${fileBlock('assets/files/report.pdf')}\n${fileBlock('./assets/files/guide.pdf', 'Guide')}\n${fileBlock('assets/files/report.pdf', 'Again')}`,
+    );
+    await addDocument(
+      dir,
+      'plain.md',
+      { slug: 'plain', id: '01912345-6789-7abc-89ab-0123456789d2' },
+      'No blocks.\n',
+    );
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    const record = recordOf(buildInput, 'content/downloads.md');
+    assert.deepEqual(record.media, [
+      {
+        path: 'assets/files/guide.pdf',
+        sourceDigest: `sha256:${createHash('sha256').update(guide).digest('hex')}`,
+        mediaType: 'application/pdf',
+        byteLength: guide.byteLength,
+      },
+      {
+        path: 'assets/files/report.pdf',
+        sourceDigest: `sha256:${createHash('sha256').update(report).digest('hex')}`,
+        mediaType: 'application/pdf',
+        byteLength: report.byteLength,
+      },
+      {
+        path: 'assets/photo.png',
+        sourceDigest: `sha256:${createHash('sha256').update(photo).digest('hex')}`,
+        mediaType: 'image/png',
+        byteLength: photo.byteLength,
+      },
+    ]);
+    assert.match(
+      record.body,
+      /<figure class="g-file" data-gala-block="file"><a href="assets\/files\/report\.pdf">/u,
+    );
+    assert.equal('media' in recordOf(buildInput, 'content/plain.md'), false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a malformed file block is code, so it names no file and needs none', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await addDocument(
+      dir,
+      'code.md',
+      { slug: 'code', id: '01912345-6789-7abc-89ab-0123456789d3' },
+      '```file\npath: assets/files/missing.pdf\n```\n',
+    );
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    assert.equal('media' in recordOf(buildInput, 'content/code.md'), false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a file block whose PDF is missing fails the build with MEDIA_REFERENCE_UNRESOLVED, the document and origin file', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await addDocument(
+      dir,
+      'broken.md',
+      { slug: 'broken', id: '01912345-6789-7abc-89ab-0123456789d4' },
+      fileBlock('assets/files/missing.pdf'),
+    );
+    const [finding, ...rest] = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.equal(rest.length, 0);
+    assert.equal(finding?.code, 'MEDIA_REFERENCE_UNRESOLVED');
+    assert.equal(finding?.location, 'content/broken.md');
+    assert.deepEqual(finding?.evidence, {
+      document: 'content/broken.md',
+      path: 'assets/files/missing.pdf',
+      origin: 'file',
+      reason: 'FILE_MISSING',
+    });
+    assert.equal(
+      finding?.detail,
+      'content/broken.md: the file "assets/files/missing.pdf" does not exist in the repository.',
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a file block whose file is not a PDF, or is outside every asset root, is refused', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await addFile(dir, 'assets/files/fake.pdf', 'plain text');
+    await addFile(dir, 'docs/real.pdf', pdfBytes('real'));
+    await addDocument(
+      dir,
+      'refused.md',
+      { slug: 'refused', id: '01912345-6789-7abc-89ab-0123456789d5' },
+      `${fileBlock('assets/files/fake.pdf')}\n${fileBlock('docs/real.pdf')}`,
+    );
+    const findings = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.deepEqual(
+      findings.map((finding) => [
+        finding.code,
+        /** @type {any} */ (finding.evidence).reason,
+        /** @type {any} */ (finding.evidence).path,
+      ]),
+      [
+        [
+          'MEDIA_REFERENCE_UNRESOLVED',
+          'UNSUPPORTED_FORMAT',
+          'assets/files/fake.pdf',
+        ],
+        ['MEDIA_REFERENCE_UNRESOLVED', 'OUTSIDE_ASSET_ROOTS', 'docs/real.pdf'],
+      ],
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a PDF over 10 MiB fails the build with MEDIA_LIMIT_EXCEEDED naming the document and the path', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    // A sparse file: only the first bytes are real, and a file over the limit
+    // is never read.
+    await addFile(dir, 'assets/files/huge.pdf', pdfBytes('huge'));
+    await truncate(
+      path.join(dir, 'assets/files/huge.pdf'),
+      10 * 1024 * 1024 + 1,
+    );
+    await addDocument(
+      dir,
+      'huge.md',
+      { slug: 'huge', id: '01912345-6789-7abc-89ab-0123456789d6' },
+      fileBlock('assets/files/huge.pdf'),
+    );
+    const [finding] = await intakeFindings(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+    );
+    assert.equal(finding?.code, 'MEDIA_LIMIT_EXCEEDED');
+    assert.deepEqual(finding?.evidence, {
+      limit: 'FILE_BYTES',
+      document: 'content/huge.md',
+      path: 'assets/files/huge.pdf',
+      bytes: 10 * 1024 * 1024 + 1,
+      max: 10 * 1024 * 1024,
+    });
+    assert.equal(finding?.location, 'content/huge.md');
+    assert.match(finding?.detail ?? '', /at most 10485760 bytes \(10 MiB\)/u);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('file problems, image problems and audio problems are reported together in one failure', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    await addDocument(
+      dir,
+      'all.md',
+      {
+        slug: 'all',
+        id: '01912345-6789-7abc-89ab-0123456789d7',
+        listen: { ...VALID_LISTEN, audio: 'assets/listen/gone.mp3' },
+      },
+      `![gone](assets/gone.png)\n\n${fileBlock('assets/files/gone.pdf')}`,
+    );
+    await assert.rejects(
+      buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} }),
+      (/** @type {RepositoryIntakeError} */ error) => {
+        assert.ok(error instanceof RepositoryIntakeError, String(error));
+        assert.equal(
+          error.message,
+          '3 problem(s) with images and audio and files referenced from content',
+        );
+        assert.deepEqual(
+          error.findings.map(
+            (finding) => /** @type {any} */ (finding.evidence).origin,
+          ),
+          ['body', 'listen', 'file'],
+        );
+        return true;
+      },
     );
   } finally {
     await cleanup();

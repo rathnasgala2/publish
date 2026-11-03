@@ -8,14 +8,30 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Intake carries `publication.json`'s `recommendations` (at most 24 of
+  `{url, title, description?, addedOn?}`) into the build input as
+  `publication.recommendations`; a Galascribe newsletter's `welcome` and
+  `afterSignupUrl` and the interactions config's `comments.likes` already ride
+  with the objects intake copies whole, and now have tests. Needs schemas
+  3.32.0.
+- Intake inventories the PDFs of document `file` blocks as `content[].media[]`
+  entries of `mediaType` `application/pdf` (under an `assetRoots` entry, a
+  regular file, `.pdf` by name and `%PDF-` by its bytes, at most 10 MiB a file;
+  200 entries a document counting images), so the template's content-files step
+  resolves them. A problem reuses `MEDIA_REFERENCE_UNRESOLVED` or
+  `MEDIA_LIMIT_EXCEEDED` with `evidence.origin` `file`; see `README.md`,
+  "Recommendations, file blocks and comment likes".
+
 ### Changed
 
-- Serve schemas 3.32.0 and template 4.14.0 (exact pins; adds the fenced
-  `video`, `bookmark` and `file` blocks, galleries, `publication.recommendations`
-  and per-comment likes). The template's render-policy identity changes, so a
-  body normalized by 4.13.1 is refused by 4.14.0 until intake normalizes it
-  again; the starter repository's pins move with this toolchain. The peer range
-  stays `^4.1.0`.
+- Serve schemas 3.32.0 and template 4.14.0 (exact pins; adds the fenced `video`,
+  `bookmark` and `file` blocks, galleries, `publication.recommendations` and
+  per-comment likes). The template's render-policy identity changes, so a body
+  normalized by 4.13.1 is refused by 4.14.0 until intake normalizes it again;
+  the starter repository's pins move with this toolchain. The peer range stays
+  `^4.1.0`.
 - Serve template 4.13.1 (the interactive preview gains a GET cache and preview
   address validation; published site bytes are identical to 4.13.0 apart from
   the version string, the render-policy identity is unchanged and no theme
