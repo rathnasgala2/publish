@@ -44,13 +44,13 @@ jobs:
     # below is the immutable generation-4 source-only release commit -- a real,
     # resolvable commit, not a placeholder -- so replacing it exercises exactly
     # the sha you must actually type in, rather than an all-zero sentinel.
-    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@62e92ed3c132c5dd7cbc5afb295e3dcd1f08d052
+    uses: rathnasgala2/publish/.github/workflows/publish-v2.yml@48bd2d7ed8542915033b129564c0729638d3b132
     with:
       # REPLACE with the signed Gala service-origin catalog location.
       service_origin_catalog_url: https://api.galascribe.com/v2/service-origins
       # REPLACE with the Gala API origin used for publish authorization and reporting.
       gala_api_origin: https://api.galascribe.com
-      publish_toolchain_ref: 62e92ed3c132c5dd7cbc5afb295e3dcd1f08d052
+      publish_toolchain_ref: 48bd2d7ed8542915033b129564c0729638d3b132
       artifact_retention_days: 7
       require_github_attestation: false
     # The sole caller secret map. `secrets: inherit` is never used, and no
