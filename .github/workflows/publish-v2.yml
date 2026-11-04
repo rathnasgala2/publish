@@ -145,10 +145,16 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: publish-toolchain/.node-version
+          cache: npm
+          cache-dependency-path: publish-toolchain/package-lock.json
 
+      # Runtime dependencies only (`--omit=dev`): every script this job runs
+      # imports nothing from the dev tree (the toolchain's tests, linters and
+      # the unpublished-theme/template candidates are dev dependencies).
+      # Scripts stay disabled and the lockfile still pins every integrity.
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: npm ci --omit=dev --ignore-scripts
 
       - name: Build the verified-input carrier
         id: verified-source
@@ -220,7 +226,13 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: publish-toolchain/.node-version
+          cache: npm
+          cache-dependency-path: publish-toolchain/package-lock.json
 
+      # The full tree, deliberately: the sandboxed build resolves the
+      # template and the theme packages from this toolchain's node_modules
+      # (WORKSPACE_ROOT in scripts/sandbox-build.sh), and those are dev
+      # dependencies. Scripts stay disabled; the lockfile pins every integrity.
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
         run: npm ci --ignore-scripts
@@ -341,10 +353,16 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: publish-toolchain/.node-version
+          cache: npm
+          cache-dependency-path: publish-toolchain/package-lock.json
 
+      # Runtime dependencies only (`--omit=dev`): every script this job runs
+      # imports nothing from the dev tree (the toolchain's tests, linters and
+      # the unpublished-theme/template candidates are dev dependencies).
+      # Scripts stay disabled and the lockfile still pins every integrity.
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: npm ci --omit=dev --ignore-scripts
 
       # The two predecessor handoffs (exact ID, name, byte count, digest,
       # expiry, each re-observed by its producing job) are retained in the
@@ -503,10 +521,16 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: publish-toolchain/.node-version
+          cache: npm
+          cache-dependency-path: publish-toolchain/package-lock.json
 
+      # Runtime dependencies only (`--omit=dev`): every script this job runs
+      # imports nothing from the dev tree (the toolchain's tests, linters and
+      # the unpublished-theme/template candidates are dev dependencies).
+      # Scripts stay disabled and the lockfile still pins every integrity.
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: npm ci --omit=dev --ignore-scripts
 
       # DEC-097 section 6: attest revalidates the envelope's internal
       # build-provenance record and extracts the exact SBOM record bytes; no
@@ -598,10 +622,16 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: publish-toolchain/.node-version
+          cache: npm
+          cache-dependency-path: publish-toolchain/package-lock.json
 
+      # Runtime dependencies only (`--omit=dev`): every script this job runs
+      # imports nothing from the dev tree (the toolchain's tests, linters and
+      # the unpublished-theme/template candidates are dev dependencies).
+      # Scripts stay disabled and the lockfile still pins every integrity.
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: npm ci --omit=dev --ignore-scripts
 
       - name: Perform the two bounded read-only configuration checks
         shell: bash
@@ -687,10 +717,16 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: publish-toolchain/.node-version
+          cache: npm
+          cache-dependency-path: publish-toolchain/package-lock.json
 
+      # Runtime dependencies only (`--omit=dev`): every script this job runs
+      # imports nothing from the dev tree (the toolchain's tests, linters and
+      # the unpublished-theme/template candidates are dev dependencies).
+      # Scripts stay disabled and the lockfile still pins every integrity.
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: npm ci --omit=dev --ignore-scripts
 
       - name: Run the kernel and the Spaces adapter
         id: deploy
@@ -807,10 +843,16 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: publish-toolchain/.node-version
+          cache: npm
+          cache-dependency-path: publish-toolchain/package-lock.json
 
+      # Runtime dependencies only (`--omit=dev`): every script this job runs
+      # imports nothing from the dev tree (the toolchain's tests, linters and
+      # the unpublished-theme/template candidates are dev dependencies).
+      # Scripts stay disabled and the lockfile still pins every integrity.
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: npm ci --omit=dev --ignore-scripts
 
       - name: Build the deterministic Pages carrier
         shell: bash

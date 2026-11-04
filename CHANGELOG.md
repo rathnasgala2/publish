@@ -89,6 +89,13 @@ and this project adheres to
 
 ### Changed
 
+- Publish workflows install faster without changing the job split or any trust
+  boundary: every job except `build` runs `npm ci --omit=dev --ignore-scripts`
+  (no script those jobs run imports a dev dependency), and every job's
+  `actions/setup-node` step caches the npm download cache keyed on the toolchain
+  lockfile. The `build` job keeps the full install because the sandboxed build
+  resolves the template and theme packages (dev dependencies) from the
+  toolchain's `node_modules`.
 - Serve schemas 3.19.0 (exact registry pin in `publish-action` and
   `publish-kernel`; the adapters stay on 3.8.0). Content front matter may now
   carry the optional `publishAfter` member (`YYYY-MM-DD`) that staggered release

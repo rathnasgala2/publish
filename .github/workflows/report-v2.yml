@@ -82,10 +82,16 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: publish-toolchain/.node-version
+          cache: npm
+          cache-dependency-path: publish-toolchain/package-lock.json
 
+      # Runtime dependencies only (`--omit=dev`): every script this job runs
+      # imports nothing from the dev tree (the toolchain's tests, linters and
+      # the unpublished-theme/template candidates are dev dependencies).
+      # Scripts stay disabled and the lockfile still pins every integrity.
       - name: Install the integrity-locked publish toolchain
         working-directory: publish-toolchain
-        run: npm ci --ignore-scripts
+        run: npm ci --omit=dev --ignore-scripts
 
       # The one `id-token: write` use in this job, and the only step that
       # ever holds the reporting capability. It leaves here as a masked step
