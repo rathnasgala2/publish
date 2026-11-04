@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Serve template 4.15.0 (a text-first hero and compact cards when a post has no
+  cover; site bytes for posts with covers equal 4.14.0 apart from the version
+  string). Schemas 3.32.0, the themes and the theme contract 4.1.0 are
+  unchanged.
+
 ### Added
 
 - Parity members, intake: `publication.json`'s `recommendations` reaches the
