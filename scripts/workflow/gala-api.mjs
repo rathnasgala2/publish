@@ -43,7 +43,7 @@ export class GalaApiError extends Error {
   /**
    * @param {string} code the stable workflow category
    * @param {string} detail the credential-free detail
-   * @param {{status?: number, problemCode?: string, retryable?: boolean, errors?: readonly {pointer: string, code: string}[], pageLoss?: {previousPageCount: number, candidatePageCount: number, lostPageCount: number}}} [context]
+   * @param {{status?: number, problemCode?: string, retryable?: boolean, attempts?: number, errors?: readonly {pointer: string, code: string}[], pageLoss?: {previousPageCount: number, candidatePageCount: number, lostPageCount: number}}} [context]
    *   the classified response context
    */
   constructor(code, detail, context = {}) {
@@ -57,6 +57,8 @@ export class GalaApiError extends Error {
     this.problemCode = context.problemCode ?? null;
     /** @type {boolean} */
     this.retryable = context.retryable ?? false;
+    /** @type {number} how many sends were made before this refusal */
+    this.attempts = context.attempts ?? 1;
     /**
      * The page counts a `PAGE_LOSS_GUARD` refusal carries (schemas 3.25.0
      * `PageLossGuardDetails`), or null for any other answer.
@@ -177,7 +179,7 @@ export async function requestOidcAssertion(audience) {
  *   authorization: string,
  *   body: Record<string, unknown>
  * }} call the fixed request
- * @returns {Promise<{status: number, body: Record<string, unknown> | null, byteCount: number}>}
+ * @returns {Promise<{status: number, body: Record<string, unknown> | null, byteCount: number, retryAfterSeconds: number | null}>}
  *   the response
  */
 async function send(call) {
@@ -209,7 +211,149 @@ async function send(call) {
       body = null;
     }
   }
-  return { status: response.status, body, byteCount: bytes.byteLength };
+  return {
+    status: response.status,
+    body,
+    byteCount: bytes.byteLength,
+    retryAfterSeconds: parseRetryAfter(response.headers.get('retry-after')),
+  };
+}
+
+/**
+ * The seconds a `Retry-After` header asks for (delta-seconds or an HTTP
+ * date), or null when absent or unreadable.
+ *
+ * @param {string | null} value the header value
+ * @returns {number | null} the seconds
+ */
+function parseRetryAfter(value) {
+  if (value === null || value.trim() === '') {
+    return null;
+  }
+  if (/^\d+$/.test(value.trim())) {
+    return Number(value.trim());
+  }
+  const at = Date.parse(value);
+  return Number.isNaN(at)
+    ? null
+    : Math.max(0, Math.ceil((at - Date.now()) / 1000));
+}
+
+/** Seconds to wait before each send: four sends in about 2.5 minutes. */
+export const RETRY_DELAYS_SECONDS = Object.freeze([0, 20, 45, 90]);
+
+/** The longest a `Retry-After` is honoured for, in seconds. */
+const MAXIMUM_RETRY_AFTER_SECONDS = 180;
+
+/** Network error codes `fetch` surfaces as `error.cause.code` worth resending. */
+const RETRYABLE_TRANSPORT_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EAI_AGAIN',
+  'EPIPE',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+]);
+
+/**
+ * @param {unknown} error a thrown value from `fetch`
+ * @returns {string | null} the retryable transport code, or null
+ */
+function transportCode(error) {
+  const code = /** @type {any} */ (error)?.cause?.code;
+  return typeof code === 'string' && RETRYABLE_TRANSPORT_CODES.has(code)
+    ? code
+    : null;
+}
+
+/** Statuses that are final answers even when a body claims `retryable`. */
+const FINAL_STATUSES = new Set([400, 401, 403, 404, 409, 410, 422]);
+
+/**
+ * @param {{status: number, body: Record<string, unknown> | null}} response the answer
+ * @returns {boolean} whether the answer is worth resending
+ */
+function isRetryableAnswer(response) {
+  if (response.status === 200 || response.status === 202) {
+    return false;
+  }
+  if (response.status === 429 || response.status === 503) {
+    return true;
+  }
+  return (
+    !FINAL_STATUSES.has(response.status) &&
+    response.body !== null &&
+    response.body.retryable === true
+  );
+}
+
+/**
+ * Send with the retry schedule. A retryable answer or transport error is
+ * resent after the next delay (a larger `Retry-After` wins); anything else
+ * returns at once. Each wait logs one credential-free line.
+ *
+ * @param {Parameters<typeof send>[0] & {
+ *   label: string,
+ *   mintAuthorization?: () => Promise<string>,
+ *   sleep?: (milliseconds: number) => Promise<void>,
+ *   log?: (line: string) => void
+ * }} call the request and the test seams
+ * @returns {Promise<Awaited<ReturnType<typeof send>> & {attempts: number}>} the last answer
+ */
+async function sendWithRetry(call) {
+  const sleep =
+    call.sleep ??
+    ((/** @type {number} */ ms) =>
+      new Promise((resolve) => setTimeout(resolve, ms)));
+  const log =
+    call.log ??
+    ((/** @type {string} */ line) => process.stdout.write(`${line}\n`));
+  const total = RETRY_DELAYS_SECONDS.length;
+  let authorization = call.authorization;
+  for (let attempt = 1; ; attempt += 1) {
+    /** @type {Awaited<ReturnType<typeof send>> | null} */
+    let response = null;
+    let status = 0;
+    let code;
+    try {
+      response = await send({ ...call, authorization });
+      status = response.status;
+      code =
+        typeof response.body?.code === 'string' ? response.body.code : 'none';
+      if (!isRetryableAnswer(response)) {
+        return { ...response, attempts: attempt };
+      }
+    } catch (error) {
+      const transport = transportCode(error);
+      if (transport === null || attempt === total) {
+        throw error;
+      }
+      code = transport;
+    }
+    if (attempt === total) {
+      return {
+        .../** @type {NonNullable<typeof response>} */ (response),
+        attempts: attempt,
+      };
+    }
+    const wait = Math.min(
+      Math.max(
+        RETRY_DELAYS_SECONDS[attempt] ?? 0,
+        response?.retryAfterSeconds ?? 0,
+      ),
+      Math.max(MAXIMUM_RETRY_AFTER_SECONDS, RETRY_DELAYS_SECONDS[attempt] ?? 0),
+    );
+    log(
+      `${call.label} refused (retryable) status=${status} code=${code} attempt=${attempt}/${total}, retrying in ${wait}s`,
+    );
+    await sleep(wait * 1000);
+    if (call.mintAuthorization !== undefined) {
+      authorization = await call.mintAuthorization();
+    }
+  }
 }
 
 /**
@@ -249,9 +393,10 @@ function pageLossDetails(body, problemCode) {
  *
  * @param {{status: number, body: Record<string, unknown> | null}} response the answer
  * @param {string} code the workflow category to raise
+ * @param {number} [attempts] how many sends were made
  * @returns {never} never returns
  */
-function refuse(response, code) {
+function refuse(response, code, attempts = 1) {
   const problemCode =
     response.body !== null && typeof response.body.code === 'string'
       ? response.body.code
@@ -270,12 +415,13 @@ function refuse(response, code) {
     code,
     `the API answered HTTP ${response.status}${problemCode === null ? '' : ` ${problemCode}`}${errors.length === 0 ? '' : ` at ${errors.map((/** @type {any} */ entry) => entry.pointer).join(', ')}`}`,
     problemCode === null
-      ? { status: response.status, retryable, errors }
+      ? { status: response.status, retryable, errors, attempts }
       : {
           status: response.status,
           problemCode,
           retryable,
           errors,
+          attempts,
           ...(pageLoss === null ? {} : { pageLoss }),
         },
   );
@@ -343,8 +489,15 @@ function classifyExchangeBody(body) {
  * `null` for an older server) is returned so the job can record which
  * contract generation answered it.
  *
- * @param {{origin: string, assertion: string, request: Record<string, unknown>}} call
- *   the exchange call
+ * @param {{
+ *   origin: string,
+ *   assertion: string,
+ *   request: Record<string, unknown>,
+ *   mintAssertion?: () => Promise<string>,
+ *   sleep?: (milliseconds: number) => Promise<void>,
+ *   log?: (line: string) => void
+ * }} call the exchange call; `mintAssertion` mints a fresh OIDC assertion
+ *   for each resend, since the first may expire during the wait
  * @returns {Promise<{
  *   state: 'deployment-authorization' | 'capability-issued' | 'submission-recorded',
  *   kind: string | null,
@@ -352,14 +505,23 @@ function classifyExchangeBody(body) {
  * }>} the classified answer
  */
 export async function postReceiptExchange(call) {
-  const response = await send({
+  const response = await sendWithRetry({
     origin: call.origin,
     path: RECEIPT_EXCHANGE_PATH,
     authorization: `Bearer ${call.assertion}`,
     body: call.request,
+    label: 'exchange',
+    ...(call.mintAssertion === undefined
+      ? {}
+      : {
+          mintAuthorization: async () =>
+            `Bearer ${await /** @type {() => Promise<string>} */ (call.mintAssertion)()}`,
+        }),
+    ...(call.sleep === undefined ? {} : { sleep: call.sleep }),
+    ...(call.log === undefined ? {} : { log: call.log }),
   });
   if (response.status !== 200 || response.body === null) {
-    refuse(response, 'WORKLOAD_EXCHANGE_REFUSED');
+    refuse(response, 'WORKLOAD_EXCHANGE_REFUSED', response.attempts);
   }
   const body = /** @type {Record<string, unknown>} */ (response.body);
   const state = classifyExchangeBody(body);
@@ -398,8 +560,13 @@ export async function postReceiptExchange(call) {
  * failure — unknown, malformed, expired, superseded, already consumed or
  * belonging to a moved fence — onto one answer.
  *
- * @param {{origin: string, capability: string, submission: Record<string, unknown>}} call
- *   the submission call
+ * @param {{
+ *   origin: string,
+ *   capability: string,
+ *   submission: Record<string, unknown>,
+ *   sleep?: (milliseconds: number) => Promise<void>,
+ *   log?: (line: string) => void
+ * }} call the submission call
  * @returns {Promise<{
  *   outcome: 'submission-recorded' | 'fence-moved' | 'capability-invalid' | 'refused',
  *   status: number,
@@ -411,11 +578,14 @@ export async function postReceiptExchange(call) {
  * }>} the classified evidence, free of every credential
  */
 export async function postDeploymentReceipt(call) {
-  const response = await send({
+  const response = await sendWithRetry({
     origin: call.origin,
     path: DEPLOYMENT_RECEIPTS_PATH,
     authorization: `Gala-Receipt ${call.capability}`,
     body: call.submission,
+    label: 'receipt submission',
+    ...(call.sleep === undefined ? {} : { sleep: call.sleep }),
+    ...(call.log === undefined ? {} : { log: call.log }),
   });
   const problemCode =
     response.body !== null && typeof response.body.code === 'string'

@@ -187,6 +187,7 @@ async function exchangeDeploymentIntent(job) {
       origin: job.origin,
       assertion,
       request,
+      mintAssertion: () => requestOidcAssertion(AUDIENCES['deployment-intent']),
     });
   } catch (error) {
     if (
@@ -400,6 +401,7 @@ async function exchangeDeploymentReceipt(job) {
     origin: job.origin,
     assertion,
     request,
+    mintAssertion: () => requestOidcAssertion(AUDIENCES['deployment-receipt']),
   });
 
   if (answer.state === 'submission-recorded') {

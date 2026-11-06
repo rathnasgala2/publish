@@ -142,3 +142,108 @@ test('a body outside the three states is refused whether or not it names a kind'
     });
   }
 });
+
+/**
+ * Serve a scripted sequence of answers; resolve with the exchange outcome, the
+ * waits requested and the lines logged.
+ *
+ * @param {{status: number, body?: Record<string, unknown>, headers?: Record<string, string>}[]} script the answers in order
+ * @returns {Promise<{result: unknown, error: any, waits: number[], lines: string[], hits: number}>} the run
+ */
+async function retryRun(script) {
+  let hits = 0;
+  const server = createServer((_request, response) => {
+    const step = /** @type {NonNullable<(typeof script)[number]>} */ (
+      script[Math.min(hits, script.length - 1)]
+    );
+    hits += 1;
+    response.writeHead(step.status, {
+      'content-type': 'application/json',
+      ...step.headers,
+    });
+    response.end(JSON.stringify(step.body ?? {}));
+  });
+  await new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve(undefined));
+  });
+  const { port } = /** @type {import('node:net').AddressInfo} */ (
+    server.address()
+  );
+  /** @type {number[]} */
+  const waits = [];
+  /** @type {string[]} */
+  const lines = [];
+  /** @type {unknown} */
+  let result = null;
+  /** @type {any} */
+  let error = null;
+  try {
+    result = await postReceiptExchange({
+      origin: `http://127.0.0.1:${port}`,
+      assertion: 'a.b.c',
+      request: { purpose: 'deployment-receipt' },
+      sleep: async (ms) => {
+        waits.push(ms);
+      },
+      log: (line) => lines.push(line),
+    });
+  } catch (caught) {
+    error = caught;
+  } finally {
+    await new Promise((resolve) => {
+      server.close(() => resolve(undefined));
+    });
+  }
+  return { result, error, waits, lines, hits };
+}
+
+const UNAVAILABLE = {
+  status: 503,
+  body: { code: 'DEPENDENCY_UNAVAILABLE', retryable: true },
+};
+
+test('a retryable 503 then a 200 succeeds after one logged retry', async () => {
+  const run = await retryRun([
+    UNAVAILABLE,
+    { status: 200, body: BODIES['deployment-authorization'] },
+  ]);
+  assert.equal(run.error, null);
+  assert.equal(
+    /** @type {any} */ (run.result).state,
+    'deployment-authorization',
+  );
+  assert.equal(run.hits, 2);
+  assert.deepEqual(run.waits, [20000]);
+  assert.deepEqual(run.lines, [
+    'exchange refused (retryable) status=503 code=DEPENDENCY_UNAVAILABLE attempt=1/4, retrying in 20s',
+  ]);
+});
+
+test('a 429 Retry-After larger than the schedule is honoured', async () => {
+  const run = await retryRun([
+    { status: 429, headers: { 'retry-after': '60' } },
+    { status: 200, body: BODIES['capability-issued'] },
+  ]);
+  assert.equal(run.error, null);
+  assert.deepEqual(run.waits, [60000]);
+});
+
+test('four retryable 503s end in WORKLOAD_EXCHANGE_REFUSED with attempts 4', async () => {
+  const run = await retryRun([UNAVAILABLE]);
+  assert.equal(run.error.code, 'WORKLOAD_EXCHANGE_REFUSED');
+  assert.equal(run.error.attempts, 4);
+  assert.equal(run.error.retryable, true);
+  assert.equal(run.hits, 4);
+  assert.deepEqual(run.waits, [20000, 45000, 90000]);
+  assert.equal(run.lines.length, 3);
+});
+
+test('a 409 INVALID_SOURCE_STATE is never retried, even if marked retryable', async () => {
+  const run = await retryRun([
+    { status: 409, body: { code: 'INVALID_SOURCE_STATE', retryable: true } },
+  ]);
+  assert.equal(run.error.code, 'WORKLOAD_EXCHANGE_REFUSED');
+  assert.equal(run.error.attempts, 1);
+  assert.equal(run.hits, 1);
+  assert.deepEqual(run.waits, []);
+});

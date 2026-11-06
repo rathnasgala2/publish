@@ -8,6 +8,17 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- The deployment-intent and receipt exchanges (and the receipt submission) retry
+  a retryable answer inside the job instead of failing the publish: HTTP 429 or
+  503, a refusal whose body says `retryable: true`, or a transient network
+  error, is resent after 0, 20, 45 and 90 seconds (four sends, a larger
+  `Retry-After` wins), each retry logging one credential-free line and minting a
+  fresh OIDC assertion. After the fourth send the refusal is raised as before
+  with `attempts` recorded. 409, 403, 422, replay and page-loss refusals are
+  never retried.
+
 ### Changed
 
 - Serve template 4.15.0 (a text-first hero and compact cards when a post has no
