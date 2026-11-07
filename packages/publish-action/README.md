@@ -477,6 +477,19 @@ file, `modules` stays `{}`.
 The managed workflow passes `GALA_API_ORIGIN` from its `gala_api_origin` input,
 and `scripts/sandbox-build.sh` forwards both variables into the sandbox.
 
+## Platform sharing list
+
+Intake makes one extra network call: `GET <api origin>/v2/public/sharing` (no
+auth, `Accept: application/json`, 5 s timeout, one retry), where the API origin
+is the interactions module's `apiOrigin` (`GALA_API_ORIGIN`, default
+`https://api.galascribe.com`). `build-input.publication.sharing.targets` is
+always present: the site's `publication.sharing.targets` limited to the platform
+`networks` catalogue (order kept), or the platform `defaults` when the site has
+no `sharing` member; `reddit.community` and `x.via` are copied when non-empty.
+If the call fails or the document is malformed, the site's own targets (else
+`["copy-link"]`) are used and a `SHARING_DEFAULTS_UNAVAILABLE` warning is
+reported; the build does not fail.
+
 ## Analytics module
 
 When `<repository.json "modules">/analytics.json` (normally

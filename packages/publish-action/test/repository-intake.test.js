@@ -2941,16 +2941,19 @@ async function assertPublicationRefused(dir, fields) {
   );
 }
 
-test('a repository with no audience settings builds a publication without sharing, newsletter or contactForm', async () => {
+test('a repository with no audience settings builds a publication with the platform default sharing and no newsletter or contactForm', async () => {
   const buildInput = /** @type {any} */ (
     await buildBuildInputFromRepository({
       repositoryDirectory: FIXTURE_REPOSITORY,
       env: {},
     })
   );
-  for (const key of ['sharing', 'newsletter', 'contactForm']) {
+  for (const key of ['newsletter', 'contactForm']) {
     assert.equal(key in buildInput.publication, false, key);
   }
+  assert.deepEqual(buildInput.publication.sharing, {
+    targets: ['copy-link', 'x', 'bluesky'],
+  });
   assert.deepEqual(buildInput.modules, {});
 });
 

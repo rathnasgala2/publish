@@ -8,6 +8,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Intake resolves `build-input.publication.sharing` against the platform list
+  (`GET <api origin>/v2/public/sharing`, 5 s timeout, one retry): the site's
+  targets limited to the platform catalogue, or the platform defaults when the
+  site has no `sharing` member, with `reddit.community` and `x.via` copied when
+  set. A failed or malformed answer keeps the site's own targets (else
+  `copy-link`) and reports a `SHARING_DEFAULTS_UNAVAILABLE` warning.
+
 ### Fixed
 
 - The deployment-intent and receipt exchanges (and the receipt submission) retry

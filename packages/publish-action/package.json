@@ -30,7 +30,7 @@
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --test",
+    "test": "node --import ./test/stub-sharing-fetch.js --test",
     "declarations:generate": "tsc -p tsconfig.declarations.json",
     "declarations:check": "node ../../scripts/check-declarations.mjs publish-action"
   },

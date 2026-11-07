@@ -29,7 +29,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -102,6 +102,11 @@ function main() {
     const result = spawnSync(
       process.execPath,
       [
+        // A package that ships a sharing-fetch stub preloads it, as its own
+        // `npm test` does, so no test reaches the network.
+        ...(existsSync(path.join(ROOT, workspace, 'test/stub-sharing-fetch.js'))
+          ? ['--import', './test/stub-sharing-fetch.js']
+          : []),
         '--test',
         '--experimental-test-coverage',
         '--test-coverage-include=src/**/*.js',

@@ -235,6 +235,7 @@ import {
   resolveMediaReferences,
 } from './content-media.js';
 import { evaluateEditions } from './content-editions.js';
+import { resolveSharing } from './sharing.js';
 
 const SCHEMA = Object.freeze({
   repository: 'urn:gala:schema:repository:2.0.0',
@@ -873,7 +874,7 @@ function resolvedFileOf(mediaFiles, imagePath) {
  * Build one validated `urn:gala:schema:build-input:2.0.0` document from a
  * repository directory (S2-T20 deliverable (1)).
  *
- * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean, env?: NodeJS.ProcessEnv, warnings?: import('../types.js').PublishActionFinding[]}} options the absolute repository directory, candidate-render policy, the environment that supplies `GALA_API_ORIGIN`/`GALA_APP_ORIGIN`, and an optional array that receives the non-blocking findings (a dropped Prism edition is the only source today); without it they are discarded
+ * @param {{repositoryDirectory: string, includeDraftsAsUnlisted?: boolean, env?: NodeJS.ProcessEnv, warnings?: import('../types.js').PublishActionFinding[], fetchImpl?: typeof fetch}} options the absolute repository directory, candidate-render policy, the environment that supplies `GALA_API_ORIGIN`/`GALA_APP_ORIGIN`, and an optional array that receives the non-blocking findings (a dropped Prism edition is the only source today); without it they are discarded
  * @returns {Promise<Record<string, unknown>>} the validated build-input
  *   document. `buildInput.packages.theme` (sourced from `lock.json`; the
  *   intake refuses with `THEME_SELECTION_MISMATCH` when `appearance.json`
@@ -885,6 +886,7 @@ export async function buildBuildInputFromRepository({
   includeDraftsAsUnlisted = false,
   env = process.env,
   warnings = [],
+  fetchImpl = globalThis.fetch,
 }) {
   if (!path.isAbsolute(repositoryDirectory)) {
     throw new RepositoryIntakeError(
@@ -1078,9 +1080,8 @@ export async function buildBuildInputFromRepository({
       : {}),
     // Audience settings (schemas 3.22.0), copied as authored. The schema
     // already refused any other member, so nothing unknown can ride along.
-    ...(publicationDoc.document.sharing
-      ? { sharing: { targets: [...publicationDoc.document.sharing.targets] } }
-      : {}),
+    // `sharing` is resolved against the platform list after the modules are
+    // read (see `resolveSharing`); it is always present in the build input.
     ...(publicationDoc.document.newsletter
       ? { newsletter: { ...publicationDoc.document.newsletter } }
       : {}),
@@ -1418,6 +1419,18 @@ export async function buildBuildInputFromRepository({
     repository.document.modules,
     env,
   );
+  const sharing = await resolveSharing({
+    apiOrigin:
+      interactions?.apiOrigin ??
+      resolveInteractionsOrigin(
+        'GALA_API_ORIGIN',
+        env.GALA_API_ORIGIN,
+        DEFAULT_INTERACTIONS_API_ORIGIN,
+      ),
+    siteTargets: publicationDoc.document.sharing?.targets,
+    warnings,
+    fetchImpl,
+  });
   const analytics = await readAnalyticsModule(
     repositoryDirectory,
     repository.document.modules,
@@ -1474,6 +1487,7 @@ export async function buildBuildInputFromRepository({
     packages,
     publication: {
       ...publication,
+      sharing,
       ...(contactFormDoc
         ? {
             contactForm: {
