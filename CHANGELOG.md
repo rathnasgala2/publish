@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Serve schemas 3.45.0 (exact pins in publish-action and publish-kernel; adds
+  `threads` to the share targets and `sharing.reddit`/`sharing.x` to the build
+  input) and template 4.17.0.
+
 ### Added
 
 - Intake resolves `build-input.publication.sharing` against the platform list

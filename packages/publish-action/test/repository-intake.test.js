@@ -2952,7 +2952,9 @@ test('a repository with no audience settings builds a publication with the platf
     assert.equal(key in buildInput.publication, false, key);
   }
   assert.deepEqual(buildInput.publication.sharing, {
-    targets: ['copy-link', 'x', 'bluesky'],
+    targets: ['copy-link', 'x', 'bluesky', 'threads'],
+    reddit: { community: 'Galascribe' },
+    x: { via: 'galascribe' },
   });
   assert.deepEqual(buildInput.modules, {});
 });
@@ -2962,9 +2964,25 @@ test('publication.sharing reaches the build input in its authored order, and an 
   try {
     const targets = ['x', 'copy-link', 'native', 'email'];
     const ordered = await buildWithPublication(dir, { sharing: { targets } });
-    assert.deepEqual(ordered.publication.sharing, { targets });
+    assert.deepEqual(ordered.publication.sharing, {
+      targets,
+      reddit: { community: 'Galascribe' },
+      x: { via: 'galascribe' },
+    });
     const none = await buildWithPublication(dir, { sharing: { targets: [] } });
-    assert.deepEqual(none.publication.sharing, { targets: [] });
+    assert.deepEqual(none.publication.sharing, {
+      targets: [],
+      reddit: { community: 'Galascribe' },
+      x: { via: 'galascribe' },
+    });
+    const withThreads = await buildWithPublication(dir, {
+      sharing: { targets: ['threads', 'reddit', 'x'] },
+    });
+    assert.deepEqual(withThreads.publication.sharing.targets, [
+      'threads',
+      'reddit',
+      'x',
+    ]);
   } finally {
     await cleanup();
   }
