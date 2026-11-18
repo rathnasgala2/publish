@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Changed
 
+- Serve template 4.18.0 (language sections mirror the whole site, a remembered
+  language and restyled language chips; sites without translations are
+  byte-for-byte unchanged). Schemas 3.45.0, the themes and the theme contract
+  4.1.0 are unchanged.
 - Serve schemas 3.45.0 (exact pins in publish-action and publish-kernel; adds
   `threads` to the share targets and `sharing.reddit`/`sharing.x` to the build
   input) and template 4.17.0.
