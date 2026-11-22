@@ -17,8 +17,15 @@ and this project adheres to
   3000 pixels does not fail the publish: with the feed on, the `podcast` member
   is left out (the site publishes, `/feed/podcast.xml` is not built) and a
   `PODCAST_COVER_UNUSABLE` warning is added to the build result's findings. The
-  front matter keys `newsletterTag` and `newsletterSubjectB` validate and are
-  not copied into the build input. Needs schemas 3.53.0.
+  same happens for what the template refuses and the schema allows: a PNG that
+  is not 8-bit, not a colour type it converts, interlaced or malformed to its
+  end, a JPEG that is not one baseline, extended or progressive frame of 1, 3 or
+  4 (Adobe) components, and a blank category or description, a line break in the
+  description or an owner address without a dotted domain (these warn as
+  `PODCAST_SETTING_UNUSABLE`). A file that is damaged inside its pixel data
+  cannot be told from the header and still fails the template's build. The front
+  matter keys `newsletterTag` and `newsletterSubjectB` validate and are not
+  copied into the build input. Needs schemas 3.53.0.
 - Intake carries `publication.json`'s `recommendations` (at most 24 of
   `{url, title, description?, addedOn?}`) into the build input as
   `publication.recommendations`; a Galascribe newsletter's `welcome` and

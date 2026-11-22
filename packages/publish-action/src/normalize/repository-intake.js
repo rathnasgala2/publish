@@ -188,10 +188,12 @@
  * resolved file `{path, sourceDigest}` (a single-file image like the brand
  * mark, so it joins the media inventory and the repository digest). The cover
  * is judged first: it must be a PNG or JPEG by its bytes, square, 1400 to 3000
- * pixels a side (the template's rule, read from the file header). With the
+ * pixels a side (the template's rule, read from the file header), and of a
+ * structure the template's decoders read (see `readImageSize`). The text
+ * members must pass the template's narrower rules (`podcastTextProblem`). With the
  * feed on, a cover that is absent or fails that judgement does not fail the
  * publish: the `podcast` member is left out, so the site builds without
- * `/feed/podcast.xml`, and one `PODCAST_COVER_UNUSABLE` WARNING reaches the
+ * `/feed/podcast.xml`, and one `PODCAST_COVER_UNUSABLE` (or, for the text members, `PODCAST_SETTING_UNUSABLE`) WARNING reaches the
  * build result's findings. With Listen or the podcast off the member rides
  * along when the file resolves as an image and is left out silently when not
  * (the schema requires the cover's digest). The front matter keys
@@ -887,6 +889,54 @@ function resolvedFileOf(mediaFiles, imagePath) {
   };
 }
 
+// eslint-disable-next-line no-control-regex -- the point is to refuse controls
+const PODCAST_CONTROL = /[\u0000-\u001f\u007f]/u;
+const PODCAST_EMAIL = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/u;
+
+/**
+ * The template's own rules for the podcast's text members
+ * (`internal/podcast.js`), which are narrower than the schema's: a category
+ * and a description must not be blank or hold a control character (a line
+ * break included), a description is at most 4000 characters, and an owner
+ * address is at most 254 characters, with a dotted domain and no quote or
+ * angle bracket. The problem never repeats the value.
+ *
+ * @param {Record<string, any>} podcast the authored `listen.podcast`
+ * @returns {string | undefined} what the template would refuse, or `undefined`
+ */
+function podcastTextProblem(podcast) {
+  /** @type {[string, unknown, number][]} */
+  const texts = [
+    ['category', podcast.category, 100],
+    ['description', podcast.description, 4000],
+  ];
+  for (const [name, value, limit] of texts) {
+    if (value === undefined) {
+      continue;
+    }
+    if (
+      typeof value !== 'string' ||
+      value.trim() === '' ||
+      PODCAST_CONTROL.test(value) ||
+      [...value].length > limit
+    ) {
+      return `the podcast ${name} is blank, holds a control character or line break, or is too long`;
+    }
+  }
+  const email = podcast.ownerEmail;
+  if (
+    email !== undefined &&
+    !(
+      typeof email === 'string' &&
+      email.length <= 254 &&
+      PODCAST_EMAIL.test(email)
+    )
+  ) {
+    return 'the podcast owner address is not one address with a dotted domain of at most 254 characters';
+  }
+  return undefined;
+}
+
 /**
  * Decide whether `publication.json`'s `listen.podcast` reaches the build input
  * and register its cover with the media references when it does.
@@ -923,12 +973,21 @@ async function settlePodcast({
   }
   const { cover, ...rest } = podcast;
   const feedOn = listen?.enabled === true && podcast.enabled === true;
-  const verdict = await judgePodcastCover({
-    repositoryDirectory,
-    assetRoots,
-    source: cover,
-    document,
-  });
+  // The template checks the whole member whether or not the feed is on, and
+  // refuses what the schema allows (a blank category, a line break or a blank
+  // in the description, an address without a dotted domain).
+  const textProblem = podcastTextProblem(podcast);
+  const verdict = textProblem
+    ? /** @type {{resolved: false, why: string}} */ ({
+        resolved: false,
+        why: textProblem,
+      })
+    : await judgePodcastCover({
+        repositoryDirectory,
+        assetRoots,
+        source: cover,
+        document,
+      });
   if (verdict.resolved && (verdict.usable || !feedOn)) {
     mediaReferences.push({
       document,
@@ -939,14 +998,20 @@ async function settlePodcast({
     return { rest, cover };
   }
   if (feedOn) {
+    const setting = textProblem !== undefined;
     warnings.push({
-      code: 'PODCAST_COVER_UNUSABLE',
+      code: setting ? 'PODCAST_SETTING_UNUSABLE' : 'PODCAST_COVER_UNUSABLE',
       severity: 'WARNING',
       detail: `The podcast feed was left out of this publish: ${verdict.why ?? 'the cover cannot be used'}. The site itself is published.`,
       location: document,
-      evidence: { document, pointer: '/listen/podcast/cover', cover },
-      recovery:
-        'Add a square PNG or JPEG cover, 1400 to 3000 pixels a side, at that path under an asset root, then publish again.',
+      evidence: {
+        document,
+        pointer: setting ? '/listen/podcast' : '/listen/podcast/cover',
+        ...(setting ? {} : { cover }),
+      },
+      recovery: setting
+        ? 'Correct the podcast settings in gala/publication.json, then publish again.'
+        : 'Add a square PNG or JPEG cover, 1400 to 3000 pixels a side, at that path under an asset root, then publish again.',
       overridable: false,
     });
   }

@@ -25,7 +25,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import YAML from 'yaml';
 import { ACTIVE_DIGEST_PROFILES } from '@rathnasgala2/schemas/digest-profiles';
 
@@ -46,7 +46,10 @@ import {
   resolveSourceRevision,
 } from '../src/normalize/source-revision.js';
 import { SchemaValidationError } from '../src/schema.js';
-import { currentRenderPolicyIdentity } from '../src/template-bridge.js';
+import {
+  TEMPLATE_ROOT,
+  currentRenderPolicyIdentity,
+} from '../src/template-bridge.js';
 import { audioBytes } from './audio-bytes.js';
 import { imageBytes, sizedImageBytes } from './image-bytes.js';
 import { pdfBytes } from './pdf-bytes.js';
@@ -4536,6 +4539,211 @@ test('newsletterTag and newsletterSubjectB pass validation and stay out of the b
     assert.equal('newsletterTag' in record.frontmatter, false);
     assert.equal('newsletterSubjectB' in record.frontmatter, false);
     assert.equal(record.frontmatter.slug, 'tagged');
+  } finally {
+    await cleanup();
+  }
+});
+
+// --- Podcast feed: what intake lets through, the template accepts ---------
+
+/**
+ * Run the template's own check of `publication.listen.podcast` on what intake
+ * emitted: it must not refuse it.
+ *
+ * @param {Record<string, unknown>} listen the emitted `publication.listen`
+ * @returns {Promise<void>} resolves once checked
+ */
+async function assertTemplateAcceptsListen(listen) {
+  const { withoutPodcast } = await import(
+    pathToFileURL(path.join(TEMPLATE_ROOT, 'src/core/internal/podcast.js')).href
+  );
+  if ('podcast' in listen) {
+    assert.doesNotThrow(() => withoutPodcast(listen));
+  }
+}
+
+/** @type {[string, Record<string, string>][]} */
+const TEXT_PROBLEMS = [
+  [
+    'an owner address without a dot in its domain',
+    { ownerEmail: 'host@localhost' },
+  ],
+  ['an owner address with a quote', { ownerEmail: 'ho"st@example.invalid' }],
+  [
+    'an owner address of more than 254 characters',
+    { ownerEmail: `${'a'.repeat(250)}@x.co` },
+  ],
+  ['a blank category', { category: '   ' }],
+  [
+    'a description with a line break',
+    { description: 'first line\nsecond line' },
+  ],
+  ['a description of blanks', { description: '   ' }],
+];
+for (const [label, podcast] of TEXT_PROBLEMS) {
+  test(`a podcast with ${label} (the schema allows it, the template refuses it) is left out with a warning, so the build does not fail closed`, async () => {
+    const { dir, cleanup } = await mutableFixtureCopy();
+    try {
+      const cover = sizedImageBytes('png', 1400, 1400);
+      const { buildInput, warnings } = await buildWithPodcast(
+        dir,
+        { enabled: true, podcast: { ...PODCAST, ...podcast } },
+        cover,
+      );
+      assert.deepEqual(buildInput.publication.listen, { enabled: true });
+      assert.equal(warnings.length, 1);
+      assert.equal(warnings[0]?.code, 'PODCAST_SETTING_UNUSABLE');
+      assert.equal(warnings[0]?.severity, 'WARNING');
+      const echoed = JSON.stringify(warnings[0]);
+      for (const value of Object.values(podcast)) {
+        assert.equal(echoed.includes(String(value)), false);
+      }
+      await assertTemplateAcceptsListen(buildInput.publication.listen);
+      // Switched off, the member is left out without a warning: the template
+      // checks it whether or not the feed is on.
+      const off = await buildWithPodcast(
+        dir,
+        { enabled: true, podcast: { ...PODCAST, ...podcast, enabled: false } },
+        cover,
+      );
+      assert.deepEqual(off.buildInput.publication.listen, { enabled: true });
+      assert.deepEqual(off.warnings, []);
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
+test('every podcast intake emits is accepted by the template check, in each combination of Listen, podcast and cover', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const cover = sizedImageBytes('png', 2000, 2000);
+    for (const listenOn of [true, false]) {
+      for (const podcastOn of [true, false]) {
+        for (const file of [cover, sizedImageBytes('png', 10, 10), null]) {
+          await rm(path.join(dir, 'assets/podcast-cover.png'), { force: true });
+          const { buildInput } = await buildWithPodcast(
+            dir,
+            { enabled: listenOn, podcast: { ...PODCAST, enabled: podcastOn } },
+            file,
+          );
+          await assertTemplateAcceptsListen(buildInput.publication.listen);
+        }
+      }
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a podcast cover that is a symbolic link, a directory, outside the asset roots, or reached through ".." leaves the podcast out and warns', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    const outside = await mkdtemp(path.join(tmpdir(), 'cover-outside-'));
+    try {
+      await writeFile(
+        path.join(outside, 'secret.png'),
+        sizedImageBytes('png', 1400, 1400),
+      );
+      await mkdir(path.join(dir, 'assets/folder.png'), { recursive: true });
+      await symlink(
+        path.join(outside, 'secret.png'),
+        path.join(dir, 'assets/link.png'),
+      );
+      await symlink(outside, path.join(dir, 'assets/linked-dir'));
+      await addFile(
+        dir,
+        'other/elsewhere.png',
+        sizedImageBytes('png', 1400, 1400),
+      );
+      for (const cover of [
+        'assets/link.png',
+        'assets/folder.png',
+        'assets/linked-dir/secret.png',
+        'other/elsewhere.png',
+      ]) {
+        await setPublication(dir, {
+          listen: { enabled: true, podcast: { ...PODCAST, cover } },
+        });
+        const { buildInput, warnings } = await buildWithWarnings(dir);
+        assert.deepEqual(
+          /** @type {any} */ (buildInput).publication.listen,
+          { enabled: true },
+          cover,
+        );
+        assert.equal(warnings.length, 1, cover);
+        assert.equal(warnings[0]?.code, 'PODCAST_COVER_UNUSABLE', cover);
+        const echoed = JSON.stringify(warnings[0]);
+        assert.equal(echoed.includes(dir), false, cover);
+        assert.equal(echoed.includes(outside), false, cover);
+      }
+      // A path the schema itself refuses never reaches the file system: the
+      // publication document is refused like any other malformed one.
+      for (const cover of [
+        'assets/../other/elsewhere.png',
+        '../outside.png',
+        '/etc/passwd',
+        'assets\\cover.png',
+      ]) {
+        await assertPublicationRefused(dir, {
+          listen: { enabled: true, podcast: { ...PODCAST, cover } },
+        });
+      }
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a podcast cover over the image byte ceiling is left out and warns, and is not read whole', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await declareAssetRoots(dir, ['assets']);
+    const file = path.join(dir, 'assets/podcast-cover.png');
+    await addFile(
+      dir,
+      'assets/podcast-cover.png',
+      sizedImageBytes('png', 1400, 1400),
+    );
+    await truncate(file, 10 * 1024 * 1024 + 1);
+    await setPublication(dir, { listen: { enabled: true, podcast: PODCAST } });
+    const { buildInput, warnings } = await buildWithWarnings(dir);
+    assert.deepEqual(/** @type {any} */ (buildInput).publication.listen, {
+      enabled: true,
+    });
+    assert.equal(warnings[0]?.code, 'PODCAST_COVER_UNUSABLE');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a podcast cover that is also an inventoried image keeps both entries, and the build input is the same on a second run', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const cover = sizedImageBytes('png', 1400, 1400);
+    await declareAssetRoots(dir, ['assets']);
+    await addFile(dir, 'assets/podcast-cover.png', cover);
+    await addFile(dir, 'assets/logo.png', cover);
+    await setAppearance(dir, { brandMark: 'assets/logo.png' });
+    await setPublication(dir, { listen: { enabled: true, podcast: PODCAST } });
+    const first = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir })
+    );
+    const second = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir })
+    );
+    assert.equal(
+      first.publication.listen.podcast.cover.path,
+      'assets/podcast-cover.png',
+    );
+    assert.deepEqual(first, second);
+    assert.equal(
+      JSON.stringify(first.publication),
+      JSON.stringify(second.publication),
+    );
   } finally {
     await cleanup();
   }
