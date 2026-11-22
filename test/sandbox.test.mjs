@@ -399,10 +399,13 @@ test('a timed-out build leaves no container behind', { skip: SKIP }, () => {
   );
   assert.equal(result.status, 124);
   // The timeout must terminate the container, not merely abandon the
-  // client: a surviving container would keep running author code.
+  // client: a surviving container would keep running author code. Only this
+  // run's container is looked for (its name carries the script's process id),
+  // so a sandbox build another test runs at the same time is not mistaken for
+  // a survivor.
   const surviving = spawnSync(
     'docker',
-    ['ps', '--quiet', '--filter', 'name=gala-sandbox-build-'],
+    ['ps', '--quiet', '--filter', `name=gala-sandbox-build-${result.pid}-`],
     { encoding: 'utf8' },
   );
   assert.equal(
