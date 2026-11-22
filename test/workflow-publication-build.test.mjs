@@ -14,6 +14,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -328,6 +329,86 @@ function squarePng(side) {
   ]);
 }
 
+/**
+ * Enables Listen with a podcast cover in the copied source, declaring the
+ * `assets` root only when the source does not already, and writes the cover.
+ *
+ * @param {string} repository the copied publication source
+ * @param {Buffer} cover the cover image bytes
+ */
+function enablePodcast(repository, cover) {
+  const repositoryFile = path.join(repository, 'gala/repository.json');
+  const repositoryDoc = JSON.parse(readFileSync(repositoryFile, 'utf8'));
+  const roots = repositoryDoc.assetRoots ?? [];
+  if (!roots.some((/** @type {any} */ root) => root.path === 'assets')) {
+    repositoryDoc.assetRoots = [...roots, { path: 'assets' }];
+    writeFileSync(repositoryFile, JSON.stringify(repositoryDoc));
+  }
+  const publicationFile = path.join(repository, 'gala/publication.json');
+  const publication = JSON.parse(readFileSync(publicationFile, 'utf8'));
+  publication.listen = {
+    enabled: true,
+    podcast: {
+      enabled: true,
+      category: 'Technology',
+      explicit: false,
+      cover: 'assets/podcast-cover.png',
+    },
+  };
+  writeFileSync(publicationFile, JSON.stringify(publication));
+  mkdirSync(path.join(repository, 'assets'), { recursive: true });
+  writeFileSync(path.join(repository, 'assets/podcast-cover.png'), cover);
+}
+
+/**
+ * Writes an article of its own, with Listen audio, so no particular post has
+ * to exist in the source; its author is the first the source declares.
+ *
+ * @param {string} repository the copied publication source
+ * @param {Buffer} audio the audio file bytes
+ */
+function addListenArticle(repository, audio) {
+  const authorsDirectory = path.join(repository, 'gala/authors');
+  const authorFile = readdirSync(authorsDirectory)
+    .filter((name) => name.endsWith('.json'))
+    .sort()[0];
+  assert.ok(authorFile, 'the source must declare an author');
+  const author = JSON.parse(
+    readFileSync(path.join(authorsDirectory, authorFile), 'utf8'),
+  );
+  mkdirSync(path.join(repository, 'assets/listen'), { recursive: true });
+  writeFileSync(path.join(repository, 'assets/listen/episode.mp3'), audio);
+  writeFileSync(
+    path.join(repository, 'content/listen-episode.md'),
+    [
+      '---',
+      'schemaId: urn:gala:schema:content-frontmatter:2.0.0',
+      "schemaVersion: '2.0.0'",
+      'id: 01912345-6789-7abc-89ab-0123456789f1',
+      'kind: article',
+      'title: Listen episode',
+      'language: en-US',
+      'authors:',
+      `  - ${author.id}`,
+      'tags: []',
+      'status: published',
+      "createdAt: '2026-09-15T00:00:00.000Z'",
+      "publishedAt: '2026-09-15T00:00:00.000Z'",
+      'slug: listen-episode',
+      'redirects: []',
+      'extensions: {}',
+      'listen:',
+      '  audio: assets/listen/episode.mp3',
+      '  durationSeconds: 60',
+      '  format: conversation',
+      '---',
+      '',
+      'An episode with audio.',
+      '',
+    ].join('\n'),
+  );
+}
+
 test(
   'a publication with Listen audio and a podcast cover builds /feed/podcast.xml with the audio enclosure through the production sandbox command',
   { skip: SKIP },
@@ -338,42 +419,8 @@ test(
     ]);
     buildPublication(
       (repository) => {
-        const repositoryFile = path.join(repository, 'gala/repository.json');
-        const repositoryDoc = JSON.parse(readFileSync(repositoryFile, 'utf8'));
-        repositoryDoc.assetRoots = [
-          ...(repositoryDoc.assetRoots ?? []),
-          { path: 'assets' },
-        ];
-        writeFileSync(repositoryFile, JSON.stringify(repositoryDoc));
-        const publicationFile = path.join(repository, 'gala/publication.json');
-        const publication = JSON.parse(readFileSync(publicationFile, 'utf8'));
-        publication.listen = {
-          enabled: true,
-          podcast: {
-            enabled: true,
-            category: 'Technology',
-            explicit: false,
-            cover: 'assets/podcast-cover.png',
-          },
-        };
-        writeFileSync(publicationFile, JSON.stringify(publication));
-        mkdirSync(path.join(repository, 'assets/listen'), { recursive: true });
-        writeFileSync(
-          path.join(repository, 'assets/podcast-cover.png'),
-          squarePng(1400),
-        );
-        writeFileSync(
-          path.join(repository, 'assets/listen/episode.mp3'),
-          audio,
-        );
-        const articlePath = path.join(repository, 'content/hello-world.md');
-        const article = readFileSync(articlePath, 'utf8');
-        const closing = article.indexOf('\n---\n', 3);
-        assert.ok(closing > 0, 'the article must have front matter');
-        writeFileSync(
-          articlePath,
-          `${article.slice(0, closing)}\nlisten:\n  audio: assets/listen/episode.mp3\n  durationSeconds: 60\n  format: conversation${article.slice(closing)}`,
-        );
+        enablePodcast(repository, squarePng(1400));
+        addListenArticle(repository, audio);
       },
       ({ output }) => {
         const feed = path.join(output, 'artifact/feed/podcast.xml');
@@ -381,7 +428,7 @@ test(
         const xml = readFileSync(feed, 'utf8');
         assert.match(xml, /<enclosure [^>]*type="audio\/mpeg"/u);
         assert.match(xml, /length="2051"/u);
-        assert.match(xml, /assets\/listen\/hello-world\.[0-9a-f]{8}\.mp3/u);
+        assert.match(xml, /assets\/listen\/listen-episode\.[0-9a-f]{8}\.mp3/u);
       },
     );
   },
@@ -393,30 +440,7 @@ test(
   () => {
     buildPublication(
       (repository) => {
-        const repositoryFile = path.join(repository, 'gala/repository.json');
-        const repositoryDoc = JSON.parse(readFileSync(repositoryFile, 'utf8'));
-        repositoryDoc.assetRoots = [
-          ...(repositoryDoc.assetRoots ?? []),
-          { path: 'assets' },
-        ];
-        writeFileSync(repositoryFile, JSON.stringify(repositoryDoc));
-        const publicationFile = path.join(repository, 'gala/publication.json');
-        const publication = JSON.parse(readFileSync(publicationFile, 'utf8'));
-        publication.listen = {
-          enabled: true,
-          podcast: {
-            enabled: true,
-            category: 'Technology',
-            explicit: false,
-            cover: 'assets/podcast-cover.png',
-          },
-        };
-        writeFileSync(publicationFile, JSON.stringify(publication));
-        mkdirSync(path.join(repository, 'assets'), { recursive: true });
-        writeFileSync(
-          path.join(repository, 'assets/podcast-cover.png'),
-          squarePng(300),
-        );
+        enablePodcast(repository, squarePng(300));
       },
       ({ output }) => {
         assert.ok(existsSync(path.join(output, 'artifact/index.html')));
