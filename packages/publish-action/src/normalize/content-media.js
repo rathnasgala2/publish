@@ -164,13 +164,13 @@ const SCHEME_PREFIX = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/u;
 
 /**
- * @typedef {'body' | 'hero' | 'defaultImage' | 'brandMark' | 'wordmark' | 'socialImage'} MediaOrigin
+ * @typedef {'body' | 'hero' | 'defaultImage' | 'brandMark' | 'wordmark' | 'socialImage' | 'podcastCover'} MediaOrigin
  */
 
 /**
  * @typedef {object} MediaReference
  * @property {string} document repository-relative path of the document that refers to the image
- * @property {MediaOrigin} origin what refers to the image: a body image, the front matter hero, or one of the single-file references (`defaultImage` of publication.json, `brandMark`/`wordmark` of appearance.json, `socialImage` of the front matter)
+ * @property {MediaOrigin} origin what refers to the image: a body image, the front matter hero, or one of the single-file references (`defaultImage` of publication.json, `brandMark`/`wordmark` of appearance.json, `socialImage` of the front matter, `podcastCover` of publication.json's `listen.podcast.cover`)
  * @property {string | null} source the reference as written (an `<img src>` with entities decoded, or a hero path); `null` when the image has no usable address
  * @property {string} alt the image's alternative text, for messages
  */
@@ -573,6 +573,10 @@ const SINGLE_FILE_ORIGINS = Object.freeze({
   socialImage: {
     stem: 'CONTENT_SOCIAL_IMAGE',
     label: 'the social image',
+  },
+  podcastCover: {
+    stem: 'PUBLICATION_PODCAST_COVER',
+    label: 'the podcast cover',
   },
 });
 
@@ -1799,4 +1803,126 @@ export async function resolveContentFiles({
     entries.sort((left, right) => compareUtf8(left.path, right.path));
   }
   return { files, documents, findings: [] };
+}
+
+/** The podcast cover's side range, in pixels (the template's rule). */
+export const PODCAST_COVER_PIXELS = Object.freeze({ min: 1400, max: 3000 });
+
+/**
+ * The pixel size a PNG or JPEG states in its header, without decoding it.
+ *
+ * @param {Buffer} bytes the whole file
+ * @param {'image/png' | 'image/jpeg'} mediaType the format sniffed from the bytes
+ * @returns {{width: number, height: number} | null} the size, or `null` when the header cannot be read
+ */
+export function readImageSize(bytes, mediaType) {
+  if (mediaType === 'image/png') {
+    // Signature (8 bytes), then the IHDR chunk: length, "IHDR", width, height.
+    if (bytes.length < 24 || bytes.toString('latin1', 12, 16) !== 'IHDR') {
+      return null;
+    }
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+  // JPEG: walk the marker segments to the first start-of-frame marker.
+  let offset = 2;
+  while (offset + 4 <= bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      return null;
+    }
+    const marker = /** @type {number} */ (bytes[offset + 1]);
+    if (marker === 0xff) {
+      offset += 1;
+      continue;
+    }
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) {
+      offset += 2;
+      continue;
+    }
+    const length = bytes.readUInt16BE(offset + 2);
+    const startOfFrame =
+      marker >= 0xc0 &&
+      marker <= 0xcf &&
+      marker !== 0xc4 &&
+      marker !== 0xc8 &&
+      marker !== 0xcc;
+    if (startOfFrame) {
+      if (offset + 9 > bytes.length) {
+        return null;
+      }
+      return {
+        height: bytes.readUInt16BE(offset + 5),
+        width: bytes.readUInt16BE(offset + 7),
+      };
+    }
+    offset += 2 + length;
+  }
+  return null;
+}
+
+/**
+ * Judge the podcast cover the way the template will, without failing the
+ * publish: the file is checked like any single-file image (a path under an
+ * `assetRoots` entry, a regular file, the size ceilings), and then has to be a
+ * PNG or JPEG by its bytes and square, 1400 to 3000 pixels a side. The caller
+ * leaves the podcast out of the build input when it is not usable.
+ *
+ * @param {object} options the inputs
+ * @param {string} options.repositoryDirectory absolute repository root
+ * @param {readonly {path: string}[] | undefined} options.assetRoots the `assetRoots` of `gala/repository.json`
+ * @param {string} options.source the cover path as authored
+ * @param {string} options.document the document that names it
+ * @returns {Promise<{resolved: false, why: string} | {resolved: true, usable: boolean, why?: string}>}
+ *   `resolved: false` when the file cannot be used as an image at all (absent,
+ *   outside the asset roots, not an image, over a ceiling); `resolved: true`
+ *   when it can, with `usable` false and `why` when the template would refuse
+ *   it as a cover (not PNG or JPEG, unreadable header, not square, wrong size)
+ */
+export async function judgePodcastCover({
+  repositoryDirectory,
+  assetRoots,
+  source,
+  document,
+}) {
+  const resolved = await resolveMediaReferences({
+    repositoryDirectory,
+    assetRoots,
+    references: [{ document, origin: 'podcastCover', source, alt: '' }],
+  });
+  if (resolved.findings.length > 0) {
+    return {
+      resolved: false,
+      why: resolved.findings[0]?.detail ?? 'the file cannot be used',
+    };
+  }
+  const file = [...resolved.files.values()][0];
+  if (
+    file === undefined ||
+    (file.mediaType !== 'image/png' && file.mediaType !== 'image/jpeg')
+  ) {
+    return {
+      resolved: true,
+      usable: false,
+      why: `"${source}" is not a PNG or JPEG image`,
+    };
+  }
+  const bytes = await readFile(
+    path.join(repositoryDirectory, ...file.path.split('/')),
+  );
+  const size = readImageSize(bytes, file.mediaType);
+  if (size === null) {
+    return {
+      resolved: true,
+      usable: false,
+      why: `the size of "${source}" cannot be read from its header`,
+    };
+  }
+  const { min, max } = PODCAST_COVER_PIXELS;
+  if (size.width !== size.height || size.width < min || size.width > max) {
+    return {
+      resolved: true,
+      usable: false,
+      why: `"${source}" is ${size.width} by ${size.height} pixels; the cover must be square, ${min} to ${max} pixels a side`,
+    };
+  }
+  return { resolved: true, usable: true };
 }

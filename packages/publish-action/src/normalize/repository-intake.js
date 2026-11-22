@@ -182,6 +182,22 @@
  * `MEDIA_REFERENCE_UNRESOLVED` or `MEDIA_LIMIT_EXCEEDED`, and
  * `evidence.pointer` `/listen/audio`, together with any image problem.
  *
+ * **Podcast feed** (schemas 3.53.0, template 4.19.0): `listen.podcast`
+ * (`{enabled, category, explicit, cover, description?, ownerEmail?}`) becomes
+ * `build-input.publication.listen.podcast` with `cover` replaced by the
+ * resolved file `{path, sourceDigest}` (a single-file image like the brand
+ * mark, so it joins the media inventory and the repository digest). The cover
+ * is judged first: it must be a PNG or JPEG by its bytes, square, 1400 to 3000
+ * pixels a side (the template's rule, read from the file header). With the
+ * feed on, a cover that is absent or fails that judgement does not fail the
+ * publish: the `podcast` member is left out, so the site builds without
+ * `/feed/podcast.xml`, and one `PODCAST_COVER_UNUSABLE` WARNING reaches the
+ * build result's findings. With Listen or the podcast off the member rides
+ * along when the file resolves as an image and is left out silently when not
+ * (the schema requires the cover's digest). The front matter keys
+ * `newsletterTag` and `newsletterSubjectB` (schemas 3.53.0) are read by the
+ * platform's API from the repository and are not copied into the build input.
+ *
  * **Parity members** (schemas 3.32.0, template 4.14.0): `publication.json`'s
  * optional `recommendations` (at most 24 of `{url, title, description?,
  * addedOn?}`) is copied member by member into `build-input.publication`. The
@@ -229,6 +245,7 @@ import { requireThemeArtifact, themePackageNameOf } from '../theme-catalog.js';
 import {
   findFileBlockSources,
   findImageSources,
+  judgePodcastCover,
   mergeMediaEntries,
   resolveContentFiles,
   resolveListenAudio,
@@ -871,6 +888,72 @@ function resolvedFileOf(mediaFiles, imagePath) {
 }
 
 /**
+ * Decide whether `publication.json`'s `listen.podcast` reaches the build input
+ * and register its cover with the media references when it does.
+ *
+ * The cover is judged first (`judgePodcastCover`). With the feed on (Listen and
+ * the podcast both enabled) a cover the template would refuse, or cannot find,
+ * drops the whole member and adds a `PODCAST_COVER_UNUSABLE` warning to
+ * `warnings`; the publish continues without the feed. With the feed off the
+ * member rides along when the file resolves as an image at all (the schema
+ * requires the cover's digest) and is dropped silently when it does not; the
+ * template builds no feed either way.
+ *
+ * @param {object} options the inputs
+ * @param {Record<string, any> | undefined} options.listen the authored `listen` member
+ * @param {string} options.repositoryDirectory absolute repository root
+ * @param {readonly {path: string}[] | undefined} options.assetRoots the declared asset roots
+ * @param {string} options.document the publication document's path
+ * @param {import('./content-media.js').MediaReference[]} options.mediaReferences receives the cover reference
+ * @param {import('../types.js').PublishActionFinding[]} options.warnings receives the non-blocking finding
+ * @returns {Promise<{rest: Record<string, unknown>, cover: string} | undefined>}
+ *   the podcast without its cover and the cover path, or `undefined` when it is left out
+ */
+async function settlePodcast({
+  listen,
+  repositoryDirectory,
+  assetRoots,
+  document,
+  mediaReferences,
+  warnings,
+}) {
+  const podcast = listen?.podcast;
+  if (podcast === undefined) {
+    return undefined;
+  }
+  const { cover, ...rest } = podcast;
+  const feedOn = listen?.enabled === true && podcast.enabled === true;
+  const verdict = await judgePodcastCover({
+    repositoryDirectory,
+    assetRoots,
+    source: cover,
+    document,
+  });
+  if (verdict.resolved && (verdict.usable || !feedOn)) {
+    mediaReferences.push({
+      document,
+      origin: 'podcastCover',
+      source: cover,
+      alt: '',
+    });
+    return { rest, cover };
+  }
+  if (feedOn) {
+    warnings.push({
+      code: 'PODCAST_COVER_UNUSABLE',
+      severity: 'WARNING',
+      detail: `The podcast feed was left out of this publish: ${verdict.why ?? 'the cover cannot be used'}. The site itself is published.`,
+      location: document,
+      evidence: { document, pointer: '/listen/podcast/cover', cover },
+      recovery:
+        'Add a square PNG or JPEG cover, 1400 to 3000 pixels a side, at that path under an asset root, then publish again.',
+      overridable: false,
+    });
+  }
+  return undefined;
+}
+
+/**
  * Build one validated `urn:gala:schema:build-input:2.0.0` document from a
  * repository directory (S2-T20 deliverable (1)).
  *
@@ -1044,6 +1127,18 @@ export async function buildBuildInputFromRepository({
       alt: '',
     });
   }
+  // Podcast feed (schemas 3.53.0): the cover is judged before it is referenced,
+  // so a missing, non-image or wrong-sized cover leaves the podcast out of the
+  // build input (the site publishes, the feed is not built) instead of failing
+  // the publish or handing the template a cover it would refuse.
+  const podcastSetting = await settlePodcast({
+    listen: publicationDoc.document.listen,
+    repositoryDirectory,
+    assetRoots: repository.document.assetRoots,
+    document: repository.document.publication,
+    mediaReferences,
+    warnings,
+  });
   const publication = {
     id: publicationDoc.document.id,
     slug: publicationDoc.document.slug,
@@ -1487,6 +1582,17 @@ export async function buildBuildInputFromRepository({
     packages,
     publication: {
       ...publication,
+      listen: {
+        ...publication.listen,
+        ...(podcastSetting
+          ? {
+              podcast: {
+                ...podcastSetting.rest,
+                cover: resolvedFileOf(media.files, podcastSetting.cover),
+              },
+            }
+          : {}),
+      },
       sharing,
       ...(contactFormDoc
         ? {

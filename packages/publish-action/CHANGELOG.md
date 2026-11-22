@@ -10,6 +10,15 @@ and this project adheres to
 
 ### Added
 
+- Intake carries `publication.json`'s `listen.podcast` into the build input as
+  `publication.listen.podcast`, its `cover` resolved like the brand mark
+  (`{path, sourceDigest}`, in the media inventory and the repository digest).
+  A cover that is absent, not a PNG or JPEG by its bytes, or not square at 1400
+  to 3000 pixels does not fail the publish: with the feed on, the `podcast`
+  member is left out (the site publishes, `/feed/podcast.xml` is not built) and
+  a `PODCAST_COVER_UNUSABLE` warning is added to the build result's findings.
+  The front matter keys `newsletterTag` and `newsletterSubjectB` validate and
+  are not copied into the build input. Needs schemas 3.53.0.
 - Intake carries `publication.json`'s `recommendations` (at most 24 of
   `{url, title, description?, addedOn?}`) into the build input as
   `publication.recommendations`; a Galascribe newsletter's `welcome` and

@@ -39,3 +39,34 @@ export const MEDIA_TYPE_OF = Object.freeze({
 export function imageBytes(format, label = format) {
   return Buffer.concat([SIGNATURES[format], Buffer.from(label, 'utf8')]);
 }
+
+/**
+ * A PNG or JPEG whose header states the given size (not a decodable image):
+ * what intake reads to judge a podcast cover.
+ *
+ * @param {'png' | 'jpeg'} format the format
+ * @param {number} width the stated width in pixels
+ * @param {number} height the stated height in pixels
+ * @param {string} [label] text after the header, to tell files apart
+ * @returns {Buffer} the file content
+ */
+export function sizedImageBytes(format, width, height, label = 'cover') {
+  if (format === 'png') {
+    const ihdr = Buffer.alloc(25);
+    ihdr.writeUInt32BE(13, 0);
+    ihdr.write('IHDR', 4, 'latin1');
+    ihdr.writeUInt32BE(width, 8);
+    ihdr.writeUInt32BE(height, 12);
+    return Buffer.concat([SIGNATURES.png, ihdr, Buffer.from(label, 'utf8')]);
+  }
+  const frame = Buffer.alloc(15);
+  frame.set([0xff, 0xc0, 0x00, 0x0b, 0x08]);
+  frame.writeUInt16BE(height, 5);
+  frame.writeUInt16BE(width, 7);
+  frame.set([0x01, 0x01, 0x11, 0x00], 9);
+  return Buffer.concat([
+    Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x4a, 0x46]),
+    frame,
+    Buffer.from(label, 'utf8'),
+  ]);
+}

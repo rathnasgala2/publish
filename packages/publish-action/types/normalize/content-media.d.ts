@@ -218,6 +218,50 @@ export function resolveContentFiles({ repositoryDirectory, assetRoots, reference
     findings: Finding[];
 }>;
 /**
+ * The pixel size a PNG or JPEG states in its header, without decoding it.
+ *
+ * @param {Buffer} bytes the whole file
+ * @param {'image/png' | 'image/jpeg'} mediaType the format sniffed from the bytes
+ * @returns {{width: number, height: number} | null} the size, or `null` when the header cannot be read
+ */
+export function readImageSize(bytes: Buffer, mediaType: "image/png" | "image/jpeg"): {
+    width: number;
+    height: number;
+} | null;
+/**
+ * Judge the podcast cover the way the template will, without failing the
+ * publish: the file is checked like any single-file image (a path under an
+ * `assetRoots` entry, a regular file, the size ceilings), and then has to be a
+ * PNG or JPEG by its bytes and square, 1400 to 3000 pixels a side. The caller
+ * leaves the podcast out of the build input when it is not usable.
+ *
+ * @param {object} options the inputs
+ * @param {string} options.repositoryDirectory absolute repository root
+ * @param {readonly {path: string}[] | undefined} options.assetRoots the `assetRoots` of `gala/repository.json`
+ * @param {string} options.source the cover path as authored
+ * @param {string} options.document the document that names it
+ * @returns {Promise<{resolved: false, why: string} | {resolved: true, usable: boolean, why?: string}>}
+ *   `resolved: false` when the file cannot be used as an image at all (absent,
+ *   outside the asset roots, not an image, over a ceiling); `resolved: true`
+ *   when it can, with `usable` false and `why` when the template would refuse
+ *   it as a cover (not PNG or JPEG, unreadable header, not square, wrong size)
+ */
+export function judgePodcastCover({ repositoryDirectory, assetRoots, source, document, }: {
+    repositoryDirectory: string;
+    assetRoots: readonly {
+        path: string;
+    }[] | undefined;
+    source: string;
+    document: string;
+}): Promise<{
+    resolved: false;
+    why: string;
+} | {
+    resolved: true;
+    usable: boolean;
+    why?: string;
+}>;
+/**
  * @typedef {object} MediaLimits
  * @property {number} maxSourceBytes largest admitted source image, in bytes
  * @property {number} maxDistinctImages most distinct image files one publication may reference
@@ -273,14 +317,19 @@ export const MAX_MEDIA_FINDINGS: 50;
 export const CONTENT_FILE_LIMITS: Readonly<FileLimits>;
 /** The `media[]` media type a `file` block resolves to. */
 export const CONTENT_FILE_MEDIA_TYPE: "application/pdf";
-export type MediaOrigin = "body" | "hero" | "defaultImage" | "brandMark" | "wordmark" | "socialImage";
+/** The podcast cover's side range, in pixels (the template's rule). */
+export const PODCAST_COVER_PIXELS: Readonly<{
+    min: 1400;
+    max: 3000;
+}>;
+export type MediaOrigin = "body" | "hero" | "defaultImage" | "brandMark" | "wordmark" | "socialImage" | "podcastCover";
 export type MediaReference = {
     /**
      * repository-relative path of the document that refers to the image
      */
     document: string;
     /**
-     * what refers to the image: a body image, the front matter hero, or one of the single-file references (`defaultImage` of publication.json, `brandMark`/`wordmark` of appearance.json, `socialImage` of the front matter)
+     * what refers to the image: a body image, the front matter hero, or one of the single-file references (`defaultImage` of publication.json, `brandMark`/`wordmark` of appearance.json, `socialImage` of the front matter, `podcastCover` of publication.json's `listen.podcast.cover`)
      */
     origin: MediaOrigin;
     /**

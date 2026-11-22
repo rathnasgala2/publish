@@ -48,7 +48,7 @@ import {
 import { SchemaValidationError } from '../src/schema.js';
 import { currentRenderPolicyIdentity } from '../src/template-bridge.js';
 import { audioBytes } from './audio-bytes.js';
-import { imageBytes } from './image-bytes.js';
+import { imageBytes, sizedImageBytes } from './image-bytes.js';
 import { pdfBytes } from './pdf-bytes.js';
 
 const FIXTURE_REPOSITORY = path.resolve(
@@ -4320,6 +4320,222 @@ test('file problems, image problems and audio problems are reported together in 
         return true;
       },
     );
+  } finally {
+    await cleanup();
+  }
+});
+
+// --- Podcast feed (schemas 3.53.0) ---------------------------------------
+
+const PODCAST = Object.freeze({
+  enabled: true,
+  category: 'Technology',
+  explicit: false,
+  cover: 'assets/podcast-cover.png',
+  description: 'Spoken versions of the posts.',
+  ownerEmail: 'host@example.invalid',
+});
+
+/**
+ * @param {string} dir the mutable repository copy
+ * @param {Record<string, unknown>} listen publication.json `listen`
+ * @param {Buffer | null} cover the cover file written at the podcast path
+ * @returns {Promise<{buildInput: any, warnings: import('../src/types.js').PublishActionFinding[]}>} the build input and the non-blocking findings
+ */
+async function buildWithPodcast(dir, listen, cover) {
+  await declareAssetRoots(dir, ['assets']);
+  if (cover !== null) {
+    await addFile(dir, 'assets/podcast-cover.png', cover);
+  }
+  await setPublication(dir, { listen });
+  const result = await buildWithWarnings(dir);
+  return {
+    buildInput: /** @type {any} */ (result.buildInput),
+    warnings: result.warnings,
+  };
+}
+
+test('a podcast with a valid cover reaches the build input with the cover as a resolved file', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const cover = sizedImageBytes('png', 1400, 1400);
+    const { buildInput, warnings } = await buildWithPodcast(
+      dir,
+      { enabled: true, podcast: PODCAST },
+      cover,
+    );
+    assert.deepEqual(buildInput.publication.listen, {
+      enabled: true,
+      podcast: {
+        enabled: true,
+        category: 'Technology',
+        explicit: false,
+        cover: {
+          path: 'assets/podcast-cover.png',
+          sourceDigest: digestOf(cover),
+        },
+        description: 'Spoken versions of the posts.',
+        ownerEmail: 'host@example.invalid',
+      },
+    });
+    assert.deepEqual(warnings, []);
+    // The cover file is part of the repository digest (the source closure):
+    // changing its bytes changes the root digest.
+    await addFile(
+      dir,
+      'assets/podcast-cover.png',
+      sizedImageBytes('png', 1400, 1400, 'other'),
+    );
+    const again = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir })
+    );
+    assert.notEqual(
+      again.repository.rootDigest,
+      buildInput.repository.rootDigest,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a JPEG cover of 3000 pixels is accepted', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addFile(
+      dir,
+      'assets/podcast-cover.jpg',
+      sizedImageBytes('jpeg', 3000, 3000),
+    );
+    const { buildInput, warnings } = await buildWithPodcast(
+      dir,
+      {
+        enabled: true,
+        podcast: { ...PODCAST, cover: 'assets/podcast-cover.jpg' },
+      },
+      null,
+    );
+    assert.equal(
+      buildInput.publication.listen.podcast.cover.path,
+      'assets/podcast-cover.jpg',
+    );
+    assert.deepEqual(warnings, []);
+  } finally {
+    await cleanup();
+  }
+});
+
+/**
+ * @param {Buffer | null} cover the cover file, or null for none
+ * @param {RegExp} why what the warning says is wrong
+ * @returns {Promise<void>} resolves once asserted
+ */
+async function assertCoverDegrades(cover, why) {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const { buildInput, warnings } = await buildWithPodcast(
+      dir,
+      { enabled: true, podcast: PODCAST },
+      cover,
+    );
+    assert.deepEqual(buildInput.publication.listen, { enabled: true });
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0]?.code, 'PODCAST_COVER_UNUSABLE');
+    assert.equal(warnings[0]?.severity, 'WARNING');
+    assert.match(warnings[0]?.detail ?? '', why);
+    assert.equal(buildInput.content.length, 2);
+  } finally {
+    await cleanup();
+  }
+}
+
+test('a missing podcast cover leaves the podcast out and warns; the publish does not fail', async () => {
+  await assertCoverDegrades(null, /does not exist/u);
+});
+
+test('a podcast cover that is not an image leaves the podcast out and warns', async () => {
+  await assertCoverDegrades(Buffer.from('not an image'), /not a PNG, JPEG/u);
+});
+
+test('a podcast cover that is a GIF leaves the podcast out and warns', async () => {
+  await assertCoverDegrades(imageBytes('gif'), /not a PNG or JPEG/u);
+});
+
+test('a podcast cover that is not square or out of range leaves the podcast out and warns', async () => {
+  await assertCoverDegrades(sizedImageBytes('png', 1400, 1500), /square/u);
+  await assertCoverDegrades(sizedImageBytes('png', 1000, 1000), /square/u);
+  await assertCoverDegrades(sizedImageBytes('png', 3001, 3001), /square/u);
+});
+
+test('a disabled podcast, or Listen off, passes through without a warning for a bad cover', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const small = sizedImageBytes('png', 100, 100);
+    const off = await buildWithPodcast(
+      dir,
+      { enabled: true, podcast: { ...PODCAST, enabled: false } },
+      small,
+    );
+    assert.equal(off.buildInput.publication.listen.podcast.enabled, false);
+    assert.equal(
+      off.buildInput.publication.listen.podcast.cover.sourceDigest,
+      digestOf(small),
+    );
+    assert.deepEqual(off.warnings, []);
+    const listenOff = await buildWithPodcast(
+      dir,
+      { enabled: false, podcast: PODCAST },
+      small,
+    );
+    assert.equal(listenOff.buildInput.publication.listen.enabled, false);
+    assert.equal(listenOff.buildInput.publication.listen.podcast.enabled, true);
+    assert.deepEqual(listenOff.warnings, []);
+    // With no cover file at all the member is left out silently.
+    await rm(path.join(dir, 'assets/podcast-cover.png'));
+    const gone = await buildWithPodcast(
+      dir,
+      { enabled: false, podcast: PODCAST },
+      null,
+    );
+    assert.deepEqual(gone.buildInput.publication.listen, { enabled: false });
+    assert.deepEqual(gone.warnings, []);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('an unknown member inside podcast is a publication schema refusal', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await assertPublicationRefused(dir, {
+      listen: { enabled: true, podcast: { ...PODCAST, surprise: true } },
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+test('newsletterTag and newsletterSubjectB pass validation and stay out of the build input front matter', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addDocument(
+      dir,
+      'tagged.md',
+      {
+        id: '01912345-6789-7abc-89ab-0123456799aa',
+        title: 'Tagged',
+        slug: 'tagged',
+        newsletterTag: 'weekly',
+        newsletterSubjectB: 'A different subject',
+      },
+      'Body\n',
+    );
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir, env: {} })
+    );
+    const record = recordOf(buildInput, 'content/tagged.md');
+    assert.equal('newsletterTag' in record.frontmatter, false);
+    assert.equal('newsletterSubjectB' in record.frontmatter, false);
+    assert.equal(record.frontmatter.slug, 'tagged');
   } finally {
     await cleanup();
   }
