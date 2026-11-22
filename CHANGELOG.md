@@ -10,6 +10,12 @@ and this project adheres to
 
 ### Changed
 
+- Serve schemas 3.53.0 (exact pins in publish-action and publish-kernel; adds
+  `listen.podcast` to the publication, the normalized `podcast` to the build
+  input and the `newsletterTag` and `newsletterSubjectB` front matter keys) and
+  template 4.19.0 (the `poll` block and `/feed/podcast.xml`). The template's
+  render-policy identity changes, so a body normalized by 4.18.0 is refused by
+  4.19.0 until intake normalizes it again; the lock fixture moves with the pins.
 - Serve template 4.18.0 (language sections mirror the whole site, a remembered
   language and restyled language chips; sites without translations are
   byte-for-byte unchanged). Schemas 3.45.0, the themes and the theme contract

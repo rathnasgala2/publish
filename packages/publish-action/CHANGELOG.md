@@ -26,6 +26,10 @@ and this project adheres to
 
 ### Changed
 
+- Serve schemas 3.53.0 and template 4.19.0 (exact pins). The template's
+  render-policy identity changes, so a body normalized by 4.18.0 is refused by
+  4.19.0 until intake normalizes it again; the starter repository's pins move
+  with this toolchain. The peer range stays `^4.1.0`.
 - Serve schemas 3.32.0 and template 4.14.0 (exact pins; adds the fenced `video`,
   `bookmark` and `file` blocks, galleries, `publication.recommendations` and
   per-comment likes). The template's render-policy identity changes, so a body

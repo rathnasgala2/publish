@@ -23,7 +23,7 @@ closed adapter-capability contract.
 
 ## Commands
 
-Node.js 24.18.0 and npm 11.16.0 are pinned (`engines`, `.nvmrc`,
+Node.js 24.19.0 and npm 11.16.0 are pinned (`engines`, `.nvmrc`,
 `.node-version`).
 
 ```sh
@@ -32,7 +32,7 @@ npm ci
 npm run verify
 ```
 
-Schemas 3.45.0, template 4.18.0 and the six generation-4 themes (four at 4.2.0,
+Schemas 3.53.0, template 4.19.0 and the six generation-4 themes (four at 4.2.0,
 `theme-amaze` and `theme-editorial` at 4.2.1) are installed from the public npm
 registry at exact versions; the lockfile carries their integrity.
 `THEME_CATALOG` records each theme tarball's registry SHA-256.
