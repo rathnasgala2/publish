@@ -395,7 +395,9 @@ test('a timed-out build leaves no container behind', { skip: SKIP }, () => {
       '--timeout-seconds',
       '5',
     ],
-    { encoding: 'utf8' },
+    // No pipes: a captured stdout would keep spawnSync waiting for the
+    // container's own exit, and a surviving container could never be seen.
+    { stdio: 'ignore' },
   );
   assert.equal(result.status, 124);
   // The timeout must terminate the container, not merely abandon the
@@ -403,6 +405,13 @@ test('a timed-out build leaves no container behind', { skip: SKIP }, () => {
   // run's container is looked for (its name carries the script's process id),
   // so a sandbox build another test runs at the same time is not mistaken for
   // a survivor.
+  // The name looked for is the one the script gives its container.
+  assert.ok(
+    readFileSync('scripts/sandbox-build.sh', 'utf8').includes(
+      'CONTAINER="gala-sandbox-build-$$-',
+    ),
+  );
+  assert.ok(Number.isInteger(result.pid) && result.pid > 0);
   const surviving = spawnSync(
     'docker',
     ['ps', '--quiet', '--filter', `name=gala-sandbox-build-${result.pid}-`],
