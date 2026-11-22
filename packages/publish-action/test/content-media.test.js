@@ -20,7 +20,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 import {
@@ -35,6 +35,7 @@ import {
   heroPathProblem,
   mergeMediaEntries,
   normalizeAssetRoots,
+  readImageSize,
   resolveContentFiles,
   resolveImageSource,
   resolveListenAudio,
@@ -48,7 +49,16 @@ import {
 } from '../src/template-bridge.js';
 import buildInputSchema from '@rathnasgala2/schemas/schemas/build-input.schema.json' with { type: 'json' };
 import { AUDIO_MEDIA_TYPE_OF, audioBytes } from './audio-bytes.js';
-import { MEDIA_TYPE_OF, imageBytes } from './image-bytes.js';
+import {
+  JPEG_SCAN,
+  MEDIA_TYPE_OF,
+  imageBytes,
+  jpegBytes,
+  jpegFramePayload,
+  jpegSegment,
+  pngBytes,
+  pngChunk,
+} from './image-bytes.js';
 import { pdfBytes } from './pdf-bytes.js';
 
 /**
@@ -1937,5 +1947,386 @@ test('file blocks: unusable references win over limits', async () => {
       limits: { maxFileBytes: 3, maxEntriesPerDocument: 200 },
     });
     assert.deepEqual(reasons(result), ['FILE_MISSING']);
+  });
+});
+
+// --- readImageSize: every byte is hostile --------------------------------
+
+const PNG = 'image/png';
+const JPEG = 'image/jpeg';
+
+/**
+ * @param {Buffer} bytes a PNG
+ * @param {number} offset where to write
+ * @param {number} value the unsigned 32-bit value
+ * @returns {Buffer} a copy with the value written
+ */
+function withUInt32(bytes, offset, value) {
+  const copy = Buffer.from(bytes);
+  copy.writeUInt32BE(value, offset);
+  return copy;
+}
+
+describe('readImageSize: PNG', () => {
+  const good = pngBytes({ width: 1400, height: 1400 });
+
+  test('a well-formed PNG states its size', () => {
+    assert.deepEqual(readImageSize(good, PNG), { width: 1400, height: 1400 });
+    for (const colorType of [0, 2, 4, 6]) {
+      assert.notEqual(
+        readImageSize(pngBytes({ width: 1400, height: 1400, colorType }), PNG),
+        null,
+      );
+    }
+    assert.notEqual(
+      readImageSize(
+        pngBytes({ width: 1400, height: 1400, colorType: 3, palette: true }),
+        PNG,
+      ),
+      null,
+    );
+  });
+
+  test('truncated files, an empty file and a bare signature are unreadable', () => {
+    assert.equal(readImageSize(Buffer.alloc(0), PNG), null);
+    assert.equal(readImageSize(good.subarray(0, 8), PNG), null);
+    for (const length of [
+      9,
+      12,
+      16,
+      23,
+      24,
+      25,
+      32,
+      33,
+      40,
+      good.length - 13,
+    ]) {
+      assert.equal(
+        readImageSize(good.subarray(0, length), PNG),
+        null,
+        `${length}`,
+      );
+    }
+    assert.equal(readImageSize(good.subarray(0, good.length - 1), PNG), null);
+  });
+
+  test('an IHDR chunk whose length field lies is unreadable', () => {
+    for (const length of [0, 12, 14, 25, 0xffffffff]) {
+      assert.equal(
+        readImageSize(withUInt32(good, 8, length), PNG),
+        null,
+        `${length}`,
+      );
+    }
+  });
+
+  test('a chunk length that runs past the end is unreadable', () => {
+    const afterIhdr = 8 + 25;
+    assert.equal(
+      readImageSize(withUInt32(good, afterIhdr, 0x7fffffff), PNG),
+      null,
+    );
+    assert.equal(
+      readImageSize(withUInt32(good, afterIhdr, 0xffffffff), PNG),
+      null,
+    );
+  });
+
+  test('bytes after IEND, a missing IEND or a missing IDAT are unreadable', () => {
+    assert.equal(
+      readImageSize(Buffer.concat([good, Buffer.from([0])]), PNG),
+      null,
+    );
+    assert.equal(readImageSize(good.subarray(0, good.length - 12), PNG), null);
+    assert.equal(
+      readImageSize(pngBytes({ width: 1400, height: 1400, idat: false }), PNG),
+      null,
+    );
+    assert.equal(
+      readImageSize(pngBytes({ width: 1400, height: 1400, colorType: 3 }), PNG),
+      null,
+    );
+  });
+
+  test('what the template decoder refuses from the header is refused: bit depth, colour type, interlace', () => {
+    for (const options of [
+      { bitDepth: 16 },
+      { bitDepth: 1 },
+      { bitDepth: 4 },
+      { colorType: 1 },
+      { colorType: 5 },
+      { interlace: 1 },
+    ]) {
+      assert.equal(
+        readImageSize(pngBytes({ width: 1400, height: 1400, ...options }), PNG),
+        null,
+        JSON.stringify(options),
+      );
+    }
+  });
+
+  test('the compression and filter methods must be 0', () => {
+    for (const offset of [8 + 8 + 10, 8 + 8 + 11]) {
+      const copy = Buffer.from(good);
+      copy[offset] = 1;
+      assert.equal(readImageSize(copy, PNG), null);
+    }
+  });
+
+  test('a PNG whose first chunk is not IHDR is unreadable', () => {
+    const body = good.subarray(8 + 25);
+    assert.equal(
+      readImageSize(
+        Buffer.concat([
+          good.subarray(0, 8),
+          pngChunk('tEXt', Buffer.from('a\0b')),
+          good.subarray(8, 8 + 25),
+          body,
+        ]),
+        PNG,
+      ),
+      null,
+    );
+  });
+});
+
+describe('readImageSize: JPEG', () => {
+  const good = jpegBytes({ width: 1400, height: 1400 });
+  const SOI = Buffer.from([0xff, 0xd8]);
+  const EOI = Buffer.from([0xff, 0xd9]);
+  const frame = (/** @type {number} */ marker, width = 1400, height = 1400) =>
+    jpegSegment(marker, jpegFramePayload(width, height));
+  /**
+   * @param {...Buffer} parts the parts after SOI
+   * @returns {Buffer} the file
+   */
+  const jpeg = (...parts) => Buffer.concat([SOI, ...parts]);
+
+  test('a well-formed JPEG states its size', () => {
+    assert.deepEqual(readImageSize(good, JPEG), { width: 1400, height: 1400 });
+  });
+
+  test('baseline, extended and progressive frames are read; no other frame marker is', () => {
+    for (const marker of [0xc0, 0xc1, 0xc2]) {
+      assert.deepEqual(
+        readImageSize(
+          jpegBytes({ width: 1400, height: 1400, sof: marker }),
+          JPEG,
+        ),
+        { width: 1400, height: 1400 },
+        marker.toString(16),
+      );
+    }
+    // Lossless, differential, arithmetic-coded frames: the template's decoder
+    // does not read them. 0xc4, 0xc8 and 0xcc are not frames at all.
+    for (const marker of [
+      0xc3, 0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce,
+      0xcf,
+    ]) {
+      assert.equal(
+        readImageSize(
+          jpegBytes({ width: 1400, height: 1400, sof: marker }),
+          JPEG,
+        ),
+        null,
+        marker.toString(16),
+      );
+    }
+  });
+
+  test('truncation anywhere, an empty file and a bare signature are unreadable', () => {
+    assert.equal(readImageSize(Buffer.alloc(0), JPEG), null);
+    assert.equal(readImageSize(Buffer.from([0xff, 0xd8, 0xff]), JPEG), null);
+    for (let length = 0; length < good.length; length += 1) {
+      assert.equal(
+        readImageSize(good.subarray(0, length), JPEG),
+        null,
+        `${length}`,
+      );
+    }
+  });
+
+  test('a segment length of 0, 1 or past the end is unreadable', () => {
+    for (const length of [0, 1]) {
+      const bad = Buffer.from(good);
+      bad.writeUInt16BE(length, 4);
+      assert.equal(readImageSize(bad, JPEG), null, `${length}`);
+    }
+    const past = Buffer.from(good);
+    past.writeUInt16BE(0xffff, 4);
+    assert.equal(readImageSize(past, JPEG), null);
+    const sofPast = jpeg(
+      Buffer.from([0xff, 0xc0, 0x00, 0x0b, 0x08, 0x05, 0x78]),
+    );
+    assert.equal(readImageSize(sofPast, JPEG), null);
+  });
+
+  test('a JPEG with no frame is unreadable', () => {
+    assert.equal(
+      readImageSize(
+        jpeg(jpegSegment(0xfe, Buffer.from('x')), JPEG_SCAN, EOI),
+        JPEG,
+      ),
+      null,
+    );
+    assert.equal(readImageSize(jpeg(EOI), JPEG), null);
+  });
+
+  test('fill bytes before a marker, restart markers and standalone markers are skipped', () => {
+    const padded = jpeg(
+      Buffer.from([0xff, 0xff, 0xff]),
+      frame(0xc0),
+      Buffer.from([0xff, 0xff]),
+      JPEG_SCAN,
+      EOI,
+    );
+    assert.deepEqual(readImageSize(padded, JPEG), {
+      width: 1400,
+      height: 1400,
+    });
+    const standalone = jpeg(
+      Buffer.from([0xff, 0x01, 0xff, 0xd0, 0xff, 0xd7]),
+      frame(0xc0),
+      JPEG_SCAN,
+      EOI,
+    );
+    assert.deepEqual(readImageSize(standalone, JPEG), {
+      width: 1400,
+      height: 1400,
+    });
+  });
+
+  test('a start-of-frame inside an EXIF thumbnail is skipped by segment length', () => {
+    const thumbnail = jpeg(frame(0xc0, 160, 160), JPEG_SCAN, EOI);
+    const exif = jpegSegment(
+      0xe1,
+      Buffer.concat([Buffer.from('Exif\0\0'), thumbnail]),
+    );
+    const file = jpeg(exif, frame(0xc0), JPEG_SCAN, EOI);
+    assert.deepEqual(readImageSize(file, JPEG), { width: 1400, height: 1400 });
+    // The same bytes with the real frame missing: the thumbnail is never read.
+    assert.equal(readImageSize(jpeg(exif, JPEG_SCAN, EOI), JPEG), null);
+  });
+
+  test('a start-of-frame hidden in the entropy-coded data of a scan that precedes any frame is not read', () => {
+    const hostile = jpeg(
+      jpegSegment(0xda, Buffer.from([1, 1, 0, 0, 63, 0])),
+      frame(0xc0),
+      EOI,
+    );
+    assert.equal(readImageSize(hostile, JPEG), null);
+  });
+
+  test('a second frame, or a missing end of image, is unreadable', () => {
+    assert.equal(
+      readImageSize(
+        jpeg(frame(0xc0), JPEG_SCAN, frame(0xc0, 100, 100), JPEG_SCAN, EOI),
+        JPEG,
+      ),
+      null,
+    );
+    assert.equal(readImageSize(jpeg(frame(0xc0), JPEG_SCAN), JPEG), null);
+  });
+
+  test('a progressive JPEG with several scans is read through them', () => {
+    const progressive = jpeg(frame(0xc2), JPEG_SCAN, JPEG_SCAN, JPEG_SCAN, EOI);
+    assert.deepEqual(readImageSize(progressive, JPEG), {
+      width: 1400,
+      height: 1400,
+    });
+  });
+
+  test('component counts the template decoder cannot colour-convert are refused: two, five, CMYK without an Adobe marker', () => {
+    for (const components of [0, 2, 5]) {
+      assert.equal(
+        readImageSize(
+          jpegBytes({ width: 1400, height: 1400, components }),
+          JPEG,
+        ),
+        null,
+        `${components}`,
+      );
+    }
+    assert.equal(
+      readImageSize(
+        jpegBytes({ width: 1400, height: 1400, components: 4 }),
+        JPEG,
+      ),
+      null,
+    );
+    assert.notEqual(
+      readImageSize(
+        jpegBytes({ width: 1400, height: 1400, components: 4, adobe: true }),
+        JPEG,
+      ),
+      null,
+    );
+    assert.notEqual(
+      readImageSize(
+        jpegBytes({ width: 1400, height: 1400, components: 1 }),
+        JPEG,
+      ),
+      null,
+    );
+  });
+
+  test('a component with a zero sampling factor is refused', () => {
+    const payload = jpegFramePayload(1400, 1400);
+    payload[7] = 0x00;
+    assert.equal(
+      readImageSize(jpeg(jpegSegment(0xc0, payload), JPEG_SCAN, EOI), JPEG),
+      null,
+    );
+  });
+
+  test('the walk is linear: a large file of fill bytes and many scans is read in bounded time', () => {
+    const scans = Array.from({ length: 20_000 }, () => JPEG_SCAN);
+    const big = jpeg(Buffer.alloc(1_000_000, 0xff), frame(0xc2), ...scans, EOI);
+    const started = Date.now();
+    assert.deepEqual(readImageSize(big, JPEG), { width: 1400, height: 1400 });
+    assert.ok(Date.now() - started < 2000);
+  });
+});
+
+describe('readImageSize: agreement with the template', () => {
+  test('a PNG intake accepts is decoded by the template, and one it refuses is the template refuses', async () => {
+    const png = await import(
+      pathToFileURL(
+        path.join(TEMPLATE_ROOT, 'src/core/internal/media/png-codec.js'),
+      ).href
+    );
+    const accepted = pngBytes({ width: 1400, height: 1400, colorType: 6 });
+    assert.notEqual(readImageSize(accepted, PNG), null);
+    assert.equal(png.decodePng(accepted, 'x').width, 1400);
+    for (const options of [
+      { bitDepth: 16 },
+      { interlace: 1 },
+      { colorType: 5 },
+    ]) {
+      const refused = pngBytes({ width: 1400, height: 1400, ...options });
+      assert.equal(readImageSize(refused, PNG), null);
+      assert.throws(() => png.decodePng(refused, 'x'));
+    }
+  });
+
+  test('a JPEG the template encodes is read, and frames its decoder rejects are not', async () => {
+    const codec = await import(
+      pathToFileURL(
+        path.join(TEMPLATE_ROOT, 'src/core/internal/media/jpeg-codec.js'),
+      ).href
+    );
+    const real = codec.encodeJpeg({
+      width: 1400,
+      height: 1400,
+      rgba: Buffer.alloc(1400 * 1400 * 4, 0x80),
+    });
+    assert.deepEqual(readImageSize(real, JPEG), { width: 1400, height: 1400 });
+    assert.equal(codec.decodeJpeg(real, 'x').width, 1400);
+    for (const sof of [0xc3, 0xc9]) {
+      const refused = jpegBytes({ width: 1400, height: 1400, sof });
+      assert.equal(readImageSize(refused, JPEG), null);
+      assert.throws(() => codec.decodeJpeg(refused, 'x'));
+    }
   });
 });

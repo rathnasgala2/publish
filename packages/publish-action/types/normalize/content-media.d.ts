@@ -218,7 +218,10 @@ export function resolveContentFiles({ repositoryDirectory, assetRoots, reference
     findings: Finding[];
 }>;
 /**
- * The pixel size a PNG or JPEG states in its header, without decoding it.
+ * The pixel size a PNG or JPEG states in its header, without decoding it, and
+ * only for a file whose structure the template's decoders accept: `null` for
+ * anything else (see {@link readPngSize} and {@link readJpegSize}). Every read
+ * is bounds-checked against the buffer and the walk is linear in its length.
  *
  * @param {Buffer} bytes the whole file
  * @param {'image/png' | 'image/jpeg'} mediaType the format sniffed from the bytes

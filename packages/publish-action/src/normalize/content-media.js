@@ -1808,24 +1808,89 @@ export async function resolveContentFiles({
 /** The podcast cover's side range, in pixels (the template's rule). */
 export const PODCAST_COVER_PIXELS = Object.freeze({ min: 1400, max: 3000 });
 
+const PNG_COLOR_TYPES = new Set([0, 2, 3, 4, 6]);
+
 /**
- * The pixel size a PNG or JPEG states in its header, without decoding it.
+ * The pixel size of a PNG, when the file is one the template's decoder
+ * (`png-codec.js`) can read as far as its structure shows: IHDR first and 13
+ * bytes long, 8-bit samples, a colour type it converts, compression and
+ * filter method 0, no interlacing, well-formed chunks to an IEND that ends the
+ * file, an IDAT, and a PLTE for a palette image. Chunk CRCs and the deflated
+ * pixels are not read, so a file that fails inside the decoder still passes.
  *
  * @param {Buffer} bytes the whole file
- * @param {'image/png' | 'image/jpeg'} mediaType the format sniffed from the bytes
- * @returns {{width: number, height: number} | null} the size, or `null` when the header cannot be read
+ * @returns {{width: number, height: number} | null} the size, or `null`
  */
-export function readImageSize(bytes, mediaType) {
-  if (mediaType === 'image/png') {
-    // Signature (8 bytes), then the IHDR chunk: length, "IHDR", width, height.
-    if (bytes.length < 24 || bytes.toString('latin1', 12, 16) !== 'IHDR') {
+function readPngSize(bytes) {
+  let offset = 8;
+  let size = null;
+  let colorType = -1;
+  let seenIdat = false;
+  let seenPalette = false;
+  for (let index = 0; offset + 12 <= bytes.length; index += 1) {
+    const length = bytes.readUInt32BE(offset);
+    const type = bytes.toString('latin1', offset + 4, offset + 8);
+    const dataStart = offset + 8;
+    if (length > bytes.length - dataStart - 4) {
       return null;
     }
-    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+    if (index === 0) {
+      if (type !== 'IHDR' || length !== 13) {
+        return null;
+      }
+      colorType = bytes[dataStart + 9] ?? -1;
+      if (
+        bytes[dataStart + 8] !== 8 ||
+        !PNG_COLOR_TYPES.has(colorType) ||
+        bytes[dataStart + 10] !== 0 ||
+        bytes[dataStart + 11] !== 0 ||
+        bytes[dataStart + 12] !== 0
+      ) {
+        return null;
+      }
+      size = {
+        width: bytes.readUInt32BE(dataStart),
+        height: bytes.readUInt32BE(dataStart + 4),
+      };
+    } else if (type === 'IDAT') {
+      seenIdat = true;
+    } else if (type === 'PLTE') {
+      seenPalette = true;
+    }
+    offset = dataStart + length + 4;
+    if (type === 'IEND') {
+      return offset === bytes.length &&
+        size !== null &&
+        seenIdat &&
+        (colorType !== 3 || seenPalette)
+        ? size
+        : null;
+    }
   }
-  // JPEG: walk the marker segments to the first start-of-frame marker.
+  return null;
+}
+
+/**
+ * The pixel size of a JPEG, when the file is one the template's decoder
+ * (`jpeg-js`) reads as far as the marker structure shows. The segments are
+ * walked by their stated lengths (so a frame inside an EXIF thumbnail is never
+ * seen) and the entropy-coded data of each scan is passed over by looking for
+ * the next marker, to the end-of-image marker. The file must hold exactly one
+ * baseline (`C0`), extended (`C1`) or progressive (`C2`) frame, before the
+ * first scan, of 1, 3 or 4 components (4 only with an Adobe `APP14` segment),
+ * each with non-zero sampling factors. The scan data itself is not decoded.
+ *
+ * @param {Buffer} bytes the whole file
+ * @returns {{width: number, height: number} | null} the size, or `null`
+ */
+function readJpegSize(bytes) {
   let offset = 2;
-  while (offset + 4 <= bytes.length) {
+  let size = null;
+  let frames = 0;
+  let components = 0;
+  let adobe = false;
+  let scanned = false;
+  while (offset + 2 <= bytes.length) {
     if (bytes[offset] !== 0xff) {
       return null;
     }
@@ -1834,29 +1899,113 @@ export function readImageSize(bytes, mediaType) {
       offset += 1;
       continue;
     }
-    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) {
+    if (marker === 0xd9) {
+      return frames === 1 &&
+        scanned &&
+        size !== null &&
+        validComponents(components, adobe)
+        ? size
+        : null;
+    }
+    if (marker === 0x00) {
+      return null;
+    }
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) {
       offset += 2;
       continue;
     }
+    if (offset + 4 > bytes.length) {
+      return null;
+    }
     const length = bytes.readUInt16BE(offset + 2);
-    const startOfFrame =
-      marker >= 0xc0 &&
+    const end = offset + 2 + length;
+    if (length < 2 || end > bytes.length) {
+      return null;
+    }
+    const payload = offset + 4;
+    if (marker >= 0xc0 && marker <= 0xc2) {
+      // Precision, height, width, component count, then 3 bytes a component.
+      if (scanned || length < 8) {
+        return null;
+      }
+      components = bytes[payload + 5] ?? 0;
+      if (length !== 8 + 3 * components) {
+        return null;
+      }
+      for (let index = 0; index < components; index += 1) {
+        const sampling = bytes[payload + 7 + 3 * index] ?? 0;
+        if (sampling >> 4 === 0 || (sampling & 15) === 0) {
+          return null;
+        }
+      }
+      frames += 1;
+      size ??= {
+        height: bytes.readUInt16BE(payload + 1),
+        width: bytes.readUInt16BE(payload + 3),
+      };
+    } else if (
+      marker >= 0xc3 &&
       marker <= 0xcf &&
       marker !== 0xc4 &&
       marker !== 0xc8 &&
-      marker !== 0xcc;
-    if (startOfFrame) {
-      if (offset + 9 > bytes.length) {
+      marker !== 0xcc
+    ) {
+      return null;
+    } else if (
+      marker === 0xee &&
+      length >= 8 &&
+      bytes.toString('latin1', payload, payload + 6) === 'Adobe\0'
+    ) {
+      adobe = true;
+    }
+    offset = end;
+    if (marker === 0xda) {
+      if (frames === 0) {
         return null;
       }
-      return {
-        height: bytes.readUInt16BE(offset + 5),
-        width: bytes.readUInt16BE(offset + 7),
-      };
+      scanned = true;
+      // Entropy-coded data: a 0xFF is followed by 0x00 (a stuffed byte), a
+      // restart marker, or the next real marker.
+      while (offset + 1 < bytes.length) {
+        const next = /** @type {number} */ (bytes[offset + 1]);
+        if (
+          bytes[offset] === 0xff &&
+          next !== 0x00 &&
+          !(next >= 0xd0 && next <= 0xd7)
+        ) {
+          break;
+        }
+        offset += 1;
+      }
     }
-    offset += 2 + length;
   }
   return null;
+}
+
+/**
+ * @param {number} components the frame's component count
+ * @param {boolean} adobe whether an Adobe `APP14` segment was seen
+ * @returns {boolean} whether `jpeg-js` colour-converts that many components
+ */
+function validComponents(components, adobe) {
+  return components === 1 || components === 3 || (components === 4 && adobe);
+}
+
+/**
+ * The pixel size a PNG or JPEG states in its header, without decoding it, and
+ * only for a file whose structure the template's decoders accept: `null` for
+ * anything else (see {@link readPngSize} and {@link readJpegSize}). Every read
+ * is bounds-checked against the buffer and the walk is linear in its length.
+ *
+ * @param {Buffer} bytes the whole file
+ * @param {'image/png' | 'image/jpeg'} mediaType the format sniffed from the bytes
+ * @returns {{width: number, height: number} | null} the size, or `null` when the header cannot be read
+ */
+export function readImageSize(bytes, mediaType) {
+  if (mediaType === 'image/png') {
+    return bytes.length < 45 ? null : readPngSize(bytes);
+  }
+  return bytes.length < 4 ? null : readJpegSize(bytes);
 }
 
 /**
