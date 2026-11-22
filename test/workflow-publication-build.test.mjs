@@ -20,6 +20,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { crc32, deflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import YAML from 'yaml';
@@ -159,119 +160,271 @@ function managedBuildCommand() {
   return match[1].replace('${REF_KIND}', 'candidate');
 }
 
+/**
+ * Build a copy of the publication source through the real carrier and the
+ * production sandbox command, then hand the result to `check`.
+ *
+ * @param {(repository: string) => void} customize changes the copy before it is built
+ * @param {(result: {output: string, repository: string}) => void} check asserts on the build
+ */
+function buildPublication(customize, check) {
+  // The toolchain mount is the repository, so the output root cannot live
+  // inside it; the runner temporary directory is the writable alternative.
+  const temporaryRoot = mkdtempSync(
+    path.join(
+      process.env.RUNNER_TEMP || tmpdir(),
+      'gala-publication-workflow-',
+    ),
+  );
+  try {
+    const generatedRepository = path.join(temporaryRoot, 'generated');
+    const inbox = path.join(temporaryRoot, 'inbox');
+    const decoded = path.join(temporaryRoot, 'decoded');
+    const output = path.join(temporaryRoot, 'output');
+    const carrier = path.join(inbox, 'verified-inputs-v2.bin');
+
+    cpSync(PUBLICATION_SOURCE_ROOT, generatedRepository, {
+      recursive: true,
+      filter(source) {
+        const relative = path.relative(PUBLICATION_SOURCE_ROOT, source);
+        return relative !== '.git' && !relative.startsWith(`.git${path.sep}`);
+      },
+    });
+    publishContent(generatedRepository);
+    customize(generatedRepository);
+    assert.equal(
+      existsSync(path.join(generatedRepository, 'package.json')),
+      false,
+      'managed publication repositories must remain package-free',
+    );
+
+    mkdirSync(inbox);
+    const carrierEnvironment = { ...process.env };
+    delete carrierEnvironment.GITHUB_ACTIONS;
+    delete carrierEnvironment.GITHUB_SHA;
+    run(
+      process.execPath,
+      [
+        'scripts/workflow/build-verified-inputs.mjs',
+        '--source',
+        generatedRepository,
+        '--out',
+        carrier,
+      ],
+      { env: carrierEnvironment },
+    );
+    const digest = carrierDigest(readFileSync(carrier));
+    run(process.execPath, [
+      'scripts/workflow/decode-carrier.mjs',
+      '--inbox',
+      inbox,
+      '--expected-digest',
+      digest,
+      '--out',
+      decoded,
+    ]);
+
+    run(
+      'scripts/sandbox-build.sh',
+      [
+        '--source',
+        path.join(decoded, 'source'),
+        '--output',
+        output,
+        '--toolchain',
+        ROOT,
+        '--command',
+        managedBuildCommand(),
+        '--timeout-seconds',
+        '90',
+        '--memory',
+        '2g',
+        '--cpus',
+        '2',
+      ],
+      {
+        env: {
+          ...process.env,
+          GITHUB_ACTIONS: 'true',
+          GITHUB_SHA: '1c14dcdff9501ef74b8b7a5897fba69c586fa76a',
+          GITHUB_REPOSITORY: 'fixture-owner/generated-publication',
+          GITHUB_REPOSITORY_ID: '1152869454',
+          GITHUB_REPOSITORY_OWNER_ID: '192749255',
+          GITHUB_WORKFLOW_REF:
+            'fixture-owner/generated-publication/.github/workflows/gala-publish-v2.yml@refs/heads/gala/candidate/019d0000-0000-7000-8000-000000000001',
+          GITHUB_WORKFLOW: 'Gala preview and publish',
+          GITHUB_RUN_ID: '36751986275',
+          GITHUB_RUN_ATTEMPT: '1',
+          GALA_BUILD_EPOCH: '2026-09-30T17:31:26.000Z',
+        },
+      },
+    );
+
+    check({ output, repository: generatedRepository });
+  } finally {
+    removeSandboxOutput(path.join(temporaryRoot, 'output'));
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
 test(
   'a package-free publication source builds through the real carrier and production sandbox command',
   { skip: SKIP },
   () => {
-    // The toolchain mount is the repository, so the output root cannot live
-    // inside it; the runner temporary directory is the writable alternative.
-    const temporaryRoot = mkdtempSync(
-      path.join(
-        process.env.RUNNER_TEMP || tmpdir(),
-        'gala-publication-workflow-',
-      ),
+    buildPublication(
+      () => {},
+      ({ output, repository }) => {
+        const manifest = JSON.parse(
+          readFileSync(
+            path.join(output, 'work/artifact-manifest.json'),
+            'utf8',
+          ),
+        );
+        assert.equal(
+          manifest.schemaId,
+          'urn:gala:schema:artifact-manifest:2.0.0',
+        );
+        assert.ok(manifest.routes.length > 0);
+        assert.ok(existsSync(path.join(output, 'artifact/index.html')));
+        const expectedArticle = existsSync(
+          path.join(repository, 'gala/theme-pages/about.md'),
+        )
+          ? 'about/index.html'
+          : 'hello-world/index.html';
+        assert.ok(existsSync(path.join(output, 'artifact', expectedArticle)));
+      },
     );
-    try {
-      const generatedRepository = path.join(temporaryRoot, 'generated');
-      const inbox = path.join(temporaryRoot, 'inbox');
-      const decoded = path.join(temporaryRoot, 'decoded');
-      const output = path.join(temporaryRoot, 'output');
-      const carrier = path.join(inbox, 'verified-inputs-v2.bin');
+  },
+);
+/**
+ * A decodable square PNG (8-bit grey, all black) of the given side.
+ *
+ * @param {number} side width and height in pixels
+ * @returns {Buffer} the file
+ */
+function squarePng(side) {
+  /**
+   * @param {string} type chunk type
+   * @param {Buffer} data chunk data
+   * @returns {Buffer} the chunk
+   */
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+    const framed = Buffer.alloc(body.length + 8);
+    framed.writeUInt32BE(data.length, 0);
+    body.copy(framed, 4);
+    framed.writeUInt32BE(crc32(body), body.length + 4);
+    return framed;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(side, 0);
+  header.writeUInt32BE(side, 4);
+  header[8] = 8;
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.alloc((side + 1) * side))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
-      cpSync(PUBLICATION_SOURCE_ROOT, generatedRepository, {
-        recursive: true,
-        filter(source) {
-          const relative = path.relative(PUBLICATION_SOURCE_ROOT, source);
-          return relative !== '.git' && !relative.startsWith(`.git${path.sep}`);
-        },
-      });
-      publishContent(generatedRepository);
-      assert.equal(
-        existsSync(path.join(generatedRepository, 'package.json')),
-        false,
-        'managed publication repositories must remain package-free',
-      );
-
-      mkdirSync(inbox);
-      const carrierEnvironment = { ...process.env };
-      delete carrierEnvironment.GITHUB_ACTIONS;
-      delete carrierEnvironment.GITHUB_SHA;
-      run(
-        process.execPath,
-        [
-          'scripts/workflow/build-verified-inputs.mjs',
-          '--source',
-          generatedRepository,
-          '--out',
-          carrier,
-        ],
-        { env: carrierEnvironment },
-      );
-      const digest = carrierDigest(readFileSync(carrier));
-      run(process.execPath, [
-        'scripts/workflow/decode-carrier.mjs',
-        '--inbox',
-        inbox,
-        '--expected-digest',
-        digest,
-        '--out',
-        decoded,
-      ]);
-
-      run(
-        'scripts/sandbox-build.sh',
-        [
-          '--source',
-          path.join(decoded, 'source'),
-          '--output',
-          output,
-          '--toolchain',
-          ROOT,
-          '--command',
-          managedBuildCommand(),
-          '--timeout-seconds',
-          '90',
-          '--memory',
-          '2g',
-          '--cpus',
-          '2',
-        ],
-        {
-          env: {
-            ...process.env,
-            GITHUB_ACTIONS: 'true',
-            GITHUB_SHA: '1c14dcdff9501ef74b8b7a5897fba69c586fa76a',
-            GITHUB_REPOSITORY: 'fixture-owner/generated-publication',
-            GITHUB_REPOSITORY_ID: '1152869454',
-            GITHUB_REPOSITORY_OWNER_ID: '192749255',
-            GITHUB_WORKFLOW_REF:
-              'fixture-owner/generated-publication/.github/workflows/gala-publish-v2.yml@refs/heads/gala/candidate/019d0000-0000-7000-8000-000000000001',
-            GITHUB_WORKFLOW: 'Gala preview and publish',
-            GITHUB_RUN_ID: '36751986275',
-            GITHUB_RUN_ATTEMPT: '1',
-            GALA_BUILD_EPOCH: '2026-09-30T17:31:26.000Z',
+test(
+  'a publication with Listen audio and a podcast cover builds /feed/podcast.xml with the audio enclosure through the production sandbox command',
+  { skip: SKIP },
+  () => {
+    const audio = Buffer.concat([
+      Buffer.from('ID3', 'latin1'),
+      Buffer.alloc(2048, 7),
+    ]);
+    buildPublication(
+      (repository) => {
+        const repositoryFile = path.join(repository, 'gala/repository.json');
+        const repositoryDoc = JSON.parse(readFileSync(repositoryFile, 'utf8'));
+        repositoryDoc.assetRoots = [
+          ...(repositoryDoc.assetRoots ?? []),
+          { path: 'assets' },
+        ];
+        writeFileSync(repositoryFile, JSON.stringify(repositoryDoc));
+        const publicationFile = path.join(repository, 'gala/publication.json');
+        const publication = JSON.parse(readFileSync(publicationFile, 'utf8'));
+        publication.listen = {
+          enabled: true,
+          podcast: {
+            enabled: true,
+            category: 'Technology',
+            explicit: false,
+            cover: 'assets/podcast-cover.png',
           },
-        },
-      );
+        };
+        writeFileSync(publicationFile, JSON.stringify(publication));
+        mkdirSync(path.join(repository, 'assets/listen'), { recursive: true });
+        writeFileSync(
+          path.join(repository, 'assets/podcast-cover.png'),
+          squarePng(1400),
+        );
+        writeFileSync(
+          path.join(repository, 'assets/listen/episode.mp3'),
+          audio,
+        );
+        const articlePath = path.join(repository, 'content/hello-world.md');
+        const article = readFileSync(articlePath, 'utf8');
+        const closing = article.indexOf('\n---\n', 3);
+        assert.ok(closing > 0, 'the article must have front matter');
+        writeFileSync(
+          articlePath,
+          `${article.slice(0, closing)}\nlisten:\n  audio: assets/listen/episode.mp3\n  durationSeconds: 60\n  format: conversation${article.slice(closing)}`,
+        );
+      },
+      ({ output }) => {
+        const feed = path.join(output, 'artifact/feed/podcast.xml');
+        assert.ok(existsSync(feed), 'feed/podcast.xml must be built');
+        const xml = readFileSync(feed, 'utf8');
+        assert.match(xml, /<enclosure [^>]*type="audio\/mpeg"/u);
+        assert.match(xml, /length="2051"/u);
+        assert.match(xml, /assets\/listen\/hello-world\.[0-9a-f]{8}\.mp3/u);
+      },
+    );
+  },
+);
 
-      const manifest = JSON.parse(
-        readFileSync(path.join(output, 'work/artifact-manifest.json'), 'utf8'),
-      );
-      assert.equal(
-        manifest.schemaId,
-        'urn:gala:schema:artifact-manifest:2.0.0',
-      );
-      assert.ok(manifest.routes.length > 0);
-      assert.ok(existsSync(path.join(output, 'artifact/index.html')));
-      const expectedArticle = existsSync(
-        path.join(generatedRepository, 'gala/theme-pages/about.md'),
-      )
-        ? 'about/index.html'
-        : 'hello-world/index.html';
-      assert.ok(existsSync(path.join(output, 'artifact', expectedArticle)));
-    } finally {
-      removeSandboxOutput(path.join(temporaryRoot, 'output'));
-      rmSync(temporaryRoot, { recursive: true, force: true });
-    }
+test(
+  'a podcast cover that is not square does not fail the build: the site publishes without feed/podcast.xml',
+  { skip: SKIP },
+  () => {
+    buildPublication(
+      (repository) => {
+        const repositoryFile = path.join(repository, 'gala/repository.json');
+        const repositoryDoc = JSON.parse(readFileSync(repositoryFile, 'utf8'));
+        repositoryDoc.assetRoots = [
+          ...(repositoryDoc.assetRoots ?? []),
+          { path: 'assets' },
+        ];
+        writeFileSync(repositoryFile, JSON.stringify(repositoryDoc));
+        const publicationFile = path.join(repository, 'gala/publication.json');
+        const publication = JSON.parse(readFileSync(publicationFile, 'utf8'));
+        publication.listen = {
+          enabled: true,
+          podcast: {
+            enabled: true,
+            category: 'Technology',
+            explicit: false,
+            cover: 'assets/podcast-cover.png',
+          },
+        };
+        writeFileSync(publicationFile, JSON.stringify(publication));
+        mkdirSync(path.join(repository, 'assets'), { recursive: true });
+        writeFileSync(
+          path.join(repository, 'assets/podcast-cover.png'),
+          squarePng(300),
+        );
+      },
+      ({ output }) => {
+        assert.ok(existsSync(path.join(output, 'artifact/index.html')));
+        assert.equal(
+          existsSync(path.join(output, 'artifact/feed/podcast.xml')),
+          false,
+        );
+      },
+    );
   },
 );
