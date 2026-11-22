@@ -67,6 +67,25 @@ example `npm test --workspace packages/adapter-protocol`).
 
 `npm run architecture` (`depcruise --validate`) fails the build on a violation.
 
+## Journey documents
+
+One document per user journey, end to end (App, API, workers, the person's
+repository, this toolchain, the template and the published site), lives in the
+App repository at `../app/docs/journeys/`, indexed in
+`../app/docs/journeys/README.md`. This toolchain's part is in
+`publish-pipeline-and-recovery`, `hosting-destination`, `connect-repository` and
+`staggered-release`.
+
+- Before changing a publish step, a receipt, a failure code or what is written
+  to a person's repository, read those journeys and each one's "Connections to
+  other journeys".
+- A change here that alters what a person sees or what happens to their site
+  updates the journey document in the App repository as part of the same piece
+  of work. The App's tests cannot see this repository, so nothing fails if the
+  document is left stale.
+- A defect found while reading goes under that document's "Known open gaps"; a
+  gap fixed here is removed from the list.
+
 ## What never goes here
 
 Source-repository mutation, author build execution, content-semantics
