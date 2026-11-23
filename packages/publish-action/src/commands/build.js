@@ -27,6 +27,42 @@ import { buildResultEnvelope, classifyFindings } from '../result.js';
 import { readManifestFileBytes } from '../artifact-files.js';
 
 /**
+ * The manifest's `warning` findings as non-blocking action findings, leaving
+ * out a code the intake already reported.
+ *
+ * @param {Record<string, unknown>} manifest the rendered `artifact-manifest`
+ * @param {import('../types.js').PublishActionFinding[]} reported findings already collected
+ * @returns {import('../types.js').PublishActionFinding[]} the warnings to add
+ */
+function manifestWarningFindings(manifest, reported) {
+  const entries = /** @type {Record<string, unknown>[]} */ (
+    Array.isArray(manifest.findings) ? manifest.findings : []
+  );
+  /** @type {import('../types.js').PublishActionFinding[]} */
+  const added = [];
+  for (const entry of entries) {
+    const code = String(entry.code);
+    if (
+      entry.severity !== 'warning' ||
+      reported.some((finding) => finding.code === code)
+    ) {
+      continue;
+    }
+    const pointer = String(entry.pointer);
+    added.push({
+      code,
+      severity: 'WARNING',
+      detail: `The renderer recorded a warning (${code}) at ${pointer}. The site itself is published.`,
+      location: pointer,
+      evidence: { pointer, messageKey: String(entry.messageKey) },
+      recovery: 'Correct the setting named by the pointer, then publish again.',
+      overridable: false,
+    });
+  }
+  return added;
+}
+
+/**
  * @param {{
  *   repositoryDirectory: string,
  *   outputDirectory: string,
@@ -133,6 +169,10 @@ export async function runBuild({
     await writeBuildDirectoryMarker(workDirectory);
     const manifestPath = path.join(workDirectory, 'artifact-manifest.json');
     await writeFile(manifestPath, JSON.stringify(rendered.manifest, null, 2));
+    // A renderer warning recorded in the manifest (`policyResult`
+    // `pass-with-warnings`, e.g. `PODCAST_COVER_UNUSABLE`) travels in the
+    // result envelope like an intake warning, so the workflow log shows it.
+    warnings.push(...manifestWarningFindings(rendered.manifest, warnings));
     // The two validated records the managed freeze job quotes the
     // reproducible build record from (DEC-097 section 5: the repository
     // root digest, base URL/path and render policy equal the validated

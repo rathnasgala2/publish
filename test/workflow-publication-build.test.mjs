@@ -301,9 +301,13 @@ test(
  * A decodable square PNG (8-bit grey, all black) of the given side.
  *
  * @param {number} side width and height in pixels
+ * @param {Buffer} [imageData] the IDAT payload; defaults to valid zlib data
  * @returns {Buffer} the file
  */
-function squarePng(side) {
+function squarePng(
+  side,
+  imageData = deflateSync(Buffer.alloc((side + 1) * side)),
+) {
   /**
    * @param {string} type chunk type
    * @param {Buffer} data chunk data
@@ -324,7 +328,7 @@ function squarePng(side) {
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', header),
-    chunk('IDAT', deflateSync(Buffer.alloc((side + 1) * side))),
+    chunk('IDAT', imageData),
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }
@@ -447,6 +451,44 @@ test(
         assert.equal(
           existsSync(path.join(output, 'artifact/feed/podcast.xml')),
           false,
+        );
+      },
+    );
+  },
+);
+
+test(
+  'a podcast cover with a valid header and undecodable image data does not fail the build: the site publishes without feed/podcast.xml',
+  { skip: SKIP },
+  () => {
+    const audio = Buffer.concat([
+      Buffer.from('ID3', 'latin1'),
+      Buffer.alloc(2048, 7),
+    ]);
+    // A 1400 pixel square PNG with intact chunks and checksums whose image
+    // data is not zlib: the header passes intake, the decode does not.
+    const broken = squarePng(1400, Buffer.alloc(64, 0xa5));
+    buildPublication(
+      (repository) => {
+        enablePodcast(repository, broken);
+        addListenArticle(repository, audio);
+      },
+      ({ output }) => {
+        assert.ok(existsSync(path.join(output, 'artifact/index.html')));
+        assert.equal(
+          existsSync(path.join(output, 'artifact/feed/podcast.xml')),
+          false,
+        );
+        const manifest = JSON.parse(
+          readFileSync(
+            path.join(output, 'work/artifact-manifest.json'),
+            'utf8',
+          ),
+        );
+        assert.equal(manifest.policyResult, 'pass-with-warnings');
+        assert.deepEqual(
+          manifest.findings.map((/** @type {any} */ finding) => finding.code),
+          ['PODCAST_COVER_UNUSABLE'],
         );
       },
     );

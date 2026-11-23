@@ -36,6 +36,7 @@ import { runAction } from '../src/action/run.js';
 import { runCli } from '../src/bin/cli.js';
 import { resolveWorkspaceSibling } from '../src/workspace-siblings.js';
 import { buildBuildInputFromRepository } from '../src/normalize/repository-intake.js';
+import { pngBytes, pngChunk } from './image-bytes.js';
 
 const FIXTURE_REPOSITORY = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -755,6 +756,67 @@ test('recommendations, a file block and its PDF authored in the repository reach
     );
     assert.equal(recommendations.length, 1);
     assert.equal(recommendations[0].url, 'https://friend.example.invalid/');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('build: a podcast cover with a valid header and undecodable image data succeeds without the feed and reports the manifest warning', async () => {
+  const { tmp, cleanup } = await freshTempDir();
+  try {
+    const {
+      cp,
+      readFile: read,
+      writeFile: write,
+    } = await import('node:fs/promises');
+    const repository = path.join(tmp, 'repo');
+    await cp(FIXTURE_REPOSITORY, repository, { recursive: true });
+    const repositoryFile = path.join(repository, 'gala/repository.json');
+    const repositoryDoc = JSON.parse(await read(repositoryFile, 'utf8'));
+    repositoryDoc.assetRoots = [{ path: 'assets' }];
+    await write(repositoryFile, JSON.stringify(repositoryDoc));
+    const publicationFile = path.join(repository, 'gala/publication.json');
+    const publication = JSON.parse(await read(publicationFile, 'utf8'));
+    publication.listen = {
+      enabled: true,
+      podcast: {
+        enabled: true,
+        category: 'Technology',
+        explicit: false,
+        cover: 'assets/podcast-cover.png',
+      },
+    };
+    await write(publicationFile, JSON.stringify(publication));
+    // Intact chunks and checksums around image data that is not zlib: the
+    // header passes intake, the decode in the renderer does not.
+    const whole = pngBytes({ width: 1400, height: 1400, idat: false });
+    const iendStart = whole.length - 12;
+    await mkdir(path.join(repository, 'assets'), { recursive: true });
+    await write(
+      path.join(repository, 'assets/podcast-cover.png'),
+      Buffer.concat([
+        whole.subarray(0, iendStart),
+        pngChunk('IDAT', Buffer.alloc(64, 0xa5)),
+        whole.subarray(iendStart),
+      ]),
+    );
+
+    const result = await runBuild({
+      repositoryDirectory: repository,
+      outputDirectory: path.join(tmp, 'output'),
+      workDirectory: path.join(tmp, 'work'),
+    });
+    assert.equal(result.resultCode, 'SUCCESS', JSON.stringify(result.findings));
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.manifest?.policyResult, 'pass-with-warnings');
+    assert.deepEqual(
+      result.findings.map((finding) => [finding.code, finding.severity]),
+      [['PODCAST_COVER_UNUSABLE', 'WARNING']],
+    );
+    assert.equal(
+      result.findings[0]?.location,
+      '/publication/listen/podcast/cover',
+    );
   } finally {
     await cleanup();
   }

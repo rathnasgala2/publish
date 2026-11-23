@@ -42,6 +42,11 @@ and this project adheres to
 
 ### Changed
 
+- Serve template 4.19.1 (exact pin; an undecodable podcast cover turns the
+  podcast feed off with a `PODCAST_COVER_UNUSABLE` warning finding). Schemas
+  3.53.0 is unchanged. The peer range stays `^4.1.0`.
+- A `warning` finding the renderer records in the artifact manifest now travels
+  in the build result as a `WARNING` finding, so the workflow log shows it.
 - Serve schemas 3.53.0 and template 4.19.0 (exact pins). The template's
   render-policy identity changes, so a body normalized by 4.18.0 is refused by
   4.19.0 until intake normalizes it again; the starter repository's pins move

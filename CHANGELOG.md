@@ -10,6 +10,12 @@ and this project adheres to
 
 ### Changed
 
+- Serve template 4.19.1 (an undecodable podcast cover turns the podcast feed off
+  and the manifest carries one `PODCAST_COVER_UNUSABLE` warning with
+  `policyResult` `pass-with-warnings`, instead of the build failing). Schemas
+  3.53.0 is unchanged; the lock fixture moves with the pin. The build result now
+  carries a manifest `warning` finding as a `WARNING` finding, so the workflow
+  log shows it.
 - Serve schemas 3.53.0 (exact pins in publish-action and publish-kernel; adds
   `listen.podcast` to the publication, the normalized `podcast` to the build
   input and the `newsletterTag` and `newsletterSubjectB` front matter keys) and
