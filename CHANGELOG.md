@@ -10,6 +10,12 @@ and this project adheres to
 
 ### Changed
 
+- Serve schemas 3.55.0 and template 4.20.0 (exact pins in publish-action and
+  publish-kernel). Intake carries an article's optional `summary` and `faq`
+  front-matter keys into the build input unchanged; the template shows the
+  summary above the body and the questions below it with matching FAQPage
+  JSON-LD. A post without them builds the same bytes as before; the lock fixture
+  moves with the pins.
 - Serve template 4.19.1 (an undecodable podcast cover turns the podcast feed off
   and the manifest carries one `PODCAST_COVER_UNUSABLE` warning with
   `policyResult` `pass-with-warnings`, instead of the build failing). Schemas

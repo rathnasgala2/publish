@@ -42,6 +42,10 @@ and this project adheres to
 
 ### Changed
 
+- Intake copies an article's optional `summary` and `faq` front-matter keys into
+  the build input (order and text unchanged; absent stays absent).
+- Serve template 4.20.0 and validate against schemas 3.55.0 (exact pins). The
+  peer range stays `^4.1.0`.
 - Serve template 4.19.1 (exact pin; an undecodable podcast cover turns the
   podcast feed off with a `PODCAST_COVER_UNUSABLE` warning finding). Schemas
   3.53.0 is unchanged. The peer range stays `^4.1.0`.

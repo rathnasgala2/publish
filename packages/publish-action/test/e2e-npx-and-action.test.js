@@ -670,6 +670,96 @@ test('listing pageSize, aiRights and a past deleteDate authored in the repositor
   }
 });
 
+test('a post with a summary and a faq authored in the repository reaches the built article page with one matching FAQPage JSON-LD', async () => {
+  const { tmp, cleanup } = await freshTempDir();
+  try {
+    const repository = path.join(tmp, 'repo');
+    const { cp, writeFile: write } = await import('node:fs/promises');
+    await cp(FIXTURE_REPOSITORY, repository, { recursive: true });
+    const faq = [
+      { question: 'What is the summary?', answer: 'A short box.' },
+      { question: 'Where do answers go?', answer: 'Below the body.' },
+    ];
+    await write(
+      path.join(repository, 'content/faq-post.md'),
+      [
+        '---',
+        'schemaId: urn:gala:schema:content-frontmatter:2.0.0',
+        "schemaVersion: '2.0.0'",
+        'id: 01912345-6789-7abc-89ab-0123456789c2',
+        'kind: article',
+        'title: Faq post',
+        'language: en-US',
+        'authors:',
+        '  - 01912345-6789-7abc-89ab-0123456789ac',
+        'tags:',
+        '  - fixture',
+        'status: published',
+        "createdAt: '2026-09-16T00:00:00.000Z'",
+        "publishedAt: '2026-09-16T00:00:00.000Z'",
+        'slug: faq-post',
+        'redirects: []',
+        'summary: The whole post in one distinctive sentence.',
+        'faq:',
+        ...faq.flatMap((item) => [
+          `  - question: ${item.question}`,
+          `    answer: ${item.answer}`,
+        ]),
+        'extensions: {}',
+        '---',
+        '',
+        'Body of faq-post',
+        '',
+      ].join('\n'),
+    );
+    const outputDirectory = path.join(tmp, 'output');
+    const buildResult = await runBuild({
+      repositoryDirectory: repository,
+      outputDirectory,
+      workDirectory: path.join(tmp, 'work'),
+    });
+    assert.equal(
+      buildResult.resultCode,
+      'SUCCESS',
+      JSON.stringify(buildResult.findings),
+    );
+    const html = await readFile(
+      path.join(outputDirectory, 'faq-post/index.html'),
+      'utf8',
+    );
+    assert.match(html, /The whole post in one distinctive sentence\./u);
+    for (const item of faq) {
+      assert.ok(html.includes(item.question), item.question);
+      assert.ok(html.includes(item.answer), item.answer);
+    }
+    const blocks = [
+      ...html.matchAll(
+        /<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gu,
+      ),
+    ].map((match) => JSON.parse(match[1]));
+    const pages = blocks
+      .flatMap((block) =>
+        Array.isArray(block['@graph']) ? block['@graph'] : [block],
+      )
+      .filter((node) => node['@type'] === 'FAQPage');
+    assert.equal(pages.length, 1);
+    assert.deepEqual(
+      pages[0].mainEntity.map((/** @type {any} */ q) => [
+        q.name,
+        q.acceptedAnswer.text,
+      ]),
+      faq.map((item) => [item.question, item.answer]),
+    );
+    const plain = await readFile(
+      path.join(outputDirectory, 'hello-world/index.html'),
+      'utf8',
+    );
+    assert.doesNotMatch(plain, /FAQPage/u);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('recommendations, a file block and its PDF authored in the repository reach the built site', async () => {
   const { tmp, cleanup } = await freshTempDir();
   try {
