@@ -736,7 +736,7 @@ test('a post with a summary and a faq authored in the repository reaches the bui
       ...html.matchAll(
         /<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gu,
       ),
-    ].map((match) => JSON.parse(match[1]));
+    ].map((match) => JSON.parse(match[1] ?? ''));
     const pages = blocks
       .flatMap((block) =>
         Array.isArray(block['@graph']) ? block['@graph'] : [block],
