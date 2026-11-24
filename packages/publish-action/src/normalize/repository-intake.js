@@ -843,6 +843,19 @@ function normalizeContentFrontmatter(frontmatter, mediaFiles, audioFiles) {
       ? { translationOf: frontmatter.translationOf }
       : {}),
     ...(frontmatter.deleteDate ? { deleteDate: frontmatter.deleteDate } : {}),
+    // Summary and FAQ (schemas 3.55.0): articles only, copied as authored (the
+    // front-matter schema already bounded their length and members).
+    ...(frontmatter.summary ? { summary: frontmatter.summary } : {}),
+    ...(frontmatter.faq
+      ? {
+          faq: frontmatter.faq.map(
+            (/** @type {{question: string, answer: string}} */ item) => ({
+              question: item.question,
+              answer: item.answer,
+            }),
+          ),
+        }
+      : {}),
     ...(frontmatter.hero
       ? {
           hero: {

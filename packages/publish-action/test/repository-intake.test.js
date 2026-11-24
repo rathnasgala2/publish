@@ -656,6 +656,127 @@ test('publication listing, aiRights and performance reach the build input; absen
   }
 });
 
+/**
+ * Probe for schemas 3.55.0: whether the installed content-frontmatter schema
+ * knows `summary`. The pin step deletes this helper and the SKIP reason.
+ * @returns {Promise<string | false>} a skip reason, or false when supported
+ */
+async function summarySchemaSkipReason() {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addDocument(dir, 'probe.md', { summary: 'probe' }, 'Body\n');
+    await buildBuildInputFromRepository({ repositoryDirectory: dir });
+    return false;
+  } catch {
+    return 'installed schemas package predates 3.55.0 (no summary/faq); remove with the pin step';
+  } finally {
+    await cleanup();
+  }
+}
+const SKIP_UNTIL_SCHEMAS_3_55 = await summarySchemaSkipReason();
+
+const FAQ_ITEMS = [
+  { question: 'What is it?', answer: 'A thing.\nWith two lines.' },
+  { question: 'Why?', answer: 'Because.' },
+];
+
+/**
+ * @param {Record<string, unknown>} fields extra front matter
+ * @returns {Promise<any>} the content record built for one extra post
+ */
+async function recordWith(fields) {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addDocument(
+      dir,
+      'extra.md',
+      { id: '01912345-6789-7abc-89ab-0123456789c1', slug: 'extra', ...fields },
+      'Body\n',
+    );
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({ repositoryDirectory: dir })
+    );
+    return recordOf(buildInput, 'content/extra.md');
+  } finally {
+    await cleanup();
+  }
+}
+
+test('a post without summary or faq builds the same record shape as before', async () => {
+  const plain = await recordWith({});
+  assert.equal('summary' in plain.frontmatter, false);
+  assert.equal('faq' in plain.frontmatter, false);
+  const withEmpty = await recordWith({ deleteDate: undefined });
+  assert.equal(JSON.stringify(withEmpty), JSON.stringify(plain));
+});
+
+test(
+  'a summary reaches the content record unchanged',
+  { skip: SKIP_UNTIL_SCHEMAS_3_55 },
+  async () => {
+    const record = await recordWith({ summary: 'Short  summary, 100%.' });
+    assert.equal(record.frontmatter.summary, 'Short  summary, 100%.');
+    assert.equal('faq' in record.frontmatter, false);
+  },
+);
+
+test(
+  'a faq reaches the content record unchanged, in order',
+  { skip: SKIP_UNTIL_SCHEMAS_3_55 },
+  async () => {
+    const record = await recordWith({ faq: FAQ_ITEMS });
+    assert.deepEqual(record.frontmatter.faq, FAQ_ITEMS);
+    assert.equal('summary' in record.frontmatter, false);
+  },
+);
+
+test(
+  'a summary and a faq together both reach the content record',
+  { skip: SKIP_UNTIL_SCHEMAS_3_55 },
+  async () => {
+    const record = await recordWith({ summary: 'S', faq: FAQ_ITEMS });
+    assert.equal(record.frontmatter.summary, 'S');
+    assert.deepEqual(record.frontmatter.faq, FAQ_ITEMS);
+  },
+);
+
+for (const [name, fields] of /** @type {[string, any][]} */ ([
+  ['a 501-character summary', { summary: 'a'.repeat(501) }],
+  ['an empty faq', { faq: [] }],
+  [
+    'a 21-item faq',
+    {
+      faq: Array.from({ length: 21 }, () => ({ question: 'Q', answer: 'A' })),
+    },
+  ],
+  ['a faq item with an extra member', { faq: [{ ...FAQ_ITEMS[0], x: 1 }] }],
+])) {
+  test(
+    `${name} is refused by the schema, naming the file`,
+    { skip: SKIP_UNTIL_SCHEMAS_3_55 },
+    async () => {
+      const { dir, cleanup } = await mutableFixtureCopy();
+      try {
+        await addDocument(dir, 'bad.md', fields, 'Body\n');
+        await assert.rejects(
+          buildBuildInputFromRepository({ repositoryDirectory: dir }),
+          (/** @type {SchemaValidationError} */ error) => {
+            assert.ok(error instanceof SchemaValidationError);
+            assert.equal(error.location, 'content/bad.md');
+            assert.equal(
+              error.schemaId,
+              'urn:gala:schema:content-frontmatter:2.0.0',
+            );
+            return true;
+          },
+        );
+      } finally {
+        await cleanup();
+      }
+    },
+  );
+}
+
 test('a draft is omitted from build-input in publish mode', async () => {
   const { dir, cleanup } = await mutableFixtureCopy();
   try {
