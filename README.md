@@ -1,5 +1,14 @@
 # publish
 
+**Part of [Galascribe](https://galascribe.com)**, blog publishing software and a
+Markdown publishing platform for a site you own: you write in an editor, every
+post is a Markdown file in your own GitHub repository, and the site is published
+to GitHub Pages on your own domain, with scheduled posts, RSS feeds, six
+built-in themes and search. This repository is the publish tooling that sends a
+built site to its destination, such as GitHub Pages.
+[What Galascribe does](https://app.galascribe.com/features) ·
+[Markdown publishing platform](https://app.galascribe.com/markdown-publishing-platform)
+
 Galascribe v2 publish workspace.
 
 This npm workspace holds the provider-neutral publish safety kernel, the
