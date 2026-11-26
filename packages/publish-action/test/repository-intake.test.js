@@ -3100,6 +3100,99 @@ for (const [rule, sharing] of INVALID_SHARING) {
   });
 }
 
+const LINK_ACTION = Object.freeze({
+  kind: 'link',
+  heading: 'Work with us',
+  label: 'Book a call',
+  url: 'https://example.com/call',
+});
+
+test('a post without action builds the same record shape as before', async () => {
+  const plain = await recordWith({});
+  assert.equal('action' in plain.frontmatter, false);
+});
+
+test('a post action reaches the content record as authored, including kind none', async () => {
+  for (const action of [LINK_ACTION, { kind: 'none' }, { kind: 'follow' }]) {
+    const record = await recordWith({ action });
+    assert.deepEqual(record.frontmatter.action, action);
+  }
+});
+
+test('a post action with an unknown member is refused by the schema, naming the file', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await addDocument(
+      dir,
+      'bad.md',
+      { action: { kind: 'none', x: 1 } },
+      'Body\n',
+    );
+    await assert.rejects(
+      buildBuildInputFromRepository({ repositoryDirectory: dir }),
+      (/** @type {SchemaValidationError} */ error) => {
+        assert.ok(error instanceof SchemaValidationError);
+        assert.equal(error.location, 'content/bad.md');
+        return true;
+      },
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test('publication.postAction reaches the build input as authored, and is absent without it', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    assert.equal(
+      'postAction' in (await buildWithPublication(dir, {})).publication,
+      false,
+    );
+    for (const postAction of [
+      LINK_ACTION,
+      { kind: 'follow', text: 'Never miss a post.' },
+      { kind: 'newsletter' },
+    ]) {
+      const buildInput = await buildWithPublication(dir, { postAction });
+      assert.deepEqual(buildInput.publication.postAction, postAction);
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+test('publication.postAction with an unknown kind is a schema refusal naming publication.json', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    await assertPublicationRefused(dir, { postAction: { kind: 'popup' } });
+  } finally {
+    await cleanup();
+  }
+});
+
+test('follows.publicCount reaches the embedded interactions config', async () => {
+  const { dir, cleanup } = await mutableFixtureCopy();
+  try {
+    const config = {
+      ...VALID_INTERACTIONS_CONFIG,
+      follows: { enabled: true, publicCount: true },
+    };
+    await writeInteractionsConfig(dir, config);
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({
+        repositoryDirectory: dir,
+        env: {},
+      })
+    );
+    assert.equal(
+      buildInput.modules.interactions.config.follows.publicCount,
+      true,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
 const LINK_NEWSLETTER = Object.freeze({
   url: 'https://news.example.invalid/',
   title: 'My newsletter',

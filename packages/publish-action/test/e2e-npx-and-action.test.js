@@ -760,6 +760,167 @@ test('a post with a summary and a faq authored in the repository reaches the bui
   }
 });
 
+test('a site with a post action, an opted-out post, a quote with a photo and a public follower count builds the aside, the figure and the count flag', async () => {
+  const { tmp, cleanup } = await freshTempDir();
+  try {
+    const repository = path.join(tmp, 'repo');
+    const { cp, writeFile: write } = await import('node:fs/promises');
+    await cp(FIXTURE_REPOSITORY, repository, { recursive: true });
+    const publicationPath = path.join(repository, 'gala/publication.json');
+    const publication = JSON.parse(await readFile(publicationPath, 'utf8'));
+    publication.postAction = {
+      kind: 'link',
+      heading: 'Work with us',
+      label: 'Book a call',
+      url: 'https://example.com/call',
+    };
+    await write(publicationPath, JSON.stringify(publication, null, 2));
+    const repositoryPath = path.join(repository, 'gala/repository.json');
+    const repositoryDocument = JSON.parse(
+      await readFile(repositoryPath, 'utf8'),
+    );
+    repositoryDocument.assetRoots = [{ path: 'assets' }];
+    await write(repositoryPath, JSON.stringify(repositoryDocument, null, 2));
+    await mkdir(path.join(repository, 'gala/modules'), { recursive: true });
+    await write(
+      path.join(repository, 'gala/modules/interactions.json'),
+      JSON.stringify({
+        schemaId: 'urn:gala:schema:interactions-config:2.0.0',
+        schemaVersion: '2.0.0',
+        reactions: {
+          enabled: true,
+          definitions: [
+            {
+              key: 'insightful',
+              label: 'Insightful',
+              visual: { kind: 'emoji', token: '💡' },
+              order: 1,
+              enabled: true,
+            },
+          ],
+        },
+        comments: { enabled: true, allowReplies: true, maxDepth: 3 },
+        publicCounts: { reactions: true, comments: true },
+        follows: { enabled: true, publicCount: true },
+      }),
+    );
+    await mkdir(path.join(repository, 'assets/people'), { recursive: true });
+    await write(
+      path.join(repository, 'assets/people/jane.png'),
+      pngBytes({ width: 64, height: 64 }),
+    );
+    const post = (
+      /** @type {string} */ id,
+      /** @type {string} */ slug,
+      /** @type {string[]} */ extra,
+      /** @type {string[]} */ body,
+    ) =>
+      [
+        '---',
+        'schemaId: urn:gala:schema:content-frontmatter:2.0.0',
+        "schemaVersion: '2.0.0'",
+        `id: ${id}`,
+        'kind: article',
+        `title: ${slug}`,
+        'language: en-US',
+        'authors:',
+        '  - 01912345-6789-7abc-89ab-0123456789ac',
+        'tags: []',
+        'status: published',
+        "createdAt: '2026-09-16T00:00:00.000Z'",
+        "publishedAt: '2026-09-16T00:00:00.000Z'",
+        `slug: ${slug}`,
+        'redirects: []',
+        ...extra,
+        'extensions: {}',
+        '---',
+        '',
+        ...body,
+        '',
+      ].join('\n');
+    await write(
+      path.join(repository, 'content/with-quote.md'),
+      post(
+        '01912345-6789-7abc-89ab-0123456789f1',
+        'with-quote',
+        [],
+        [
+          'Customers say it best.',
+          '',
+          '```quote',
+          'text: It saved us a week of writing every month.',
+          'name: Jane Doe',
+          'role: Founder, Example Co',
+          'photo: assets/people/jane.png',
+          '```',
+        ],
+      ),
+    );
+    await write(
+      path.join(repository, 'content/opted-out.md'),
+      post(
+        '01912345-6789-7abc-89ab-0123456789f2',
+        'opted-out',
+        ['action:', '  kind: none'],
+        ['No block under this one.'],
+      ),
+    );
+    const buildInput = /** @type {any} */ (
+      await buildBuildInputFromRepository({
+        repositoryDirectory: repository,
+        env: {},
+      })
+    );
+    const quoted = buildInput.content.find(
+      (/** @type {any} */ record) =>
+        record.sourcePath === 'content/with-quote.md',
+    );
+    assert.ok(
+      quoted.media.some((/** @type {any} */ entry) =>
+        JSON.stringify(entry).includes('assets/people/jane.png'),
+      ),
+      'the quote photo is in media[]',
+    );
+    assert.equal(
+      buildInput.modules.interactions.config.follows.publicCount,
+      true,
+    );
+    const outputDirectory = path.join(tmp, 'output');
+    const buildResult = await runBuild({
+      repositoryDirectory: repository,
+      outputDirectory,
+      workDirectory: path.join(tmp, 'work'),
+    });
+    assert.equal(
+      buildResult.resultCode,
+      'SUCCESS',
+      JSON.stringify(buildResult.findings),
+    );
+    const read = (/** @type {string} */ name) =>
+      readFile(path.join(outputDirectory, name), 'utf8');
+    const quotePage = await read('with-quote/index.html');
+    assert.match(quotePage, /<aside[^>]*data-gala-action="link"/u);
+    assert.match(quotePage, /Work with us/u);
+    assert.match(quotePage, /Book a call/u);
+    assert.match(quotePage, /href="https:\/\/example\.com\/call"/u);
+    assert.match(quotePage, /<figure[^>]*data-gala-block="quote"/u);
+    assert.match(quotePage, /It saved us a week of writing every month\./u);
+    assert.match(quotePage, /Jane Doe/u);
+    assert.match(
+      quotePage,
+      /<figure class="g-quote"[^>]*>[\s\S]*<img src="\/assets\/media\/[0-9a-f]{64}\/original\.png"[^>]*alt=""/u,
+    );
+    assert.match(quotePage, /data-follow-count-public/u);
+    const optedOut = await read('opted-out/index.html');
+    assert.doesNotMatch(optedOut, /data-gala-action=/u);
+    assert.doesNotMatch(optedOut, /Work with us/u);
+    const plain = await read('hello-world/index.html');
+    assert.match(plain, /data-gala-action="link"/u);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('recommendations, a file block and its PDF authored in the repository reach the built site', async () => {
   const { tmp, cleanup } = await freshTempDir();
   try {

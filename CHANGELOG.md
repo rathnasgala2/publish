@@ -10,6 +10,13 @@ and this project adheres to
 
 ### Changed
 
+- Serve schemas 3.56.0 and template 4.21.0 (exact pins in publish-action and
+  publish-kernel). Intake carries the site's optional `postAction` and an
+  article's optional `action` front-matter key into the build input as authored;
+  the interactions config already rides whole, so `follows.publicCount` reaches
+  the template. The template shows one action after a post, a quote block with
+  an optional photo, and the follower count flag. A site that sets none of them
+  builds the same bytes as before; the lock fixture moves with the pins.
 - Serve schemas 3.55.0 and template 4.20.0 (exact pins in publish-action and
   publish-kernel). Intake carries an article's optional `summary` and `faq`
   front-matter keys into the build input unchanged; the template shows the

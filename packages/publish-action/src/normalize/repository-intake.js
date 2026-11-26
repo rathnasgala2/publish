@@ -200,6 +200,11 @@
  * `newsletterTag` and `newsletterSubjectB` (schemas 3.53.0) are read by the
  * platform's API from the repository and are not copied into the build input.
  *
+ * **After-post action** (schemas 3.56.0): `publication.json`'s optional
+ * `postAction` and an article's optional `action` front-matter key are copied
+ * as authored. `follows.publicCount` rides inside the embedded interactions
+ * config.
+ *
  * **Parity members** (schemas 3.32.0, template 4.14.0): `publication.json`'s
  * optional `recommendations` (at most 24 of `{url, title, description?,
  * addedOn?}`) is copied member by member into `build-input.publication`. The
@@ -856,6 +861,11 @@ function normalizeContentFrontmatter(frontmatter, mediaFiles, audioFiles) {
           ),
         }
       : {}),
+    // After-post action (schemas 3.56.0): articles only, copied as authored
+    // (`{kind: 'none'}` hides the site's block on this post).
+    ...(frontmatter.action
+      ? { action: structuredClone(frontmatter.action) }
+      : {}),
     ...(frontmatter.hero
       ? {
           hero: {
@@ -1257,6 +1267,11 @@ export async function buildBuildInputFromRepository({
     // read (see `resolveSharing`); it is always present in the build input.
     ...(publicationDoc.document.newsletter
       ? { newsletter: { ...publicationDoc.document.newsletter } }
+      : {}),
+    // After-post action (schemas 3.56.0), copied as authored; the schema
+    // already refused any other member.
+    ...(publicationDoc.document.postAction
+      ? { postAction: structuredClone(publicationDoc.document.postAction) }
       : {}),
     // Listen (schemas 3.26.0): always present in the build input. A
     // publication.json without the member is the same as `enabled: false`.
