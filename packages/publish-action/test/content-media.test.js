@@ -21,6 +21,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
+import './stub-sharing-fetch.js';
 import { pathToFileURL } from 'node:url';
 
 import {
