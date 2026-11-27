@@ -42,6 +42,8 @@ and this project adheres to
 
 ### Changed
 
+- Validate against schemas 3.56.2 (exact pin; OpenAPI-only release, the JSON
+  Schemas are unchanged).
 - Serve `theme-default`, `theme-flashy`, `theme-minimal` and `theme-zebra` 4.2.1
   and `theme-amaze` and `theme-editorial` 4.2.2 (exact pins; the `THEME_CATALOG`
   rows carry the published tarball SHA-256 values at contract 4.1.0, and the

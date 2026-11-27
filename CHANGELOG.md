@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Changed
 
+- Serve schemas 3.56.2 (exact pins in publish-action and publish-kernel; an
+  OpenAPI-only release, the JSON Schemas are unchanged). The lock fixture moves
+  with the pin.
 - Serve the six generation-4 themes at their patch releases (four at 4.2.1,
   `theme-amaze` and `theme-editorial` at 4.2.2); theme contract 4.1.0 is
   unchanged.
