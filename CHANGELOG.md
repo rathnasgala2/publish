@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Changed
 
+- Serve the six generation-4 themes at their patch releases (four at 4.2.1,
+  `theme-amaze` and `theme-editorial` at 4.2.2); theme contract 4.1.0 is
+  unchanged.
 - Serve schemas 3.56.1 and template 4.21.1 (exact pins in publish-action and
   publish-kernel; a flatter union in the schemas, no change to what validates).
   The lock fixture moves with the pins.

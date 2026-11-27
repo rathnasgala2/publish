@@ -39,54 +39,54 @@ export const THEME_REGISTRY = 'https://registry.npmjs.org/';
 export const THEME_CATALOG = Object.freeze([
   Object.freeze({
     package: '@rathnasgala2/theme-default',
-    version: '4.2.0',
+    version: '4.2.1',
     integrity:
-      'sha256:d4eb5dd5b0ca12391d82cfce8da2ec351bf1b9438bd99fb7a534a0249ab09885',
+      'sha256:ea1f69574ca58ab201ccb2498536ebdaa7f09b5e98e6d8c064a0326e3ec71a22',
     registry: THEME_REGISTRY,
     contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-amaze',
-    version: '4.2.1',
+    version: '4.2.2',
     integrity:
-      'sha256:cad8096c6b1fd0716185bea9179be03c2d7443de1612c63256e531f4632a4e24',
+      'sha256:3f53acc057ebbd28de5b74587897d161bacd4657a5e1b6d8b3c069e65092f791',
     registry: THEME_REGISTRY,
     contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-editorial',
-    version: '4.2.1',
+    version: '4.2.2',
     integrity:
-      'sha256:6bf3b9c2f525268901ebf8b0432e1310c12bd1539d8d40fbacf6cddb5e1b3a4b',
+      'sha256:bc4a1fd9ad3577e0588b839b1c795841bf78f5388bc45f68eb4e551d9f373745',
     registry: THEME_REGISTRY,
     contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-flashy',
-    version: '4.2.0',
+    version: '4.2.1',
     integrity:
-      'sha256:d01ffdd8d915046aab3195eb8a489313e3df5d8a70d29433df7b7cf94c0b23cd',
+      'sha256:750a273fda99b2fde0a2d95a69ca9a26b5efda8830d16c2386a8d51354243ddc',
     registry: THEME_REGISTRY,
     contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-minimal',
-    version: '4.2.0',
+    version: '4.2.1',
     integrity:
-      'sha256:875c5f8e7d817622ac6e51443a96c4dd552a7a638114e91acaf836f8e93b1f2e',
+      'sha256:b90a0ea85e5a5bd8c456dab9cfb96af834fda3f4e3d1552de9435c6a907ca2a3',
     registry: THEME_REGISTRY,
     contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',
   }),
   Object.freeze({
     package: '@rathnasgala2/theme-zebra',
-    version: '4.2.0',
+    version: '4.2.1',
     integrity:
-      'sha256:f8411cf8004775545d171b48599eb9e3427476969dd67216380143df0e65446b',
+      'sha256:2cd8aae23f887ff273733d3021add60f6442355562839c90cf7a163ee5825a48',
     registry: THEME_REGISTRY,
     contractVersion: '4.1.0',
     compatibleWith: '^4.0.0',

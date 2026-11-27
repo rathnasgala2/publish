@@ -28,8 +28,8 @@
   },
   "theme": {
     "package": "@rathnasgala2/theme-default",
-    "version": "4.2.0",
-    "integrity": "sha256:d4eb5dd5b0ca12391d82cfce8da2ec351bf1b9438bd99fb7a534a0249ab09885",
+    "version": "4.2.1",
+    "integrity": "sha256:ea1f69574ca58ab201ccb2498536ebdaa7f09b5e98e6d8c064a0326e3ec71a22",
     "registry": "https://registry.npmjs.org/",
     "contractVersion": "4.1.0",
     "compatibleWith": "^4.0.0"
@@ -70,5 +70,5 @@
   ],
   "dependencies": [],
   "dependencyDag": [],
-  "lockDigest": "sha256:20a3295b18d0ae5dbc69d008203353033097b3ac397b0b7652469cbd3ed0448d"
+  "lockDigest": "sha256:cc89a648e1e83e87aafb5c702b1b8a2c7c8ceeeff138cebe2c47dad08ff39893"
 }

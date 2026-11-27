@@ -87,7 +87,7 @@ test('the catalog command rewrites the theme catalog and the fixture lock of a c
       '3.11.0',
       '--template',
       '4.2.0',
-      `${FIXTURE_THEME}=4.2.0=${HEX}`,
+      `${FIXTURE_THEME}=4.2.1=${HEX}`,
     ]);
     const catalog = await readFile(path.join(root, THEME_CATALOG_PATH), 'utf8');
     const lock = JSON.parse(

@@ -42,6 +42,10 @@ and this project adheres to
 
 ### Changed
 
+- Serve `theme-default`, `theme-flashy`, `theme-minimal` and `theme-zebra` 4.2.1
+  and `theme-amaze` and `theme-editorial` 4.2.2 (exact pins; the `THEME_CATALOG`
+  rows carry the published tarball SHA-256 values at contract 4.1.0, and the
+  fixture lock follows `theme-default`).
 - Serve template 4.21.1 and validate against schemas 3.56.1 (exact pins). The
   peer range stays `^4.1.0`.
 - Intake copies the publication's optional `postAction` and an article's
