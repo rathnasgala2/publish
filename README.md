@@ -41,7 +41,7 @@ npm ci
 npm run verify
 ```
 
-Schemas 3.56.2, template 4.21.1 and the six generation-4 themes (four at 4.2.1,
+Schemas 3.56.2, template 4.22.0 and the six generation-4 themes (four at 4.2.1,
 `theme-amaze` and `theme-editorial` at 4.2.2) are installed from the public npm
 registry at exact versions; the lockfile carries their integrity.
 `THEME_CATALOG` records each theme tarball's registry SHA-256.

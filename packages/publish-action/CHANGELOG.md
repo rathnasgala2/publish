@@ -42,6 +42,8 @@ and this project adheres to
 
 ### Changed
 
+- Serve template 4.22.0 (exact pin; adds the root-level `<publication id>.txt`
+  key file to every build). The peer range stays `^4.1.0`.
 - Validate against schemas 3.56.2 (exact pin; OpenAPI-only release, the JSON
   Schemas are unchanged).
 - Serve `theme-default`, `theme-flashy`, `theme-minimal` and `theme-zebra` 4.2.1

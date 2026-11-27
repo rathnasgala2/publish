@@ -102,7 +102,7 @@ control-plane key.
 ## Contract sources and generation commands
 
 `@rathnasgala2/schemas@3.56.2` is consumed from the public npm registry (exact
-pin, no range). Template 4.21.1 and the six generation-4 themes (four at 4.2.1;
+pin, no range). Template 4.22.0 and the six generation-4 themes (four at 4.2.1;
 `theme-amaze` and `theme-editorial` at 4.2.2) are root devDependencies at exact
 registry versions; no sibling checkout is part of installation. No schema is
 re-authored here. Protocol payloads are validated with the package's exported

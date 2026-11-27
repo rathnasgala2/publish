@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Changed
 
+- Serve template 4.22.0 (exact pin; the template now emits the site's
+  `<publication id>.txt` IndexNow key file under its base). Schemas stay 3.56.2.
+  The lock fixture moves with the pin.
 - Serve schemas 3.56.2 (exact pins in publish-action and publish-kernel; an
   OpenAPI-only release, the JSON Schemas are unchanged). The lock fixture moves
   with the pin.

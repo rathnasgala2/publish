@@ -19,7 +19,7 @@
   },
   "template": {
     "package": "@rathnasgala2/template",
-    "version": "4.21.1",
+    "version": "4.22.0",
     "integrity": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
     "registry": "https://local-development.invalid/rathnasgala2/",
     "contractVersion": "4.0.0",
@@ -70,5 +70,5 @@
   ],
   "dependencies": [],
   "dependencyDag": [],
-  "lockDigest": "sha256:9c64bc015f78db02dfb2ac4dde22bcd77bbd36d04d1dc79a949b27e24ee1611c"
+  "lockDigest": "sha256:c1ae8b291870df0f8f71c1a2664fde8f791ab5d0bc3cd5a04b1a7c0692eb8660"
 }

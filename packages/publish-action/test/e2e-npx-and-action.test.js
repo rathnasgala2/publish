@@ -661,6 +661,11 @@ test('listing pageSize, aiRights and a past deleteDate authored in the repositor
     assert.match(license, /<license|rsl/iu);
     const home = await read('index.html');
     assert.match(home, /<meta[^>]*noai/iu);
+    // The IndexNow key file: the publication id plus a newline, at the site root.
+    assert.equal(
+      await read('01912345-6789-7abc-89ab-0123456789ab.txt'),
+      '01912345-6789-7abc-89ab-0123456789ab\n',
+    );
     const removed = await read('gone-post/index.html');
     assert.match(removed, /removed/iu);
     assert.doesNotMatch(removed, /Body of gone-post/u);
