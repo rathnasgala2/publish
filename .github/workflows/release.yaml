@@ -116,7 +116,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: rathnasgala2/user-template
-          ref: 86d2eec7e36e1c46a295a4bfd569917addb23e40
+          ref: 3a3b9079d10c9656a175e760291d5e97dae46b81
           path: .siblings/user-template
           persist-credentials: false
 
