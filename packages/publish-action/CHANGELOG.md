@@ -42,6 +42,8 @@ and this project adheres to
 
 ### Changed
 
+- Serve template 4.21.1 and validate against schemas 3.56.1 (exact pins). The
+  peer range stays `^4.1.0`.
 - Intake copies the publication's optional `postAction` and an article's
   optional `action` front-matter key into the build input as authored (absent
   stays absent).

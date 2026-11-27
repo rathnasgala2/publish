@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Changed
 
+- Serve schemas 3.56.1 and template 4.21.1 (exact pins in publish-action and
+  publish-kernel; a flatter union in the schemas, no change to what validates).
+  The lock fixture moves with the pins.
 - Serve schemas 3.56.0 and template 4.21.0 (exact pins in publish-action and
   publish-kernel). Intake carries the site's optional `postAction` and an
   article's optional `action` front-matter key into the build input as authored;
